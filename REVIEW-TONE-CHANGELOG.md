@@ -63,7 +63,8 @@ file — 2,128,605 records, 929 MB streamed in 67 s, nothing stored):
 Both clear the 12-quarter floor **at extraction**, which is an upper bound: the §5
 floor is on *scored* reviews, and seller/shipping exclusions plus scoring failures
 can only lower these counts. The clearing quarters are also not contiguous — HBB
-loses FY2020Q2–Q4, HELE the whole pre-FY2014 era.
+loses FY2020Q2–Q4 to the pandemic-era gap, and HELE clears only 2 quarters before
+FY2014 out of the 26 it touches.
 
 Checks that actually ran, rather than being asserted:
 - **Re-run determinism.** `reviews.csv` is byte-identical across reruns
