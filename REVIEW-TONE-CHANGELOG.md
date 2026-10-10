@@ -35,3 +35,79 @@ and a verified Phase A pipeline.
 has to fix first — test statistic, thresholds, weighting. Writing them now would
 mean choosing those after having seen the data, which is the thing the whole
 design exists to prevent.
+
+## 2026-10-11 · B5 aggregation
+
+Built `scripts/aggregate.py` — quarterly tone aggregation with the within-ASIN /
+product-mix decomposition. Stops at aggregation.
+
+**What it does:** reads `data/{TICKER}/reviews.csv` + `scores.csv`, writes
+`data/{TICKER}/quarters.csv` (16 columns, exactly the contract's schema and
+order — verified by parsing the column list out of `data-contracts.md` and
+diffing it against the emitted header), plus `data/dropped.csv` and an
+`aggregate` block merged into each `manifest.json`.
+
+**The decomposition.** Total tone change is split per methodology §3 over ASINs
+present in both Q and Q−1: `within = Σ w_i(Q−1)·Δtone_i`, `mix = Σ Δw_i·tone_i(Q−1)`,
+residual = entrants + exits + the within×mix interaction. Only `tone_within`
+feeds the signal. The residual is built from its own three terms and the
+identity `within + mix + residual == Δtotal` is then asserted, so the assertion
+tests the arithmetic rather than restating a definition — a residual computed as
+the leftover would reconcile by construction and check nothing.
+
+**Floors are hard stops.** A quarter below 30 included reviews emits
+`sufficient=false` with `tone_mean`, both CI bounds and all three decomposition
+columns null. It emits no number. A company below 12 usable quarters is dropped
+and recorded in `data/dropped.csv` with the reason, never replaced. Both
+thresholds are module constants, defaulted to 30 and 12; overriding them on the
+command line prints that the output is not a result.
+
+**Every mean carries an interval.** Percentile bootstrap, 2000 replicates,
+seed 20261011, resampling reviews within the quarter. Each quarter draws from a
+substream keyed by SHA-256 of (seed, ticker, quarter), so a CI does not depend on
+how many quarters preceded it or in what order they were processed. The one path
+that could produce a mean without an interval nulls the mean instead.
+
+**Blocking checks wired in, reported and never smoothed:** F4 (residual share of
+gross movement, naming whether entrant churn or the interaction term dominates),
+F12 (verified-purchase share against the prior-four-quarter mean), F13 (share of
+a quarter lost to scoring failure). Flags also land in the manifest.
+
+**Interpretation resolved and logged** in `methodology.md` §8, six rows. The
+load-bearing one: the three decomposition columns are the **Δ components** of §3,
+not levels, because that is the only reading under which they reconcile to the
+total change as the contract requires — so `baseline_prior4` is the mean of the
+prior four within-ASIN *changes* and `signal = tone_within(Q) − baseline_prior4(Q)`,
+the prereg's formula, is well defined. Also logged as an **open gap**: the
+contract has CI columns for `tone_mean` only, so the signal-level interval
+methodology §4 asks for is deferred to the backtest stage and must be specified
+in the prereg before `backtest.py` exists.
+
+**Not verified against real data, because there is none.** `data/` holds the two
+point-in-time universes and the brand alias table and nothing else — no
+`eligibility.csv`, no per-ticker directories, no `reviews.csv`, no `scores.csv`,
+and no frozen prereg. B2 (extract), B3 (calibrate) and B4 (score) have not run,
+so there are no per-quarter counts to report and no statement to make about how
+many quarters clear the floor. Running the script in that state exits non-zero
+and says so rather than producing anything.
+
+What was verified: 21 self-tests via `--self-test` (code correctness only, writes
+nothing, produces no research result) covering the reconciliation identity, a
+pure mix shift putting zero in the within component and vice versa, the floor
+nulling tone on quarters of 1, 4 and 6 reviews — the pilot's actual counts — gaps
+not being bridged, baseline/signal timing, bootstrap reproducibility and the
+degenerate single-value quarter. Separately, the full read/write path was
+exercised once end to end on a synthetic fixture in the scratchpad, which
+confirmed the schema match and that F4/F12 fire; that fixture was never written
+into `data/` and its numbers are not a finding.
+
+**Defect found and fixed during the build:** F4's residual flag initially divided
+by the total tone change, which goes to zero through cancellation — a quarter
+with a +0.00 total change was reported as a 958% residual alarm. Now measured
+against `|within|+|mix|+|residual|` and the message names which term dominates.
+
+**Still not built, deliberately:** `backtest.py` and `degrade.py`. They encode
+the test statistic, thresholds and weighting, which are prereg choices. Writing
+them now would mean choosing those after having seen aggregation output, which is
+the thing the design exists to prevent. Next is B6 `fetch_sec.py`, then freeze
+the prereg.
