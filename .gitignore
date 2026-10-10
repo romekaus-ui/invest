@@ -6,3 +6,6 @@ data/*/scores.csv
 *.pyc
 __pycache__/
 .venv/
+
+# Refetch cache for the rolling screen; safe to delete, costs only refetch time.
+.cache/

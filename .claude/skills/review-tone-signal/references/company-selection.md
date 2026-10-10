@@ -20,44 +20,70 @@ Run the **market screen first**, over the full population. Check review coverage
 dataset" lets data availability pick the companies, and data availability correlates with
 Amazon-channel success, which is downstream of the thing being predicted.
 
-**Formation date:** `2016-01-01` (default; set in prereg).
+**Formation: re-run every January 1, from 2016 to 2022.**
 
-**Population:** all registrants in SEC `company_tickers_exchange.json` listed on NYSE,
-NASDAQ or NYSE American at formation.
+A single formation date forces a bad trade. An early date has a long window but
+excludes every company that listed later — YETI (2018), Sonos (2018), e.l.f.,
+SharkNinja (2023) — which are precisely the Amazon-native brands the hypothesis
+is about. A late date buys those companies by discarding half the window.
 
-**SIC filter** — consumer durables and hardware, where a physical product's quality is
-plausibly visible in reviews:
+Re-forming annually removes the trade. Each screen sees only data available on
+its own date, so a company enters the test the year it first qualifies and
+leaves the year it stops. No screen sees its own future, so no hindsight enters.
 
-| SIC | Description |
-|---|---|
-| 3630, 3634, 3635, 3639 | Household appliances, housewares, vacuums |
-| 3651 | Household audio & video equipment |
-| 3571, 3572, 3575, 3577, 3578 | Computers and peripherals |
-| 3661, 3663, 3669 | Telephone & communications equipment |
-| 3827, 3861 | Optical instruments, photographic equipment |
-| 3944, 3949 | Games, toys, sporting goods |
-| 3089, 3420, 3421, 3429 | Plastics products, cutlery, hardware |
-| 2844, 3991 | Toiletries, brooms & brushes |
-| 5712, 5731, 5940, 5945 | Consumer retail of the above |
+The output is an **unbalanced panel of company-years**, not a fixed roster. The
+backtest therefore operates on company-quarters, with entries and exits
+explicit. A company contributes only the quarters during which it was in the
+universe.
 
-**Market cap band at formation:** USD 200M – 10B.
+**Population:** all registrants in SEC `company_tickers_exchange.json` listed on
+NYSE, NASDAQ or NYSE American at the formation date.
 
-- Below 200M: review volume and filing quality are both too thin.
-- Above 10B: the company is a conglomerate or a macro asset. Its reported revenue is a
-  sum over businesses the reviews cannot see, and its share price is driven by rates,
-  multiples and index flows. This band is where a single product line can still *be* the
-  company.
+**SIC filter:** the consumer-product codes in `scripts/sic_consumer.py` — 126
+codes in 17 groups, taken from SEC's official Division of Corporation Finance
+list. The selection rule, fixed before any company was examined:
 
-Market cap is computed point-in-time: `dei:EntityCommonStockSharesOutstanding` from the
-last EDGAR filing on or before formation, times the Stooq close on formation.
-**Never a present-day market cap** — that quietly excludes everything that later shrank,
-which is exactly the population the hypothesis is about.
+> include a code when a typical registrant under it makes or sells a physical
+> consumer product that could plausibly be bought on Amazon and reviewed by
+> the buyer.
 
-**Survivors are not the universe.** Companies that were later acquired, delisted or went
-to zero stay in. Dropping them is survivorship bias and will inflate every statistic
-downstream.
+Excluded on that rule: semiconductors and electronic components, industrial and
+construction machinery, primary metals, aerospace and defence, petroleum,
+building materials, and wholesale distribution.
 
-Output: `data/universe.csv`, hashed and committed before any review data is touched.
+Communications equipment (3661/3663/3669) is **kept** despite being mostly
+enterprise, because it also contains consumer audio and accessory makers —
+Turtle Beach sits in 3669. The enterprise names are removed downstream by
+criterion 4, which leaves a documented reason per company rather than a silent
+omission at the SIC stage. The same applies to computers and peripherals: it
+catches NetApp and Fortinet alongside Logitech, and the scorecard is what
+separates them.
+
+**Cap band at formation: USD 50M – 10B.**
+
+- The floor is low deliberately. Amazon-native brands are frequently small, and
+  a $200M floor removes much of the population the hypothesis concerns. Below
+  $50M, filing quality and review volume both degrade badly.
+- The ceiling stays at $10B. Above it the company is a conglomerate or a macro
+  asset: reported revenue sums over businesses the reviews cannot see, and the
+  share price answers to rates, multiples and index flows. This band is where a
+  single product line can still *be* the company.
+
+Market cap is point-in-time: `dei:EntityCommonStockSharesOutstanding` from the
+last filing on or before the formation date, times the close on that date,
+multiplied back up by any split that happened afterwards. **Never a present-day
+market cap** — that quietly excludes everything that later shrank, which is
+exactly the population the hypothesis is about.
+
+**Survivors are not the universe.** Companies later acquired, delisted or taken
+to zero stay in for the years they qualified. Dropping them is survivorship bias
+and inflates every statistic downstream. One known gap remains: registrants that
+delisted before today are missing from SEC's current ticker file, so the panel
+understates the delisted population. This is recorded rather than hidden, and
+closed in a later pass with historical ticker data.
+
+Output: `data/universe_panel.csv`, hashed and committed before any review data
+is touched. Built by `scripts/screen_rolling.py`.
 
 ---
 
