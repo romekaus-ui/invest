@@ -15,6 +15,29 @@ firm, so only the within-ASIN component feeds the signal. The mix term and the
 entrant/exit residual are emitted next to it, every quarter, because a quarter
 whose change is mostly churn said nothing regardless of its value.
 
+PROVENANCE WARNING - THE DECOMPOSITION FORMULA IS PROVISIONAL
+------------------------------------------------------------
+The *motivation* above is settled: CORE-PROMPT s7 requires the within/mix split
+and F4 is a blocking check. The *formula* is not. It comes from
+references/methodology.md s3, which that file's own header describes as "a
+faithful reconstruction of the method as described second-hand" - a
+reconstruction from a 61-second video, not from the source paper
+("More than words: Can tone of consumer product reviews help predict firms'
+fundamentals?", IDEAS/RePEc). methodology.md s8 still carries an open row:
+"Reconcile all of the above against the paper's actual construction - paper not
+yet read in full." Where the paper differs, the paper wins.
+
+The decomposition is therefore the part of this script MOST likely to be wrong,
+and it is the part that decides whether a reading means a company declining or a
+catalogue aging into grumpier reviews. It is isolated in exactly one function,
+`decompose()`, tagged DECOMPOSITION_SPEC, and that tag is written into every
+manifest. Swapping the formula after the paper is read is a change to one
+function; the tag tells you which outputs were built under the old one.
+
+Nothing else in this script depends on the paper. The column contract, the
+review and quarter floors, the bootstrap intervals, verified_share and the
+reconciliation assertion stand on CORE-PROMPT s5/s7 and data-contracts.md alone.
+
 WHAT THIS SCRIPT REFUSES TO DO
 ------------------------------
 - Emit a tone number for a quarter below the review floor (CORE-PROMPT s5, F5).
@@ -66,6 +89,14 @@ SCORING_FAILURE_FLAG = 0.10      # F13: >10% of a quarter lost to scorer failure
 VERIFIED_SHARE_DROP_FLAG = 0.15  # F12: verified share collapse vs prior quarters
 RESIDUAL_DOMINANT_FLAG = 0.50    # F4: |residual| > 50% of |total change|
 
+# Provenance tags recorded in every manifest. These are not cosmetic: they say
+# which construction produced a given quarters.csv, so that re-running after the
+# paper is reconciled (or after a numeric-stack change) is distinguishable from a
+# result rather than silently overwriting one. Same discipline as F10 applies to
+# the scorer, applied to the arithmetic.
+DECOMPOSITION_SPEC = "methodology-s3-reconstruction-v0-UNVERIFIED"
+BOOTSTRAP_IMPL = "stdlib-random.choices-cum_weights"
+
 QUARTER_RE = re.compile(r"^FY(\d{4})Q([1-4])$")
 
 # The tone scale is frozen at integers -2..+2 (tone-rubric-v1.md). Anything
@@ -102,6 +133,14 @@ def bootstrap_mean_ci(tones, replicates, rng, level=CI_LEVEL):
     so a resample is drawn over the distinct values with their empirical
     weights - that is the identical multinomial draw, just not spelled out one
     review at a time.
+
+    NUMERIC-STACK SEAM. This function is the only numerically intensive code in
+    the script and the only consumer of `rng`, so a numpy/scipy implementation
+    replaces this body and nothing else. Assumed here: stdlib only, per the
+    brief and the repo as it stands. Note for whoever swaps it - the seed alone
+    does not pin the output; the RNG *stream* is part of reproducibility, which
+    is why BOOTSTRAP_IMPL is recorded next to the seed in the manifest. A numpy
+    run is a new vintage, not a re-run of this one.
 
     Returns (low, high). Never returns a mean without an interval; callers that
     cannot get an interval must not emit the mean.
@@ -257,7 +296,22 @@ def asin_profile(included):
 def decompose(prev_included, cur_included):
     """Split the total tone change into within-ASIN, mix and residual.
 
-    methodology s3, over ASINs present in both quarters:
+    *** THE SWAP SEAM. PROVISIONAL FORMULA, UNVERIFIED SOURCE. ***
+
+    This is the only place the decomposition arithmetic lives, deliberately.
+    methodology.md s3 is a second-hand reconstruction, not the source paper's
+    construction, and s8 carries an open row to reconcile it. When the paper is
+    read, replace the body of this function and bump DECOMPOSITION_SPEC; every
+    caller, the reconciliation assertion, the F4 flag and the CSV writer are
+    independent of which formula sits here. Do not let a second copy of the
+    arithmetic appear anywhere else in the pipeline.
+
+    What is NOT provisional: that the split must happen at all (CORE-PROMPT s7),
+    that only the within component may feed the signal, and that the three
+    components must reconcile to the total change.
+
+    methodology s3 as currently reconstructed, over ASINs present in both
+    quarters:
 
         d_total  = tone(Q) - tone(Q-1)
         d_within = sum_i w_i(Q-1) * [tone_i(Q) - tone_i(Q-1)]
@@ -538,6 +592,9 @@ def report(ticker, rows, flags, args, dropped, reason):
         print("\n  blocking-check flags (reported, never smoothed):")
         for fl in flags:
             print("    !! %s" % fl)
+    if any(r["tone_within"] is not None for r in rows):
+        print("\n  !! within/mix/residual above come from %s - provisional."
+              % DECOMPOSITION_SPEC)
     if dropped:
         print("\n  !! DROPPED from the test: %s" % reason)
         print("  !! Recorded in data/dropped.csv. Do not substitute another")
@@ -705,8 +762,14 @@ def main():
 
     print("stage B5 aggregate - floors %d reviews/quarter, %d quarters/company"
           % (args.min_reviews, args.min_quarters))
-    print("bootstrap: %d replicates, seed %d, 95%% percentile CI"
-          % (args.bootstrap, args.seed))
+    print("bootstrap: %d replicates, seed %d, 95%% percentile CI, impl %s"
+          % (args.bootstrap, args.seed, BOOTSTRAP_IMPL))
+    print("decomposition spec: %s" % DECOMPOSITION_SPEC)
+    print("!! The within/mix formula is PROVISIONAL. methodology.md s3 is a")
+    print("!! second-hand reconstruction, not the source paper; s8 has an open")
+    print("!! row to reconcile it. Treat tone_within / tone_mix / tone_residual")
+    print("!! and every signal built on them as traceable to an unverified")
+    print("!! construction until the paper is read.")
 
     outcomes, failures = [], []
     for ticker in tickers:
@@ -731,7 +794,10 @@ def main():
             "min_quarters": args.min_quarters,
             "bootstrap_replicates": args.bootstrap,
             "bootstrap_seed": args.seed,
+            "bootstrap_impl": BOOTSTRAP_IMPL,
             "ci_level": CI_LEVEL,
+            "decomposition_spec": DECOMPOSITION_SPEC,
+            "decomposition_provisional": True,
             "quarters_observed": len(rows),
             "quarters_sufficient": suff,
             "quarters_with_signal": sum(1 for r in rows if r["signal"] is not None),

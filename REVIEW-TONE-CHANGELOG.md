@@ -111,3 +111,37 @@ the test statistic, thresholds and weighting, which are prereg choices. Writing
 them now would mean choosing those after having seen aggregation output, which is
 the thing the design exists to prevent. Next is B6 `fetch_sec.py`, then freeze
 the prereg.
+
+### 2026-10-11 · B5 addendum — decomposition marked provisional
+
+A peer session flagged that `methodology.md` §3 is not derived from the source
+paper. Verified against the repo before acting: §3's own header calls the spec "a
+faithful reconstruction of the method as described second-hand", §4 says
+"following the reel's construction", `failure-modes.md` names the 61-second
+video, and §8 carries an open row to reconcile against the paper. The flag is
+correct, and the first B5 entry above under-stated it — it logged *interpretation*
+decisions while presenting §3's formula itself as settled.
+
+Taken: isolate behind a marked seam, **not** pause the decomposition. Pausing
+would contradict the brief, which requires the split to ship; the seam satisfies
+both. No emitted number changed.
+
+- `DECOMPOSITION_SPEC = "methodology-s3-reconstruction-v0-UNVERIFIED"` and
+  `BOOTSTRAP_IMPL`, both written into every manifest. Re-running after the paper
+  is reconciled is then distinguishable from a result rather than silently
+  overwriting one — the F10 scorer-drift discipline applied to the arithmetic.
+- `decompose()` documented as the single swap point: replace its body, bump the
+  tag, and every caller, the reconciliation assertion, the F4 flag and the CSV
+  writer are unaffected. A second copy of the arithmetic must never appear.
+- Module docstring separates what is provisional (the formula) from what is not
+  (that the split must happen, that only `tone_within` feeds the signal, that the
+  three components reconcile) — those rest on CORE-PROMPT §5/§7 and the contract.
+- Run header and per-company footer print the provisional warning.
+
+**Numeric stack: assumed stdlib-only**, per the brief and the repo today. No venv
+set up. `bootstrap_mean_ci()` is the only numerically intensive code and the only
+consumer of the RNG, so a numpy/scipy version replaces that one body. Recorded
+there and in the manifest: the seed alone does not pin output — the RNG *stream*
+is part of reproducibility, so a numpy run is a new vintage, not a re-run.
+
+Still unbuilt, deliberately: `backtest.py`, `degrade.py`.
