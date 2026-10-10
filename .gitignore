@@ -1,0 +1,8 @@
+# Streamed review data is large and reproducible from the corpus; the
+# derived, hashed artefacts are what belong in version control.
+data/*/reviews.csv
+data/*/reviews_raw.jsonl
+data/*/scores.csv
+*.pyc
+__pycache__/
+.venv/
