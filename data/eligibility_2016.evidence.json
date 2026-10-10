@@ -1,0 +1,145 @@
+{
+  "companies": {
+    "HELE": {
+      "cik": "0000916789",
+      "criteria": {
+        "c1_amazon_share": {
+          "estimated": true,
+          "evidence": "Segments 'primarily sell their products through mass merchandisers, drugstore chains, warehouse clubs, catalogs, grocery stores, specialty stores, beauty supply retailers, e-commerce retailers, wholesalers, and various types of distributors' - e-commerce is one of ten named channels with no quantified share. Amazon is named only as a competitive threat eroding share at the company's brick-and-mortar customers, not as a channel of its own. Walmart 18% and Target 9% of net sales; top five customers 41%.",
+          "score": 1
+        },
+        "c2_portfolio_narrow": {
+          "evidence": "Four segments spanning housewares, thermometry/humidifiers/heaters, direct-mail nutritional supplements and personal care appliances, across owned and licensed brands (42% of net sales revenue is subject to trademark licence royalties). OXO alone 'has increased its product lines to over 800 items'.",
+          "score": 2
+        },
+        "c3_pureplay_revenue": {
+          "evidence": "'We operate our business under four segments: Housewares, Healthcare / Home Environment, Nutritional Supplements, and Personal Care.' Nutritional Supplements (acquired June 2014, Healthy Directions) is a direct-mail supplement business with a 600,000-customer auto-delivery database - unrelated to the housewares and appliance segments.",
+          "score": 2
+        },
+        "c4_b2b_oem_mix": {
+          "evidence": "Sales are to retail and e-commerce customers for resale to consumers; no OEM channel, enterprise segment or licensing revenue is disclosed. Trademark licences run the other way - the company pays royalties on 42% of net sales.",
+          "score": 5
+        },
+        "c5_quality_sensitive": {
+          "evidence": "'Our products are under warranty against defects in material and workmanship for periods ranging from two to five years', with a warranty accrual activity table; a $4.03 million allowance for back-to-stock returns at 2015-02-28; 'numerous technical and quality control personnel responsible for ensuring high product quality'.",
+          "score": 4
+        },
+        "c6_segment_disclosure": {
+          "evidence": "Net sales revenue reported by business segment in MD&A and in the segment note, with a table of product categories and significant products per segment, plus net sales by geographic region. Not disaggregated below segment to product category in dollars.",
+          "score": 4
+        },
+        "c7_reseller_noise": {
+          "evidence": "No probe matched: the filing discusses retailer private-label competition but contains no discussion of unauthorised dealers, grey-market resellers, counterfeits or minimum advertised pricing. Listing control is therefore unevidenced, not demonstrated.",
+          "score": 2
+        }
+      },
+      "filing": {
+        "accession": "0001558370-15-000587",
+        "filing_date": "2015-04-29",
+        "form": "10-K",
+        "report_date": "2015-02-28"
+      },
+      "formation_date": "2016-01-01",
+      "scored_at": "2026-10-11",
+      "scored_by": "claude-opus-5"
+    },
+    "LOGI": {
+      "cik": "0001032975",
+      "criteria": {
+        "c1_amazon_share": {
+          "estimated": true,
+          "evidence": "'Logitech products can also be purchased online either directly from Logitech.com or through e-tailers, such as Amazon.com, TigerDirect.com, Buy.com, CDW, Insight Enterprises' - Amazon named as a sales channel, but no e-commerce or Amazon share is quantified. 'Sales of peripherals to our retail channels were 89%, 88% and 87% of our net sales', a figure that mixes bricks-and-mortar with online. Estimated from the retail-channel share; the online component is undisclosed.",
+          "score": 2
+        },
+        "c2_portfolio_narrow": {
+          "evidence": "One principal brand, with product categories enumerated in the filing: Pointing Devices, Keyboards & Combos, Audio-PC & Wearables, PC Webcams, Home Control, Mobile Speakers, Gaming, Tablet & Other Accessories. Net sales are reported for each. Hundreds of SKUs, not tens of thousands across dozens of brands.",
+          "score": 4
+        },
+        "c3_pureplay_revenue": {
+          "evidence": "'Logitech has two operating segments, peripherals and video conferencing.' Video conferencing was 5%, 6% and 7% of net sales in fiscal 2015, 2014, 2013 - 'the large majority of our revenues have historically been derived from sales of our retail peripherals products for use by consumers.' One segment drives results, with a small second one.",
+          "score": 4
+        },
+        "c4_b2b_oem_mix": {
+          "evidence": "'Sales to OEM customers were 6% of our net sales' in fiscal 2015 and video conferencing, sold to 'distributors, value-added resellers, OEMs, and direct enterprise customers', a further 5% - roughly 11% of revenue outside the consumer retail channel. The filing also lists 'the exit from our OEM business' among restructuring plans. Enterprise customers also buy peripherals.",
+          "score": 3
+        },
+        "c5_quality_sensitive": {
+          "evidence": "Product warranty accrual estimated 'based on historical and projected warranty claim rates, historical and projected costs'; 'We grant limited rights to return products. Return rights vary by customer, and range from just the right to return defective product to stock rotation rights'; return rates driven in part by 'product quality issues'.",
+          "score": 4
+        },
+        "c6_segment_disclosure": {
+          "evidence": "'Net sales by product categories and sales channels, excluding intercompany transactions, were as follows (in thousands)' - three fiscal years of dollar revenue per product category and per channel, which is the level at which review tone would be measured.",
+          "score": 5
+        },
+        "c7_reseller_noise": {
+          "evidence": "'To distinguish genuine Logitech products from competing products and counterfeit products, Logitech has used, registered, or applied to register certain trademarks' and enforces them. Counterfeits are acknowledged as a live issue; no disclosure of grey-market resellers controlling distribution, and no minimum-advertised-price discussion. Partial evidence of listing control, not demonstration of it.",
+          "score": 3
+        }
+      },
+      "filing": {
+        "accession": "0001032975-15-000023",
+        "filing_date": "2015-06-05",
+        "form": "10-K",
+        "report_date": "2015-03-31"
+      },
+      "formation_date": "2016-01-01",
+      "scored_at": "2026-10-11",
+      "scored_by": "claude-opus-5"
+    },
+    "NTAP": {
+      "cik": "0001002047",
+      "criteria": {
+        "c1_amazon_share": {
+          "estimated": false,
+          "evidence": "Amazon appears in the filing only as a cloud technology partner - Cloud ONTAP on Amazon Web Services, Amazon S3 as a StorageGRID tier, SteelStore as Amazon Machine Images. No consumer or e-commerce sales channel of any kind is disclosed. Not an estimate: there is no disclosed consumer channel to estimate from.",
+          "score": 0
+        },
+        "c2_portfolio_narrow": {
+          "evidence": "No probe matched for consumer SKUs, product counts or brand portfolio. The product set is enterprise storage systems and data-management software sold into data centres; there is no consumer product portfolio to be narrow or broad.",
+          "score": 0
+        },
+        "c3_pureplay_revenue": {
+          "evidence": "'We operate in one industry segment: the design, manufacturing, marketing, and technical support of high-performance storage and data management solutions.' A single reportable segment drives all results.",
+          "score": 5
+        },
+        "c4_b2b_oem_mix": {
+          "evidence": "'The majority of our sales are made and/or fulfilled indirectly through channel partners, including value-added resellers, systems integrators, distributors, original equipment manufacturers (OEMs)' - 'revenues generated from sales through our indirect channel accounted for 80% of net revenues'; OEM relationships 'collectively accounted for 8% of our net revenues'. Revenue is enterprise and public-sector; consumer sales are not disclosed at all.",
+          "score": 0
+        },
+        "c5_quality_sensitive": {
+          "evidence": "Hardware and software warranty costs accrued at shipment with failure-rate estimates; 'Quality issues have and could again in the future cause customers to experience outages or disruptions in service, data loss or data corruption'; sales-returns estimates per distributor. Genuinely a quality-sensitive durable, but defects surface through support contracts and installed-base remediation rather than consumer returns and repeat purchase.",
+          "score": 3
+        },
+        "c6_segment_disclosure": {
+          "evidence": "Revenue is disaggregated only into Product (60%), Software maintenance (15%) and Hardware maintenance and other services (26%) as a percentage of net revenues, plus geography. One industry segment means there is no product-category revenue line to match against a product-level measurement.",
+          "score": 2
+        },
+        "c7_reseller_noise": {
+          "evidence": "Only third-party intellectual-property infringement claims and customer indemnification are discussed; no retail listing exists to control, so brand control of a product listing is not evidenced in any form.",
+          "score": 1
+        }
+      },
+      "filing": {
+        "accession": "0001564590-15-005051",
+        "filing_date": "2015-06-12",
+        "form": "10-K",
+        "report_date": "2015-04-24"
+      },
+      "formation_date": "2016-01-01",
+      "scored_at": "2026-10-11",
+      "scored_by": "claude-opus-5"
+    }
+  },
+  "criteria_weights": {
+    "c1_amazon_share": 25,
+    "c2_portfolio_narrow": 20,
+    "c3_pureplay_revenue": 20,
+    "c4_b2b_oem_mix": 10,
+    "c5_quality_sensitive": 10,
+    "c6_segment_disclosure": 10,
+    "c7_reseller_noise": 5
+  },
+  "formation_date": "2016-01-01",
+  "pass_bar": 60.0,
+  "universe": "universe_2016.csv"
+}
