@@ -80,6 +80,43 @@ Scorecard output. One row per universe member, including failures.
 | `scorer_model_id` | str | exact model ID |
 | `scored_at` | datetime | |
 
+## `data/{TICKER}/scoring_report.json`
+Written by `score_reviews.py` beside `scores.csv`. Counts, not scores — nothing
+downstream reads tone from here.
+
+Required keys: `scored_at`, `rubric_version`, `rubric_sha256`, `scorer_model_id`,
+`backend`, `n_attempted`, `n_scored`, `n_failed`, `failure_rate`,
+`n_failed_malformed`, `n_failed_transport`, `n_ok_after_retry`,
+`tone_distribution`, `n_seller_or_shipping_only`, `n_defect`,
+`n_price_complaint`, `n_in_tone_aggregate`, `tone_star_pearson`, `per_quarter`.
+
+`per_quarter[q]` carries `n`, `failed`, `seller_only`, `failure_rate` and
+`flagged_over_10pct` — F13's per-quarter rule applied where it bites.
+`tone_star_pearson` is F8's check: the scorer never saw the star, so a value near
+0.95 means the text added nothing over the star average.
+
+## `data/{TICKER}/calibration.json`
+The B3 gate record. **Downstream stages must read this and refuse to produce a
+result unless `gate == "pass"` and both `rubric_version` and `scorer_model_id`
+match the scores they are aggregating** (`score_reviews.require_calibration`).
+
+| key | notes |
+|---|---|
+| `gate` | `pass` / `blocked` / `pending_human_labels` |
+| `n_required`, `n_labelled` | gate is defined on 100; a short sample is `blocked` |
+| `exact_agreement` | reported, not gated |
+| `adjacent_agreement` + `_ci` | gate: >= 0.85 |
+| `quadratic_weighted_kappa` + `_ci` | gate: >= 0.60; `null` when undefined, which is `blocked` |
+| `rubric_version`, `rubric_sha256`, `scorer_model_id` | calibration is re-run when any of these changes |
+| `confusion_human_rows_model_cols` | 5x5 over `categories` |
+| `bootstrap_reps`, `bootstrap_seed` | CIs are reproducible |
+
+`calibration_sample.csv` is the blind labelling sheet: `review_id`, `title`,
+`text`, `human_tone`, `human_seller_or_shipping_only`. It carries **no model
+score and no star rating** — a human who sees either is no longer an independent
+rater, and the agreement becomes circular on the human side (F8).
+`calibration_key.csv` holds the model answers and is not opened before labelling.
+
 ## `data/{TICKER}/quarters.csv`
 
 | column | type | notes |
