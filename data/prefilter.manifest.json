@@ -1,0 +1,138 @@
+{
+ "cut_reasons": {
+  "no_consumer_channel_disclosed": 2657
+ },
+ "cut_total": 2657,
+ "kept_total": 865,
+ "panel": {
+  "file": "universe_panel.csv",
+  "in_band_company_years": 3522,
+  "sha256": "28db9bdb5609e5c5f659ba1f4a0791d3226df37bbbf23457a724f5b194a84432"
+ },
+ "partial": false,
+ "per_formation_year": {
+  "2016": {
+   "cut": 313,
+   "cut_reasons": {
+    "no_consumer_channel_disclosed": 313
+   },
+   "in_band": 396,
+   "kept": 83
+  },
+  "2017": {
+   "cut": 316,
+   "cut_reasons": {
+    "no_consumer_channel_disclosed": 316
+   },
+   "in_band": 412,
+   "kept": 96
+  },
+  "2018": {
+   "cut": 314,
+   "cut_reasons": {
+    "no_consumer_channel_disclosed": 314
+   },
+   "in_band": 421,
+   "kept": 107
+  },
+  "2019": {
+   "cut": 373,
+   "cut_reasons": {
+    "no_consumer_channel_disclosed": 373
+   },
+   "in_band": 500,
+   "kept": 127
+  },
+  "2020": {
+   "cut": 389,
+   "cut_reasons": {
+    "no_consumer_channel_disclosed": 389
+   },
+   "in_band": 526,
+   "kept": 137
+  },
+  "2021": {
+   "cut": 438,
+   "cut_reasons": {
+    "no_consumer_channel_disclosed": 438
+   },
+   "in_band": 582,
+   "kept": 144
+  },
+  "2022": {
+   "cut": 514,
+   "cut_reasons": {
+    "no_consumer_channel_disclosed": 514
+   },
+   "in_band": 685,
+   "kept": 171
+  }
+ },
+ "prefilter_panel": {
+  "file": "prefilter_panel.csv",
+  "rows": 3522,
+  "sha256": "e91ffb20719a881ce75d7ab2acfe743d5a7e55481f46d44438c0b5be6d38fc76"
+ },
+ "probe_version": "prefilter-v3",
+ "probes": {
+  "channel_exclude": "Amazon(?:\\.com)?[,\\s]*(?:Inc\\.?[,\\s]*)?(?:Web Services|AWS|S3|Simple Storage|Simple Queue|Machine Image|Elastic|EC2|Redshift|CloudFront|DynamoDB|Kinesis|Glacier|Lambda|Aurora|Alexa|Echo|Fire ?TV|Kindle Direct|Marketplace Web Service)|\\bAWS\\b|direct[- ]to[- ]consumer\\b[^.]{0,40}?\\b(?:advertis\\w*|promotion\\w*|marketing|campaign\\w*|television|media|print|commercial\\w*)\\b",
+  "channel_probes": {
+   "amazon": "\\bAmazon(?:\\.com)?\\b",
+   "direct": "\\bdirect[- ]to[- ]consumer\\b|\\bour (?:own )?online stores?\\b|\\bour (?:own )?e-?commerce (?:sites?|websites?|platforms?|channels?)\\b",
+   "ecommerce": "\\be-?commerce\\b|\\bonline (?:sales|sale|retail|retailers?|channel|channels|store|stores|marketplace|marketplaces)\\b|\\binternet (?:sales|retail|retailers?)\\b|\\bweb(?:site)? sales\\b"
+  },
+  "quantified_re": "(?:[0-9]{1,3}(?:\\.[0-9]{1,2})?\\s*(?:%|percent)[^.]{0,140}?(?:e-?commerce|online|internet|direct[- ]to[- ]consumer|Amazon|DTC)|(?:e-?commerce|online|internet|direct[- ]to[- ]consumer|Amazon|DTC)[^.]{0,140}?[0-9]{1,3}(?:\\.[0-9]{1,2})?\\s*(?:%|percent))",
+  "segment_re": "\\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|single|[0-9]{1,2})\\s+(reportable|reporting|operating|business)\\s+(?:operating\\s+|business\\s+)?segments?\\b"
+ },
+ "scan_order": {
+  "effective_seed": 20261015,
+  "method": "fisher-yates on randrange, per formation year, years ascending",
+  "rng": "stdlib-mt19937",
+  "seed": 20261011,
+  "stage_offset": 4,
+  "why": "A2 scores a prefix of the shortlist; a prefix of a seeded permutation is a random sample of the keep set"
+ },
+ "shortlists": {
+  "2016": {
+   "company_years": 83,
+   "file": "shortlist_2016.csv",
+   "sha256": "866550a5fe02c0b87dec0774e5cd63aa6ca3d7fedaf6c43855edfedc64517eec"
+  },
+  "2017": {
+   "company_years": 96,
+   "file": "shortlist_2017.csv",
+   "sha256": "55280c6cafc88eefb50a16eebfc017326fdb30106b6c95bdaf434ecafec6f0ca"
+  },
+  "2018": {
+   "company_years": 107,
+   "file": "shortlist_2018.csv",
+   "sha256": "ace494661a42af8b0877f4bc0ef40baac56fc7aa48cbc50bc0a67ded63b50baf"
+  },
+  "2019": {
+   "company_years": 127,
+   "file": "shortlist_2019.csv",
+   "sha256": "5efed8a9d43bd4fa1238d068f9107a22af683211d3656325a04b456f9b71214e"
+  },
+  "2020": {
+   "company_years": 137,
+   "file": "shortlist_2020.csv",
+   "sha256": "f6a49f84422aa8972c0904d225a4cfaa307846a24f087154514cb8a26ce958d5"
+  },
+  "2021": {
+   "company_years": 144,
+   "file": "shortlist_2021.csv",
+   "sha256": "aa6f84fd50eea17154a68508f58bf346740ba69073d7d1e743ebcccbe507cb29"
+  },
+  "2022": {
+   "company_years": 171,
+   "file": "shortlist_2022.csv",
+   "sha256": "8b2f3b9abd031673a5e5b1eee002155333316e8894c72c160d91706a53b2b2a4"
+  }
+ },
+ "thresholds": {
+  "dedup_radius": 120,
+  "min_channel_mentions": 2,
+  "segment_count_cut": null
+ },
+ "unmeasured": []
+}

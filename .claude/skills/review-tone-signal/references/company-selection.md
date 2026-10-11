@@ -87,6 +87,209 @@ is touched. Built by `scripts/screen_rolling.py`.
 
 ---
 
+## 1b. The mechanical pre-filter (between §1 and §2)
+
+§1 produces 3,522 in-band company-years. §2 is scored by hand, from the filing in
+force, at 6–8k tokens and 2–3 EDGAR requests each. Those two facts do not meet:
+nobody hand-scores 3,522 company-years, and a scorecard that is never applied
+bounds nothing. The pre-filter is what stands between them. It reads the hashed
+panel and writes the set §2 scores.
+
+Built by `scripts/prefilter_panel.py`. It is part of the instrument, not a
+convenience, so it is bound by the same rules:
+
+**Structure only, never outcome.** Its inputs are structural facts disclosed in
+the filing that was public at the formation date: whether the registrant
+discloses selling through Amazon, e-commerce or a direct channel, and how many
+reportable segments it says it has. Nothing about how the company turned out is
+read or available — no later revenue, no price, no survival. CORE-PROMPT §1.2.
+
+**Point-in-time, mechanically.** The evidence is resolved by
+`score_eligibility.choose_in_force()` — the last annual report filed on or before
+formation, falling back to the last registration statement where no annual report
+existed yet. That function is §2's point-in-time boundary and it is *called*, not
+reimplemented, so the project has one definition of "in force" and one EDGAR
+client.
+
+**The same rule for every company-year.** The regexes and the threshold are
+frozen constants in the script, declared before any company was examined, applied
+uniformly across all seven formations. A rule that varied with how interesting a
+company looked would be selection, not filtering.
+
+**Absence-only cuts.** The filter never decides a company is *good*. It cuts a
+company-year only when the structural evidence is **absent** from the filing in
+force: no consumer channel disclosed, no filing at all, or a filing that could
+not be read. A company-year the filter keeps is one §2 may still fail, and that
+is the correct division of labour — Helen of Troy is kept with eighteen channel
+mentions, then fails §2 at 49.0 on the evidence.
+
+### The threshold, and the one that was removed
+
+| Threshold | Value | Reason |
+|---|---|---|
+| `MIN_CHANNEL_MENTIONS` | 2 distinct mentions | One mention is as often a cost line or a boilerplate risk factor as a channel. Not higher: **Logitech, the only company-year §2 has passed (69.0), clears it at exactly 2.** |
+| `DEDUP_RADIUS` | 120 chars | Matches closer together than this are one piece of text, so one clause matched by two probe families counts once. |
+| segment count | **no cut** | Built, run on the whole panel, audited, removed. Still recorded, and its parse was corrected — see below. |
+
+**The segment-count cut was removed, and the reason is the useful part.** v1 cut
+the 57 company-years disclosing five or more reportable segments. The seeded audit
+of those cuts showed the test does not measure what it claims: criterion 3 asks
+whether *unrelated* segments dominate, and a count cannot tell unrelated
+businesses from one business reported by brand, channel or geography. It had cut
+Deckers (six segments, 106 e-commerce mentions — UGG, Teva and Sanuk segmented by
+brand) and Carter's (five segments, children's apparel by brand and geography),
+and GameStop crossed the bar between 2017 and 2021 on a reporting change rather
+than a structural one. Removing it **enlarged** the shortlist by 57, so it was not
+done to make a number look better. The count is still measured and recorded on
+every row, so §2 reads it and judges relatedness from the filing — which is
+criterion 3's actual job.
+
+Note also what could never have been claimed for that threshold: **no segment
+count makes a 60/100 pass arithmetically impossible.** Criteria 2 and 3 together
+are only 40 of 100, so a company scoring 0 on both can still reach the bar. The
+channel floor that remains is likewise a declared screening rule that is
+*stricter than the scorecard*, not a proof that what it cuts could not have
+passed. §1b is honest about that rather than dressed up as arithmetic.
+
+### What it deliberately does not use
+
+- **SIC group.** §1 keeps communications equipment and computers at the SIC stage
+  on purpose, so that the enterprise names leave "with a documented reason per
+  company rather than a silent omission at the SIC stage". A SIC-group cut here
+  reinstates that omission one stage later — and could not do the job anyway,
+  since Logitech, NetApp and Fortinet share SIC 357x. The group is recorded on
+  every row and used by nothing.
+- **Quantification.** Whether the disclosed channel share is quantified is
+  measured and recorded, because it is what criterion 1 asks for. It is not a
+  cut: Logitech is the only company-year §2 has passed, and its Amazon share is
+  undisclosed.
+- **Revenue, or any level.** No revenue floor, no size test beyond the cap band
+  §1 already applies.
+
+### The probes, and every correction the audit forced
+
+Each of these is a *false match read in a real filing*, not a tuning. The probe
+version is `prefilter-v3`, and it is part of the measurement cache key, so
+changing a regex invalidates every cached measurement instead of silently mixing
+two instruments in one shortlist.
+
+Dropped from the probes:
+
+- `our website` — every 10-K says the code of conduct is available on one. It
+  matched NetApp's investor-relations boilerplate twice and would have kept an
+  enterprise storage vendor on a *channel* test.
+- bare `DTC` — in a 10-K that is usually the Depository Trust Company, in the
+  book-entry discussion. Where it means the channel it is nearly always
+  introduced as "direct-to-consumer (DTC)", which the spelled-out probe catches.
+- `our direct channel` — a direct *sales force*, not a consumer channel. Aviat
+  Networks' FY2019 10-K: "in addition to our direct channel to market, we have
+  relationships with original equipment manufacturers".
+
+Excluded as matches that are not a channel, by a fixed list applied to every
+company identically:
+
+- Amazon as cloud infrastructure or a developer platform (AWS, S3, Machine
+  Images). NetApp's FY2015 10-K mentions Amazon three times and every one is AWS.
+- `direct-to-consumer` followed within 40 characters by advertising, promotion,
+  marketing, a campaign, television, media or print — pharmaceutical marketing
+  regulation, which every clinical-stage SIC 2834 registrant carries. **The gap
+  matters:** Acadia's filing says "direct-to-consumer *television*
+  advertisements" and Vanda's says "direct-to-consumer *campaign*", and a pattern
+  requiring the words to be adjacent let both through into the shortlist.
+
+And the segment count itself, which decides nothing but which §2 reads as
+context, was being parsed wrongly. v1 took the **maximum** of the statements it
+found. A flattened 10-K puts note numbers and page numbers immediately before
+headings, and the heading is "Reportable Segments":
+
+- BorgWarner — "NOTE 19 REPORTING SEGMENTS AND RELATED INFORMATION", in a filing
+  that says "two reporting segments" seven times. v1 recorded 19.
+- Atkore — "...between 2018 and 2022. 29 Reportable Segments We operate our
+  business through two operating segments." The 29 is a page number, and the
+  correct answer is two words later. v1 recorded 29.
+
+Fourteen company-years carried a count of 17 to 29 on this. The count is now the
+**mode** of the plausible statements (ties to the larger), values above 12 are
+recorded but cannot be chosen, and a number directly preceded by NOTE or ITEM is
+not a statement at all. Everything found is still written to `segments_matches`,
+including what was rejected, so the parse can be audited from the row. Note that
+had the v1 segment *cut* survived, it would have cut those fourteen on a page
+number.
+
+And one structural correction, the largest of them: **one piece of text is one
+piece of evidence.** Natural Alternatives' FY2019 10-K says its customers market
+"through direct sales marketing channels, direct to consumer ecommerce channels
+and retail stores" — one clause, matched by two families, which summed to two
+mentions and cleared a floor of two on a single phrase. §2's own `probe_text`
+already treats a paragraph matched by three probes as one piece of evidence; the
+filter now does the same. The per-family raw counts are still recorded, next to
+the deduplicated total the decision reads.
+
+### Two limitations that are not fixable by a better regex
+
+- **It cannot tell whose channel it is.** Natural Alternatives is a private-label
+  contract manufacturer whose 10-K describes the e-commerce channels *its
+  customers* sell through. Two distinct mentions, so it is kept — and criterion 4
+  is what fails it. The filter reads disclosure, not ownership.
+- **It reads the filing, not the world.** Bassett Furniture's FY2014 10-K
+  mentions the internet as an advertising medium and as a competitor's channel,
+  and its own website only in the "available free of charge" boilerplate. It is
+  cut as disclosing no channel, which is what the filing says, whether or not the
+  company was selling online. A company that sells online without disclosing it
+  leaves the universe for a year, and re-enters the year it discloses — which is
+  the rolling formation behaving as §1 intends, not a bug, but it does mean the
+  filter measures *disclosure* and nothing more.
+
+### Output, and the limit of what it bounds
+
+```
+data/prefilter_panel.csv      every in-band company-year, kept or cut, with the
+                              facts read and a structured reason per cut
+data/shortlist_<YEAR>.csv     what §2 scores, per formation year, + .hash
+data/prefilter.evidence.json  the matched windows, per company-year
+data/prefilter.manifest.json  thresholds, panel sha256, counts in and out
+```
+
+The shortlist is written in a **seeded random order** (`random.Random`, seed
+20261011 + stage offset 4, Fisher-Yates on `randrange` — `numeric-stack.md` §3)
+and §2 works it front to back. This matters: the filter keeps roughly a third of
+the panel, so in practice §2 scores a *prefix*. A prefix of a seeded permutation
+is a random sample of the keep set; a prefix of an alphabetical or
+channel-mention-sorted list is not. How far down the order §2 got belongs in the
+changelog.
+
+**Take a prefix from each formation year, not all of one year.** The order is
+permuted within a year, and §2 is invoked per year. Scoring 2016 to exhaustion
+and stopping yields a panel whose companies all entered in 2016 — which throws
+away the reason §1 re-forms annually, and with it YETI, Sonos and e.l.f. The
+A2 gate counts eligible companies, but the backtest runs on company-quarters
+with entries and exits, so the later formations are not optional.
+
+Two self-checks, both re-runnable:
+
+```bash
+prefilter_panel.py show  --ticker LOGI --year 2016   # one company-year's evidence
+prefilter_panel.py audit --sample 6                  # a seeded sample, wider net
+prefilter_panel.py verify                            # artefacts against the panel
+```
+
+`audit` refetches the filing and greps it with a deliberately wider net than the
+probes. A filter checked against its own matched snippets is checked against
+nothing. **A channel disclosure the frozen probes missed is a defect to report,
+not a threshold to move.**
+
+**The caveat, stated here because it is not closeable by being careful.** §2
+requires the ineligible list to be part of the result. The pre-filter cuts on
+segment count and channel disclosure, which is the same evidence as criteria 3 and
+1 — so the cut is *correlated with* the scorecard and is not independent of it. A
+cut company-year therefore carries a structural reason and its evidence, but **no
+scorecard score**, and the ineligible list is complete only in the first sense.
+`prefilter_panel.csv` is what bounds the population, not `eligibility_<YEAR>.csv`;
+`score_eligibility.py build` prints the upstream cut count so the two are never
+read as if the second were the whole story.
+
+---
+
 ## 2. Structural eligibility scorecard
 
 Applied to every name in the universe. Scored 0–5 on each criterion, weighted, out of
