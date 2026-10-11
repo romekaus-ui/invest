@@ -58,6 +58,28 @@ Load these as needed; do not load them all up front.
 - `references/failure-modes.md` — the blocking checks, each with how it fails silently.
   Read when a result looks good; that is when it matters.
 - `references/data-contracts.md` — exact schemas for every CSV and JSONL in the pipeline.
+- `references/weekly-routine.md` — the scheduled weekly run: cron, config and its
+  verbatim prompt. Read before changing the schedule.
+
+## Running the pipeline
+
+Do not retype the phase map as a prompt. `/review-tone-run` runs it:
+
+```bash
+python3 .claude/skills/review-tone-signal/scripts/orchestrate.py            # advance
+python3 .claude/skills/review-tone-signal/scripts/orchestrate.py --dry-run  # rehearse
+```
+
+The orchestrator reads the phase from disk, refuses to start a phase whose gate
+is unmet, invokes every stage with `--window dev` until the prereg is frozen,
+appends a validated row to `results/results.jsonl`, and will not re-run a
+backtest under a prereg hash that has already failed on held-out data. Gate
+decisions come from `scripts/pipeline_state.py`; never make one in prose.
+
+`.claude/commands/review-tone-run.md` documents the stage interfaces that
+`extract_reviews.py`, `score_reviews.py`, `aggregate.py`, `backtest.py` and
+`degrade.py` must satisfy. Until each exists the orchestrator stops at it and
+says `stage X not built yet` rather than skipping it.
 
 ## Data sources
 

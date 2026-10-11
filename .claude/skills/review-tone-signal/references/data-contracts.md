@@ -134,3 +134,60 @@ Required keys: `run_id`, `run_at`, `phase`, `prereg_hash`, `universe_hash`,
 
 `specifications_tested` is a count, not a list of the good ones. Reporting only the
 surviving specification is F6.
+
+---
+
+# Orchestration contracts
+
+Added when the orchestration layer was built (`scripts/orchestrate.py`). These
+are the interfaces the orchestrator reads and writes; the stages above are
+unchanged.
+
+## `data/calibration.json`
+Written by `score_reviews.py --calibrate`. The calibration gate in
+`tone-rubric-v1.md` is read from this file, so a missing or incomplete one blocks
+the pipeline rather than being treated as a pass.
+
+| key | type | notes |
+|---|---|---|
+| `n` | int | reviews hand-labelled; the rubric requires >= 100 |
+| `exact_agreement` | float | |
+| `adjacent_agreement` | float | **gate: >= 0.85** |
+| `quadratic_weighted_kappa` | float | **gate: >= 0.60** |
+| `rubric_version` | str | must match the prereg |
+| `scorer_model_id` | str | must match the prereg; a change forces re-calibration (F10) |
+| `labelled_by` | str | who labelled, blind to model output |
+| `scored_at` | datetime | |
+
+## The measurement JSON (`backtest.py`, `degrade.py`)
+Written to the `--out` path. The orchestrator reads it and builds the result row
+from it; the model never assembles these numbers itself (§1.3).
+
+Required: `verdict` ∈ {`signal`, `no_signal`, `insufficient_data`},
+`heldout_evaluated` (bool), `point_estimate`, `ci_low`, `ci_high`,
+`baseline_value`, `base_rate`, `null_run_result`, `n_quarters`, `n_per_quarter`,
+`specifications_tested` (a count).
+
+Optional, carried through: `hit_rate`, `p_value`, `null_distribution`,
+`endpoint`, `test_statistic`, `window`, `specifications`. On a held-out failure,
+`predicted`, `actual`, `why` and `failure_mode` are carried into the `MISSES.md`
+entry; absent ones fall back to a generic line, which is worse evidence, so write
+them.
+
+## `results/results.jsonl` — keys the orchestrator adds
+Beyond the required set in §9, every orchestrated row carries:
+
+| key | type | why |
+|---|---|---|
+| `n_per_quarter` | int/null | §9 says "n per quarter"; `n_quarters` is a count of quarters, not a count per quarter, so both are carried |
+| `heldout_evaluated` | bool | without it a spent hypothesis cannot be told from an unfinished one, and the no-retry rule cannot be enforced mechanically |
+| `state_fingerprint` | object | content hashes and counts of what the run saw, so "what changed since last run" is a diff of the append-only log rather than a mutable state file that could disagree with it |
+| `gate_unmet`, `stopped_at`, `blocked_reason` | str | required when `verdict` is `insufficient_data`: the row must say what stopped it |
+| `stages_run`, `orchestrator` | list/str | provenance of the run itself |
+
+A row with `verdict` `signal` or `no_signal` and a null point estimate, interval,
+baseline, base rate or null-run result is rejected and not written. Validate with:
+
+```bash
+python3 .claude/skills/review-tone-signal/scripts/results_row.py results/results.jsonl
+```
