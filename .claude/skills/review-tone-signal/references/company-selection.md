@@ -98,46 +98,58 @@ panel and writes the set §2 scores.
 Built by `scripts/prefilter_panel.py`. It is part of the instrument, not a
 convenience, so it is bound by the same rules:
 
-**Structure only, never outcome.** Its only inputs are two structural facts
-disclosed in the filing that was public at the formation date: how many
-reportable segments the registrant says it has, and whether it discloses selling
-through Amazon, e-commerce or a direct channel. Nothing about how the company
-turned out is read or available — no later revenue, no price, no survival.
-CORE-PROMPT §1.2.
+**Structure only, never outcome.** Its inputs are structural facts disclosed in
+the filing that was public at the formation date: whether the registrant
+discloses selling through Amazon, e-commerce or a direct channel, and how many
+reportable segments it says it has. Nothing about how the company turned out is
+read or available — no later revenue, no price, no survival. CORE-PROMPT §1.2.
 
 **Point-in-time, mechanically.** The evidence is resolved by
-`score_eligibility.in_force_filing()` — the last annual report filed on or before
+`score_eligibility.choose_in_force()` — the last annual report filed on or before
 formation, falling back to the last registration statement where no annual report
-existed yet. That function is §2's point-in-time boundary and it is reused rather
-than reimplemented, so the project has one definition of "in force" and one EDGAR
+existed yet. That function is §2's point-in-time boundary and it is *called*, not
+reimplemented, so the project has one definition of "in force" and one EDGAR
 client.
 
-**The same rule for every company-year.** The regexes and the two thresholds are
+**The same rule for every company-year.** The regexes and the threshold are
 frozen constants in the script, declared before any company was examined, applied
 uniformly across all seven formations. A rule that varied with how interesting a
 company looked would be selection, not filtering.
 
-**Absence-only cuts, with one exception.** The filter never decides a company is
-*good*. It cuts a company-year when the structural evidence is **absent** from the
-filing in force — no disclosed consumer channel, or no filing at all. The one
-positive-evidence cut is segment sprawl, and it is set deliberately loose. A
-company-year the filter keeps is one §2 may still fail, and that is the correct
-division of labour: Helen of Troy is kept with four segments and eighteen channel
+**Absence-only cuts.** The filter never decides a company is *good*. It cuts a
+company-year only when the structural evidence is **absent** from the filing in
+force: no consumer channel disclosed, no filing at all, or a filing that could
+not be read. A company-year the filter keeps is one §2 may still fail, and that
+is the correct division of labour — Helen of Troy is kept with eighteen channel
 mentions, then fails §2 at 49.0 on the evidence.
 
-### The thresholds
+### The threshold, and the one that was removed
 
 | Threshold | Value | Reason |
 |---|---|---|
-| `MIN_CHANNEL_MENTIONS` | 2 | A single mention is as often a cost line or a boilerplate risk factor as a channel. Not higher, because the test detects *absence* of a disclosed channel; ranking how much a company talks about one is §2's job. |
-| `SEG_MAX` | 4 | Cut at five or more. Loose on purpose — see above. |
+| `MIN_CHANNEL_MENTIONS` | 2 distinct mentions | One mention is as often a cost line or a boilerplate risk factor as a channel. Not higher: **Logitech, the only company-year §2 has passed (69.0), clears it at exactly 2.** |
+| `DEDUP_RADIUS` | 120 chars | Matches closer together than this are one piece of text, so one clause matched by two probe families counts once. |
+| segment count | **no cut** | Built, run on the whole panel, audited, removed. |
 
-Note what cannot be claimed for either number: **no segment count makes a 60/100
-pass arithmetically impossible.** Criteria 2 and 3 together are only 40 of 100, so
-a company scoring 0 on both can still reach the bar. The thresholds are a declared
-screening rule that is *stricter than the scorecard*, not a proof that what they
-cut could not have passed. §1b is honest about that rather than dressed up as
-arithmetic.
+**The segment-count cut was removed, and the reason is the useful part.** v1 cut
+the 57 company-years disclosing five or more reportable segments. The seeded audit
+of those cuts showed the test does not measure what it claims: criterion 3 asks
+whether *unrelated* segments dominate, and a count cannot tell unrelated
+businesses from one business reported by brand, channel or geography. It had cut
+Deckers (six segments, 106 e-commerce mentions — UGG, Teva and Sanuk segmented by
+brand) and Carter's (five segments, children's apparel by brand and geography),
+and GameStop crossed the bar between 2017 and 2021 on a reporting change rather
+than a structural one. Removing it **enlarged** the shortlist by 57, so it was not
+done to make a number look better. The count is still measured and recorded on
+every row, so §2 reads it and judges relatedness from the filing — which is
+criterion 3's actual job.
+
+Note also what could never have been claimed for that threshold: **no segment
+count makes a 60/100 pass arithmetically impossible.** Criteria 2 and 3 together
+are only 40 of 100, so a company scoring 0 on both can still reach the bar. The
+channel floor that remains is likewise a declared screening rule that is
+*stricter than the scorecard*, not a proof that what it cuts could not have
+passed. §1b is honest about that rather than dressed up as arithmetic.
 
 ### What it deliberately does not use
 
@@ -154,22 +166,45 @@ arithmetic.
 - **Revenue, or any level.** No revenue floor, no size test beyond the cap band
   §1 already applies.
 
-### The probes, and what was dropped from them
+### The probes, and every correction the audit forced
 
-Two probes that look obvious were dropped after reading what they matched:
+Each of these is a *false match read in a real filing*, not a tuning. The probe
+version is `prefilter-v2`, and it is part of the measurement cache key, so
+changing a regex invalidates every cached measurement instead of silently mixing
+two instruments in one shortlist.
 
-- `our website` — every 10-K says the code of conduct is available on our
-  website. It matched NetApp's investor-relations boilerplate twice and would have
-  kept an enterprise storage vendor on a channel test.
+Dropped from the probes:
+
+- `our website` — every 10-K says the code of conduct is available on one. It
+  matched NetApp's investor-relations boilerplate twice and would have kept an
+  enterprise storage vendor on a *channel* test.
 - bare `DTC` — in a 10-K that is usually the Depository Trust Company, in the
-  book-entry discussion. Where it means the channel it is nearly always introduced
-  as "direct-to-consumer (DTC)", which the spelled-out probe catches.
+  book-entry discussion. Where it means the channel it is nearly always
+  introduced as "direct-to-consumer (DTC)", which the spelled-out probe catches.
+- `our direct channel` — a direct *sales force*, not a consumer channel. Aviat
+  Networks' FY2019 10-K: "in addition to our direct channel to market, we have
+  relationships with original equipment manufacturers".
 
-Two fixed exclusions remove matches that are not a channel, applied to every
-company identically: Amazon as cloud infrastructure or a developer platform (AWS,
-S3, Machine Images — NetApp's FY2015 10-K mentions Amazon three times and every
-one is AWS), and "direct-to-consumer advertising" as pharmaceutical marketing
-regulation, which every clinical-stage registrant under SIC 2834 carries.
+Excluded as matches that are not a channel, by a fixed list applied to every
+company identically:
+
+- Amazon as cloud infrastructure or a developer platform (AWS, S3, Machine
+  Images). NetApp's FY2015 10-K mentions Amazon three times and every one is AWS.
+- `direct-to-consumer` followed within 40 characters by advertising, promotion,
+  marketing, a campaign, television, media or print — pharmaceutical marketing
+  regulation, which every clinical-stage SIC 2834 registrant carries. **The gap
+  matters:** Acadia's filing says "direct-to-consumer *television*
+  advertisements" and Vanda's says "direct-to-consumer *campaign*", and a pattern
+  requiring the words to be adjacent let both through into the shortlist.
+
+And one structural correction, the largest of them: **one piece of text is one
+piece of evidence.** Natural Alternatives' FY2019 10-K says its customers market
+"through direct sales marketing channels, direct to consumer ecommerce channels
+and retail stores" — one clause, matched by two families, which summed to two
+mentions and cleared a floor of two on a single phrase. §2's own `probe_text`
+already treats a paragraph matched by three probes as one piece of evidence; the
+filter now does the same. The per-family raw counts are still recorded, next to
+the deduplicated total the decision reads.
 
 ### Output, and the limit of what it bounds
 

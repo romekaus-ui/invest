@@ -73,32 +73,45 @@ def t_segments():
 
 def t_channel():
     print("\nchannel_from")
-    c, _s, dropped, _q = P.channel_from(
+    c, _d0, _s, dropped, _q = P.channel_from(
         "This release works with hyperscale cloud services from Amazon Web "
         "Services (AWS). We added support for Amazon Simple Storage Service "
         "(S3) and shipped three solutions as Amazon Machine Images.")
     check("Amazon as cloud infrastructure is not a channel",
           c["amazon"] == 0 and dropped >= 3, "%r dropped=%d" % (c, dropped))
 
-    c, _s, _d, _q = P.channel_from(
+    c, _d0, _s, _d, _q = P.channel_from(
         "FDA rules impose restrictions on direct-to-consumer advertising of "
         "our product candidates.")
     check("direct-to-consumer advertising is not a channel",
           c["direct"] == 0, repr(c))
 
-    c, _s, _d, _q = P.channel_from(
+    c, _d0, _s, _d, _q = P.channel_from(
+        "CMS proposed a rule requiring direct-to-consumer television "
+        "advertisements of prescription drugs to include list prices. We "
+        "launched the Fanapt direct-to-consumer campaign in 2020.")
+    check("the exclusion tolerates a word between consumer and advertising",
+          c["direct"] == 0, repr(c))
+
+    c, _d0, _s, _d, _q = P.channel_from(
+        "In addition to our direct channel to market, we have relationships "
+        "with original equipment manufacturers and system integrators.")
+    check("'our direct channel' is a sales force, not a consumer channel",
+          c["direct"] == 0, repr(c))
+
+    c, _d0, _s, _d, _q = P.channel_from(
         "A copy of the code of ethics is available on our website. We will "
         "post any amendments on our website.")
     check("'available on our website' is not a channel",
           sum(c.values()) == 0, repr(c))
 
-    c, _s, _d, _q = P.channel_from(
+    c, _d0, _s, _d, _q = P.channel_from(
         "Shares are held in book-entry form through DTC. DTC participants may "
         "transfer such shares.")
     check("DTC the Depository Trust Company is not a channel",
           c["direct"] == 0, repr(c))
 
-    c, _s, _d, _q = P.channel_from(
+    c, _d0, _s, _d, _q = P.channel_from(
         "Our products can be purchased online either directly from our online "
         "store or through e-tailers such as Amazon.com. Internet sales "
         "channels continue to grow and we also sell direct-to-consumer.")
@@ -106,14 +119,27 @@ def t_channel():
           c["amazon"] == 1 and c["ecommerce"] >= 1 and c["direct"] >= 1,
           repr(c))
 
-    _c, _s, _d, q = P.channel_from(
+    _c, _d0, _s, _d, q = P.channel_from(
         "E-commerce accounted for approximately 14% of net sales in fiscal 2015.")
     check("a quantified channel share is detected", bool(q), repr(q))
 
-    _c, _s, _d, q = P.channel_from(
+    _c, _d0, _s, _d, q = P.channel_from(
         "We sell through e-commerce retailers and various distributors.")
     check("an unquantified channel is not reported as quantified", not q,
           repr(q))
+
+    c, distinct, _s, _d, _q = P.channel_from(
+        "Our customers market supplements through direct sales marketing "
+        "channels, direct to consumer ecommerce channels and retail stores.")
+    check("one clause matched by two families is ONE piece of evidence",
+          sum(c.values()) >= 2 and distinct == 1,
+          "raw=%r distinct=%r" % (c, distinct))
+
+    far = ("We sell on Amazon.com. " + ("filler words here. " * 20)
+           + "Our e-commerce sites also serve customers.")
+    c, distinct, _s, _d, _q = P.channel_from(far)
+    check("two mentions far apart stay two pieces of evidence",
+          distinct == 2, "raw=%r distinct=%r" % (c, distinct))
 
 
 def t_decide():
@@ -128,13 +154,14 @@ def t_decide():
           == (False, P.CUT_NO_CHANNEL))
     check("two channel mentions clear it",
           P.decide({"channel_total": 2, "segments": 1}) == (True, ""))
-    check("five segments is sprawl",
-          P.decide({"channel_total": 9, "segments": 5})
-          == (False, P.CUT_SEGMENTS))
-    check("four segments is kept (A2 judges it, not this filter)",
-          P.decide({"channel_total": 9, "segments": 4}) == (True, ""))
-    check("an unknown segment count is not read as sprawl",
-          P.decide({"channel_total": 9, "segments": None}) == (True, ""))
+    check("segment count does not decide anything - a count cannot tell "
+          "unrelated businesses from one business split by brand",
+          P.decide({"channel_total": 9, "segments": 9}) == (True, "")
+          and P.decide({"channel_total": 9, "segments": 1}) == (True, "")
+          and P.decide({"channel_total": 9, "segments": None}) == (True, ""))
+    check("no cut reason mentions segments any more",
+          not any("segment" in r for r in
+                  (P.CUT_NO_CHANNEL, P.CUT_NO_FILING, P.CUT_UNREADABLE)))
 
 
 def t_permute():
@@ -161,7 +188,8 @@ PANEL_HEADER = ("ticker,cik,company_name,sic,exchange,formation_date,"
 FIXTURE = [
     ("AAA", "0000000001", "3630", 9, 1),
     ("BBB", "0000000002", "3651", 0, 1),
-    ("CCC", "0000000003", "5712", 4, 7),
+    ("CCC", "0000000003", "5712", 4, 7),   # many segments, and kept: v2 has
+                                           # no segment-count cut
     ("DDD", "0000000004", "2834", 1, 1),
     ("EEE", "0000000005", "3944", 18, 4),
 ]
@@ -180,14 +208,16 @@ def plant(root, years=("2016", "2017")):
             # One filing per company-year, filed BEFORE that formation: a
             # 10-K filed in June 2015 is the one in force on 2016-01-01.
             accn = "%s-%s-000001" % (cik[-10:], str(int(y) - 1)[-2:])
-            with open(os.path.join(cache, "m_%s_%s.json"
-                                   % (cik, accn.replace("-", ""))), "w") as f:
+            with open(os.path.join(cache, "m_%s_%s_%s.json"
+                                   % (P.PROBE_VERSION, cik,
+                                      accn.replace("-", ""))), "w") as f:
                 json.dump({"probe_version": P.PROBE_VERSION,
                            "segments": segs, "segments_basis": "reportable",
                            "segments_matches": "reportable:%d=1" % segs,
                            "channel_counts": {"amazon": chan, "ecommerce": 0,
                                               "direct": 0},
-                           "channel_total": chan, "channel_excluded": 0,
+                           "channel_total": chan,
+                           "channel_raw_total": chan, "channel_excluded": 0,
                            "channel_snippets": {}, "quantified": False,
                            "quantified_snippets": [],
                            "accession": accn,
@@ -234,10 +264,8 @@ def t_build(base):
           by["BBB"]["cut_reason"] == P.CUT_NO_CHANNEL)
     check("a 1-mention filing is cut on the channel",
           by["DDD"]["cut_reason"] == P.CUT_NO_CHANNEL)
-    check("7 segments is cut as sprawl",
-          by["CCC"]["cut_reason"] == P.CUT_SEGMENTS)
-    check("the channel test runs before the segment test",
-          by["CCC"]["channel_mentions"] == "4")
+    check("7 segments is kept, with the count recorded for A2 to judge",
+          by["CCC"]["kept"] == "True" and by["CCC"]["segments"] == "7")
     check("a 4-segment, many-mention filing is kept",
           by["EEE"]["kept"] == "True" and by["AAA"]["kept"] == "True")
     check("sic_group is recorded on every row",
@@ -261,7 +289,8 @@ def t_build(base):
           P.sha256_file(os.path.join(root, "data", "universe_panel.csv")))
     check("the manifest records the thresholds",
           man["thresholds"] == {"min_channel_mentions": P.MIN_CHANNEL_MENTIONS,
-                                "seg_max": P.SEG_MAX})
+                                "dedup_radius": P.DEDUP_RADIUS,
+                                "segment_count_cut": None})
     check("the manifest records the scan seed",
           man["scan_order"]["effective_seed"]
           == P.SCAN_SEED + P.SCAN_STAGE_OFFSET)
@@ -295,9 +324,21 @@ def t_build(base):
 
 def t_refusals(base):
     print("\nrefusals")
+    root = plant(os.path.join(base, "staleprobe"))
+    src = os.path.join(root, ".cache", "prefilter",
+                       "m_%s_0000000001_000000000115000001.json"
+                       % P.PROBE_VERSION)
+    d = json.load(open(src))
+    d["probe_version"] = "prefilter-v0"
+    json.dump(d, open(src, "w"))
+    rc, out = run(root, "build")
+    check("a measurement taken under other probes refuses the build",
+          rc != 0 and "two instruments" in out, out[-300:])
+
     root = plant(os.path.join(base, "partial"))
     os.remove(os.path.join(root, ".cache", "prefilter",
-                           "m_0000000001_000000000115000001.json"))
+                           "m_%s_0000000001_000000000115000001.json"
+                           % P.PROBE_VERSION))
     rc, out = run(root, "build")
     check("an unmeasured company-year refuses the build", rc != 0,
           out[-300:])
@@ -322,6 +363,7 @@ def t_refusals(base):
     sl = os.path.join(root, "data", "shortlist_2016.csv")
     with open(sl, "a") as f:
         f.write("99,ZZZ,0000000099,2016-01-01,x,2015-06-01,1,9,False\n")
+
     rc, out = run(root, "verify")
     check("verify catches a shortlist edited after its hash was recorded",
           rc != 0 and "sha256" in out, out[-300:])

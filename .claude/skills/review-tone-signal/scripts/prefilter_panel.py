@@ -27,11 +27,13 @@ pipeline does:
      frozen constants below, declared before any company was looked at, applied
      uniformly across all seven formations. A rule that varied with how
      interesting a company looked would be selection, not filtering.
-  4. ABSENCE-ONLY CUTS, WITH ONE EXCEPTION. The filter does not decide that a
-     company is good. It removes a company-year when the structural evidence
-     for a criterion is ABSENT from the filing in force (no channel disclosed
-     at all, no filing at all). The one positive-evidence cut is segment
-     sprawl, and its threshold is set deliberately loose - see THRESHOLDS.
+  4. ABSENCE-ONLY CUTS. The filter does not decide that a company is good. It
+     removes a company-year only when the structural evidence is ABSENT from
+     the filing in force: no consumer channel disclosed, no filing at all, or
+     a filing that could not be read. v1 also cut on segment count; the audit
+     of those cuts showed a count cannot tell unrelated businesses from one
+     business reported by brand or geography, and it was removed. See
+     THRESHOLDS.
 
 What it deliberately does NOT do:
 
@@ -101,7 +103,7 @@ from score_eligibility import (in_force_filing, choose_in_force,  # noqa: E402
                                flatten_filing, archive_url, _Flatten)
 import sic_consumer  # noqa: E402
 
-PROBE_VERSION = "prefilter-v1"
+PROBE_VERSION = "prefilter-v2"
 
 # ------------------------------------------------------------------ THRESHOLDS
 # Declared up front, fixed for every company-year in every formation year.
@@ -134,16 +136,36 @@ SCAN_STAGE_OFFSET = 4
 # claimed here for shortlist ordering and is recorded in the manifest. It lands
 # with the integration session on claude/frosty-gould-047c87.
 
-SEG_MAX = 4
-# Cut at five or more reportable segments. Deliberately loose. Helen of Troy
-# has four and is kept, then fails A2 at 49.0 on the evidence - which is the
-# behaviour wanted: the filter removes what cannot carry the signal, A2 judges
-# what can. A tighter bar here would be A2's judgement made mechanically and
-# worse. Note that no segment count makes a 60/100 pass arithmetically
-# impossible (c2 and c3 together are only 40 of 100), so this threshold cannot
-# be justified as "could not have passed anyway" and is not presented as such.
+# NO SEGMENT-COUNT CUT. This is the one threshold that was built, run on the
+# whole panel, audited, and then REMOVED - recorded here because the reason is
+# the useful part.
 #
-# One further test was considered and rejected: cutting on a disclosed SKU
+# v1 cut company-years disclosing five or more reportable segments, 57 of
+# 3,522. The seeded audit of those 57 showed the test does not measure what it
+# claims. Criterion 3 asks whether UNRELATED segments dominate; a count cannot
+# tell unrelated businesses from one business reported by brand, channel or
+# geography. Among the 57 it cut:
+#
+#   DECK @2016  six segments, 106 e-commerce mentions - Deckers is a footwear
+#               pure-play (UGG, Teva, Sanuk) segmented by brand and channel
+#   CRI  @2016  five segments, 34 e-commerce mentions - Carter's is children's
+#               apparel segmented by brand and geography
+#   GME  @2017  five segments - GameStop, segmented by country; the same
+#               company at @2021 has four and was kept, so a company crossed
+#               the bar on a reporting change rather than a structural one
+#
+# Deckers and Carter's are close to the population the hypothesis is about,
+# and a mechanical count removed them. Note also what could never have been
+# claimed for the threshold: no segment count makes a 60/100 pass
+# arithmetically impossible, since c2 and c3 together are only 40 of 100.
+#
+# Removing it is not a loosened threshold, it is a dropped test. The segment
+# count is still measured and recorded on every row, so A2 reads it and judges
+# relatedness from the filing - which is criterion 3's actual job. The effect
+# was to ENLARGE the shortlist by 57 company-years, so it was not done to make
+# a number look better.
+#
+# One further test was considered and never built: cutting on a disclosed SKU
 # count ("over 30,000 SKUs" is a criterion-2 zero). It is structural and
 # point-in-time, but almost no filing states a number, so it would fire only
 # on the companies that happen to disclose one - penalising disclosure rather
@@ -177,7 +199,7 @@ CHANNEL_PROBES = {
                   r"|\bweb(?:site)? sales\b"),
     "direct": (r"\bdirect[- ]to[- ]consumer\b"
                r"|\bour (?:own )?online stores?\b"
-               r"|\bour (?:own )?(?:e-?commerce|direct) "
+               r"|\bour (?:own )?e-?commerce "
                r"(?:sites?|websites?|platforms?|channels?)\b"),
 }
 # Two probes that look obvious and are not, both dropped after reading what
@@ -204,8 +226,8 @@ CHANNEL_EXCLUDE = (
     r"|\bAWS\b"
     # Direct-to-consumer as pharmaceutical advertising regulation. Every
     # clinical-stage registrant under SIC 2834 carries this sentence.
-    r"|direct[- ]to[- ]consumer (?:advertis\w+|promotion\w*|marketing|"
-    r"communication\w*)"
+    r"|direct[- ]to[- ]consumer\b[^.]{0,40}?\b(?:advertis\w*|promotion\w*|"
+    r"marketing|campaign\w*|television|media|print|commercial\w*)\b"
 )
 
 # Is the channel QUANTIFIED - a share of sales attached to it. Recorded, never
@@ -221,10 +243,10 @@ QUANTIFIED_RE = (
 
 WINDOW = 150           # chars either side of a kept match
 MAX_SNIPPETS = 2       # per family, per company-year, in the evidence file
+DEDUP_RADIUS = 120     # matches closer than this are the same piece of text
 
 CUT_NO_FILING = "no_filing_at_formation"
 CUT_NO_CHANNEL = "no_consumer_channel_disclosed"
-CUT_SEGMENTS = "segment_sprawl"
 CUT_UNREADABLE = "filing_unreadable"
 
 SIC_GROUP = {code: group for group, codes in sic_consumer.GROUPS.items()
@@ -299,16 +321,31 @@ def segments_from(text):
 
 
 def channel_from(text):
-    """Surviving channel mentions per family, plus evidence windows.
+    """Distinct channel evidence, its per-family breakdown, and its windows.
 
-    A match is dropped when CHANNEL_EXCLUDE matches the same span - that is
-    how Amazon-the-cloud-vendor and direct-to-consumer-advertising-regulation
-    are kept out of a channel count, uniformly and without reference to the
-    company.
+    Two steps, in this order.
+
+    First, a match is dropped when CHANNEL_EXCLUDE matches the same span -
+    that is how Amazon-the-cloud-vendor and
+    direct-to-consumer-advertising-regulation are kept out of a channel count,
+    uniformly and without reference to the company.
+
+    Second, and this is what the decision counts: **one piece of text is one
+    piece of evidence.** Natural Alternatives' FY2019 10-K says its customers
+    market "through direct sales marketing channels, direct to consumer
+    ecommerce channels and retail stores" - one clause, matched by two
+    families, which summed to two mentions and cleared a floor of two on a
+    single phrase. A2's own probe_text already treats a paragraph matched by
+    three probes as one piece of evidence; the filter now does the same.
+    Matches within DEDUP_RADIUS of one already counted are the same evidence.
+
+    The per-family counts are kept raw, for the record and for the audit; the
+    deduplicated total is what decide() reads.
     """
     excluded_spans = [(m.start(), m.end())
                       for m in re.finditer(CHANNEL_EXCLUDE, text, re.I)]
     counts, snippets, dropped = {}, {}, 0
+    survivors = []
     for family, rx in CHANNEL_PROBES.items():
         kept = []
         for m in re.finditer(rx, text, re.I):
@@ -317,19 +354,28 @@ def channel_from(text):
                 continue
             kept.append(m)
         counts[family] = len(kept)
+        survivors.extend((m.start(), m.end(), family) for m in kept)
         snippets[family] = [
             re.sub(r"\s+", " ",
                    text[max(0, m.start() - WINDOW):
                         min(len(text), m.end() + WINDOW)]).strip()
             for m in kept[:MAX_SNIPPETS]]
+
+    distinct, last_end = 0, None
+    for start, end, _family in sorted(survivors):
+        if last_end is not None and start - last_end < DEDUP_RADIUS:
+            continue
+        distinct += 1
+        last_end = end
+
     quant = [re.sub(r"\s+", " ", m.group(0)).strip()
              for m in re.finditer(QUANTIFIED_RE, text, re.I)]
-    return counts, snippets, dropped, quant
+    return counts, distinct, snippets, dropped, quant
 
 
 def measure_text(text):
     seg_n, seg_basis, seg_matches = segments_from(text)
-    counts, snippets, dropped, quant = channel_from(text)
+    counts, distinct, snippets, dropped, quant = channel_from(text)
     return {
         "probe_version": PROBE_VERSION,
         "chars": len(text),
@@ -337,7 +383,8 @@ def measure_text(text):
         "segments_basis": seg_basis,
         "segments_matches": seg_matches,
         "channel_counts": counts,
-        "channel_total": sum(counts.values()),
+        "channel_total": distinct,
+        "channel_raw_total": sum(counts.values()),
         "channel_excluded": dropped,
         "channel_snippets": {k: v for k, v in snippets.items() if v},
         "quantified": bool(quant),
@@ -393,8 +440,16 @@ def resolve_in_force(filings, formation):
 
 
 def measurement_path(cache, cik, accn):
+    """Keyed by (probe version, cik, accession).
+
+    The probe version belongs in the key. Without it, changing a regex leaves
+    every cached measurement silently stale, and the next build would mix
+    numbers taken under two different instruments - which is the whole thing
+    this stage exists not to do.
+    """
     return os.path.join(cache_dir(cache),
-                        "m_%s_%s.json" % (cik, accn.replace("-", "")))
+                        "m_%s_%s_%s.json" % (PROBE_VERSION, cik,
+                                             accn.replace("-", "")))
 
 
 def measure_filing(cache, cik, filing, keep_text=False, textdir=None):
@@ -491,8 +546,8 @@ PANEL_COLS = ["ticker", "cik", "company_name", "sic", "sic_group",
               "formation_date", "filing_form", "filing_date", "accession",
               "filing_source", "segments", "segments_basis",
               "segments_matches", "amazon_mentions", "ecommerce_mentions",
-              "direct_mentions", "channel_mentions", "channel_excluded",
-              "channel_quantified", "kept", "cut_reason"]
+              "direct_mentions", "channel_raw_total", "channel_mentions",
+              "channel_excluded", "channel_quantified", "kept", "cut_reason"]
 
 SHORTLIST_COLS = ["scan_order", "ticker", "cik", "formation_date", "accession",
                   "filing_date", "segments", "channel_mentions",
@@ -520,9 +575,6 @@ def decide(m):
         return False, CUT_UNREADABLE
     if m.get("channel_total", 0) < MIN_CHANNEL_MENTIONS:
         return False, CUT_NO_CHANNEL
-    seg = m.get("segments")
-    if seg is not None and seg > SEG_MAX:
-        return False, CUT_SEGMENTS
     return True, ""
 
 
@@ -561,6 +613,11 @@ def cmd_build(args):
             except ValueError:
                 missing.append(key_of(row))
                 continue
+            if m.get("probe_version") not in (None, PROBE_VERSION):
+                die("%s was measured under probes %s but this script is %s. "
+                    "Mixing two instruments in one shortlist is the thing "
+                    "this stage exists not to do - re-run `measure`."
+                    % (mp, m.get("probe_version"), PROBE_VERSION))
         kept, reason = decide(m)
         cc = (m or {}).get("channel_counts") or {}
         out_rows.append({
@@ -579,6 +636,8 @@ def cmd_build(args):
             "amazon_mentions": cc.get("amazon", ""),
             "ecommerce_mentions": cc.get("ecommerce", ""),
             "direct_mentions": cc.get("direct", ""),
+            "channel_raw_total": "" if not m
+                                 else m.get("channel_raw_total", ""),
             "channel_mentions": "" if not m else m.get("channel_total", ""),
             "channel_excluded": "" if not m else m.get("channel_excluded", ""),
             "channel_quantified": "" if not m else bool(m.get("quantified")),
@@ -652,10 +711,10 @@ def cmd_build(args):
         with open(sl.replace(".csv", ".hash"), "w") as f:
             f.write("%s  %s  formation=%s-01-01  kept=%d/%d  "
                     "panel=%s:%s  probes=%s  min_channel_mentions=%d  "
-                    "seg_max=%d  scan_seed=%d\n"
+                    "dedup_radius=%d  scan_seed=%d\n"
                     % (sha, os.path.basename(sl), y, len(kept), len(ys),
                        os.path.basename(args.panel), panel_sha[:12],
-                       PROBE_VERSION, MIN_CHANNEL_MENTIONS, SEG_MAX,
+                       PROBE_VERSION, MIN_CHANNEL_MENTIONS, DEDUP_RADIUS,
                        SCAN_SEED + SCAN_STAGE_OFFSET))
 
     ev_path = os.path.join(args.datadir, "prefilter.evidence.json")
@@ -666,7 +725,8 @@ def cmd_build(args):
     manifest = {
         "probe_version": PROBE_VERSION,
         "thresholds": {"min_channel_mentions": MIN_CHANNEL_MENTIONS,
-                       "seg_max": SEG_MAX},
+                       "dedup_radius": DEDUP_RADIUS,
+                       "segment_count_cut": None},
         "scan_order": {"rng": "stdlib-mt19937", "seed": SCAN_SEED,
                        "stage_offset": SCAN_STAGE_OFFSET,
                        "effective_seed": SCAN_SEED + SCAN_STAGE_OFFSET,
@@ -698,27 +758,28 @@ def cmd_build(args):
         json.dump(manifest, f, indent=1, sort_keys=True)
     with open(panel_out.replace(".csv", ".hash"), "w") as f:
         f.write("%s  %s  rows=%d  kept=%d  cut=%d  panel=%s:%s  probes=%s  "
-                "min_channel_mentions=%d  seg_max=%d  partial=%s\n"
+                "min_channel_mentions=%d  dedup_radius=%d  partial=%s\n"
                 % (panel_out_sha, os.path.basename(panel_out), len(out_rows),
                    total_kept, len(out_rows) - total_kept,
                    os.path.basename(args.panel), panel_sha[:12], PROBE_VERSION,
-                   MIN_CHANNEL_MENTIONS, SEG_MAX, bool(missing)))
+                   MIN_CHANNEL_MENTIONS, DEDUP_RADIUS, bool(missing)))
 
     print("panel %s (sha256 %s)" % (os.path.basename(args.panel),
                                     panel_sha[:12]))
-    print("probes %s · min_channel_mentions=%d · seg_max=%d"
-          % (PROBE_VERSION, MIN_CHANNEL_MENTIONS, SEG_MAX))
+    print("probes %s · min_channel_mentions=%d · dedup_radius=%d · "
+          "no segment-count cut"
+          % (PROBE_VERSION, MIN_CHANNEL_MENTIONS, DEDUP_RADIUS))
     print("\n  year   in band    kept    cut   %s"
           % "  ".join("%s" % r for r in
-                      (CUT_NO_CHANNEL, CUT_SEGMENTS, CUT_NO_FILING,
+                      (CUT_NO_CHANNEL, CUT_NO_FILING,
                        CUT_UNREADABLE)))
     for y in years:
         d = per_year[y]
         print("  %s   %7d  %6d %6d   %s"
               % (y, d["in_band"], d["kept"], d["cut"],
                  "  ".join("%*d" % (len(r), d["cut_reasons"].get(r, 0))
-                           for r in (CUT_NO_CHANNEL, CUT_SEGMENTS,
-                                     CUT_NO_FILING, CUT_UNREADABLE))))
+                           for r in (CUT_NO_CHANNEL, CUT_NO_FILING,
+                                     CUT_UNREADABLE))))
     print("  %s   %7d  %6d %6d" % ("all ", len(out_rows), total_kept,
                                    len(out_rows) - total_kept))
 
@@ -796,8 +857,10 @@ def cmd_show(args):
         print("  segments: %s (%s) from %s"
               % (m["segments"], m["segments_basis"],
                  m["segments_matches"] or "no statement found"))
-        print("  channel mentions: %s  total=%d  excluded=%d  quantified=%s"
-              % (m["channel_counts"], m["channel_total"],
+        print("  channel: %s  raw=%d  distinct=%d (>= %d keeps)  "
+              "excluded=%d  quantified=%s"
+              % (m["channel_counts"], m.get("channel_raw_total", -1),
+                 m["channel_total"], MIN_CHANNEL_MENTIONS,
                  m["channel_excluded"], m["quantified"]))
         print("  -> %s%s" % ("KEEP" if kept else "CUT", "" if kept
                              else " (%s)" % reason))
@@ -853,8 +916,6 @@ def cmd_audit(args):
     groups = [
         ("CUT · %s" % CUT_NO_CHANNEL,
          [r for r in rows if r["cut_reason"] == CUT_NO_CHANNEL]),
-        ("CUT · %s" % CUT_SEGMENTS,
-         [r for r in rows if r["cut_reason"] == CUT_SEGMENTS]),
         ("KEPT", [r for r in rows if r["kept"] == "True"]),
     ]
     for label, pool in groups:
@@ -868,12 +929,12 @@ def cmd_audit(args):
                   % (r["ticker"], r["formation_date"][:4],
                      r["company_name"][:40], r["filing_form"],
                      r["filing_date"], r["accession"]))
-            print("  recorded: segments=%s(%s) channel=%s amazon=%s ecom=%s "
-                  "direct=%s excluded=%s"
+            print("  recorded: segments=%s(%s) distinct=%s raw=%s amazon=%s "
+                  "ecom=%s direct=%s excluded=%s"
                   % (r["segments"] or "?", r["segments_basis"],
-                     r["channel_mentions"], r["amazon_mentions"],
-                     r["ecommerce_mentions"], r["direct_mentions"],
-                     r["channel_excluded"]))
+                     r["channel_mentions"], r.get("channel_raw_total", "?"),
+                     r["amazon_mentions"], r["ecommerce_mentions"],
+                     r["direct_mentions"], r["channel_excluded"]))
             idx = filings_cached(args.cache, r["cik"])
             f = resolve_in_force(idx["filings"], r["formation_date"])
             if not f or not f.get("primary_document"):
@@ -924,12 +985,11 @@ def cmd_verify(args):
     if manifest["panel"]["sha256"] != panel_sha:
         bad.append("manifest was built from panel sha %s but the panel on disk "
                    "is %s" % (manifest["panel"]["sha256"][:12], panel_sha[:12]))
-    if manifest["thresholds"] != {"min_channel_mentions": MIN_CHANNEL_MENTIONS,
-                                  "seg_max": SEG_MAX}:
+    want = {"min_channel_mentions": MIN_CHANNEL_MENTIONS,
+            "dedup_radius": DEDUP_RADIUS, "segment_count_cut": None}
+    if manifest["thresholds"] != want:
         bad.append("manifest thresholds %s disagree with the script's %s"
-                   % (manifest["thresholds"],
-                      {"min_channel_mentions": MIN_CHANNEL_MENTIONS,
-                       "seg_max": SEG_MAX}))
+                   % (manifest["thresholds"], want))
     if manifest["probe_version"] != PROBE_VERSION:
         bad.append("manifest probe_version %s != %s"
                    % (manifest["probe_version"], PROBE_VERSION))
