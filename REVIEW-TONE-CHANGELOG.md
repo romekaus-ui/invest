@@ -126,3 +126,21 @@ Not yet verified by a real fire — the repo had no commits pushed when the rout
 was created, and this machine has no git credentials, so the first run is the
 first test. If it fails, `list_runs` then `get_run_log` on the routine will say
 why.
+
+## 2026-10-11 · weekly routine verified by a manual fire
+
+Fired `trig_01MExfvhuF2g6841QWZ8htBR` by hand rather than letting the first
+scheduled run be the first test. Run `cse_01LdT3qXLUTp8b2fSQvae9pW`: clone,
+orchestrator, validated row, report, branch and PR #1 all worked. Phase A,
+verdict `insufficient_data`, stopped at `A2.eligibility` — the expected state.
+
+**Defect found and fixed:** `gh pr create` returns HTTP 403 in the cloud
+sandbox; the GraphQL API is blocked there. The run recovered by falling back to
+`gh api repos/.../pulls`, but a weekly job should not depend on improvising past
+a known failure, so the routine prompt now names the REST route and says why.
+
+**Confirmed working across machines:** the run's report read
+`universe: 622c774f7a84 -> 28db9bdb5609`, diffing its own state against the
+fingerprint in the row a different machine wrote before the rolling panel
+landed. Change detection reads the append-only log, so it needs no shared
+mutable state and survives running somewhere else.
