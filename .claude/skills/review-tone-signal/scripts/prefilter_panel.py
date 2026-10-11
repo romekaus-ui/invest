@@ -18,11 +18,11 @@ pipeline does:
      company turned out is read, computed or available here - no later revenue,
      no price, no survival. CORE-PROMPT s1.2.
   2. POINT-IN-TIME, MECHANICALLY. The evidence is the filing in force at
-     formation, resolved by score_eligibility.in_force_filing() - the last
+     formation, resolved by score_eligibility.choose_in_force() - the last
      annual report filed on or before that date, falling back to the last
      registration statement when no annual report existed yet. That function is
-     A2's point-in-time boundary and it is reused rather than reimplemented, so
-     there is one definition of "in force" in the project and one EDGAR client.
+     A2's point-in-time boundary and it is called, not reimplemented, so there
+     is one definition of "in force" in the project and one EDGAR client.
   3. THE SAME RULE FOR EVERY COMPANY-YEAR. The regexes and the thresholds are
      frozen constants below, declared before any company was looked at, applied
      uniformly across all seven formations. A rule that varied with how
@@ -834,10 +834,21 @@ def cmd_audit(args):
     n = args.sample
 
     def draw(pool):
+        """Without replacement, on randrange only. Note what this must NOT do:
+        take the first n of a sorted set of random indices. That returns the n
+        smallest indices, which is a sample biased toward the early formation
+        years and the start of the alphabet - and an audit on a biased sample
+        of cuts is worth very little.
+        """
         pool = sorted(pool, key=lambda r: (r["formation_date"], r["ticker"]))
-        return [pool[i] for i in sorted(
-            set(rng.randrange(len(pool)) for _ in range(n * 3)))[:n]] \
-            if pool else []
+        picked, seen = [], set()
+        while len(picked) < min(n, len(pool)):
+            i = rng.randrange(len(pool))
+            if i in seen:
+                continue
+            seen.add(i)
+            picked.append(pool[i])
+        return picked
 
     groups = [
         ("CUT · %s" % CUT_NO_CHANNEL,

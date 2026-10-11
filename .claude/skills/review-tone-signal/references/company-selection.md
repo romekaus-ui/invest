@@ -189,6 +189,13 @@ is a random sample of the keep set; a prefix of an alphabetical or
 channel-mention-sorted list is not. How far down the order §2 got belongs in the
 changelog.
 
+**Take a prefix from each formation year, not all of one year.** The order is
+permuted within a year, and §2 is invoked per year. Scoring 2016 to exhaustion
+and stopping yields a panel whose companies all entered in 2016 — which throws
+away the reason §1 re-forms annually, and with it YETI, Sonos and e.l.f. The
+A2 gate counts eligible companies, but the backtest runs on company-quarters
+with entries and exits, so the later formations are not optional.
+
 Two self-checks, both re-runnable:
 
 ```bash
