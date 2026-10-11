@@ -34,6 +34,20 @@ driven by price grumbling, and collapsing them loses that.
 
 ## 3. Aggregation, and the mix decomposition
 
+> **The formula in this section is PROVISIONAL and unverified.** It is the
+> highest-risk part of this file: reconstructed second-hand, and the part that
+> decides whether a tone reading means a company declining or a catalogue aging
+> into grumpier reviews. §8 carries the open row to reconcile it against the
+> paper; where the paper differs, the paper wins. `scripts/aggregate.py`
+> isolates it in one function (`decompose()`) tagged `DECOMPOSITION_SPEC`, and
+> that tag is written into every manifest, so outputs built under this version
+> stay identifiable after the paper is read.
+>
+> What is **not** provisional, because it rests on CORE-PROMPT §5/§7 and
+> `data-contracts.md` rather than on the paper: that the split must happen at
+> all, that only the within-ASIN component may feed the signal, and that the
+> three components must reconcile to the total change.
+
 Naive company tone for quarter Q is the mean of included review scores. That number is
 **not** the signal, because it moves for two different reasons:
 
