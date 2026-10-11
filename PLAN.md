@@ -19,15 +19,38 @@ What has been decided and what is next. Short by design — the rules live in
 
 ## Next
 
-1. **Peer-group finder** — in build. First real run must produce **at least 80
-   companies** in however many groups fall out naturally (likely 20–30 groups of 2–7,
-   not 40 forced pairs — bigger groups are a better control).
+1. **Peer-group finder** — in build. Target **at least 80 companies** in however many
+   groups fall out naturally (not 40 forced pairs — bigger groups are a better control),
+   **subject to the concentration filter below, which outranks the count.**
 2. **Fresh review collector** — in build. Both routes behind one interface.
 3. **Calibrate the tone scorer** — the user labels ~100 reviews by hand so the scorer's
    agreement can be measured. Nobody else can do this step, and the scorer's output is
    not a measurement until it is done.
 4. **Choose the collection set and the cadence**, declare both, start collecting.
 5. **Keep collecting.** Each run is one point in the series.
+
+## The concentration filter
+
+**A company belongs in a group only if one main product line dominates its revenue, and
+that line is what sells and gets reviewed on Amazon.**
+
+Review tone on a handful of products can only say something about a company's revenue if
+those products *are* most of the revenue. A company with 800 SKUs across four segments
+can have souring reviews while revenue is driven by something nobody reviews.
+
+- Concentration is read from the company's **own filing or annual report** — segment
+  disclosure, revenue by product category — and recorded with the group. Never asserted.
+- **Private peers count.** For the tone comparison a private competitor is a perfectly
+  good category control; only the company whose revenue you eventually want needs to be
+  public. Many of the best focused competitors are private (Dyson, Bose, Stanley/PMI).
+- Pepsi/Coca-Cola is the pairing *illustration*, not the quality bar: PepsiCo is roughly
+  55% snacks. Closer to what is wanted: Celsius/Monster/Zevia, Crocs/Birkenstock,
+  YETI/Stanley, Traeger/Weber, Purple/Casper/Sleep Number, Sonos/Bose,
+  iRobot/SharkNinja, e.l.f./Coty.
+- **Quality outranks the count.** 40 genuinely focused companies beats 80 where half are
+  diversified. If the pool of focused, Amazon-selling companies runs out below the
+  target, that is a defining fact about the project and gets reported, not padded
+  around.
 
 ## Open, and worth deciding before step 4
 
