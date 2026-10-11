@@ -129,7 +129,7 @@ mentions, then fails §2 at 49.0 on the evidence.
 |---|---|---|
 | `MIN_CHANNEL_MENTIONS` | 2 distinct mentions | One mention is as often a cost line or a boilerplate risk factor as a channel. Not higher: **Logitech, the only company-year §2 has passed (69.0), clears it at exactly 2.** |
 | `DEDUP_RADIUS` | 120 chars | Matches closer together than this are one piece of text, so one clause matched by two probe families counts once. |
-| segment count | **no cut** | Built, run on the whole panel, audited, removed. |
+| segment count | **no cut** | Built, run on the whole panel, audited, removed. Still recorded, and its parse was corrected — see below. |
 
 **The segment-count cut was removed, and the reason is the useful part.** v1 cut
 the 57 company-years disclosing five or more reportable segments. The seeded audit
@@ -169,7 +169,7 @@ passed. §1b is honest about that rather than dressed up as arithmetic.
 ### The probes, and every correction the audit forced
 
 Each of these is a *false match read in a real filing*, not a tuning. The probe
-version is `prefilter-v2`, and it is part of the measurement cache key, so
+version is `prefilter-v3`, and it is part of the measurement cache key, so
 changing a regex invalidates every cached measurement instead of silently mixing
 two instruments in one shortlist.
 
@@ -196,6 +196,25 @@ company identically:
   matters:** Acadia's filing says "direct-to-consumer *television*
   advertisements" and Vanda's says "direct-to-consumer *campaign*", and a pattern
   requiring the words to be adjacent let both through into the shortlist.
+
+And the segment count itself, which decides nothing but which §2 reads as
+context, was being parsed wrongly. v1 took the **maximum** of the statements it
+found. A flattened 10-K puts note numbers and page numbers immediately before
+headings, and the heading is "Reportable Segments":
+
+- BorgWarner — "NOTE 19 REPORTING SEGMENTS AND RELATED INFORMATION", in a filing
+  that says "two reporting segments" seven times. v1 recorded 19.
+- Atkore — "...between 2018 and 2022. 29 Reportable Segments We operate our
+  business through two operating segments." The 29 is a page number, and the
+  correct answer is two words later. v1 recorded 29.
+
+Fourteen company-years carried a count of 17 to 29 on this. The count is now the
+**mode** of the plausible statements (ties to the larger), values above 12 are
+recorded but cannot be chosen, and a number directly preceded by NOTE or ITEM is
+not a statement at all. Everything found is still written to `segments_matches`,
+including what was rejected, so the parse can be audited from the row. Note that
+had the v1 segment *cut* survived, it would have cut those fourteen on a page
+number.
 
 And one structural correction, the largest of them: **one piece of text is one
 piece of evidence.** Natural Alternatives' FY2019 10-K says its customers market

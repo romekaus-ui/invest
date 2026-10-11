@@ -103,7 +103,7 @@ from score_eligibility import (in_force_filing, choose_in_force,  # noqa: E402
                                flatten_filing, archive_url, _Flatten)
 import sic_consumer  # noqa: E402
 
-PROBE_VERSION = "prefilter-v2"
+PROBE_VERSION = "prefilter-v3"
 
 # ------------------------------------------------------------------ THRESHOLDS
 # Declared up front, fixed for every company-year in every formation year.
@@ -188,6 +188,23 @@ SEGMENT_WORDS = {"single": 1, "one": 1, "two": 2, "three": 3, "four": 4,
                  "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
                  "ten": 10, "eleven": 11, "twelve": 12}
 SEGMENT_STRONG = ("reportable", "reporting")
+
+# A flattened 10-K puts note numbers and page numbers immediately before
+# headings, and the heading is "Reportable Segments". Two real examples:
+#
+#   BorgWarner  "NOTE 19 REPORTING SEGMENTS AND RELATED INFORMATION"
+#   Atkore      "... between 2018 and 2022. 29 Reportable Segments We operate
+#                our business through two operating segments"
+#
+# Nineteen and twenty-nine are a note number and a page number. v1 took the
+# MAX of the statements it found and so reported both, over a value the same
+# filing states seven times and two words later. The count is now the MODE of
+# the plausible statements, implausible values are not eligible to be chosen,
+# and a number directly preceded by NOTE or ITEM is not a statement at all.
+# Everything found is still recorded in segments_matches, including what was
+# rejected, so the parse can be audited from the row.
+SEGMENT_PLAUSIBLE_MAX = 12
+SEGMENT_HEADING_RE = re.compile(r"\b(?:note|item)\s*$", re.I)
 
 # Channel disclosure, in three families. A match in any family counts.
 CHANNEL_PROBES = {
@@ -291,11 +308,13 @@ def key_of(row):
 def segments_from(text):
     """(count, basis, matches) - what the filing says about its own segments.
 
-    Prefers the statements that use the word the segment standard uses. Takes
-    the MAX of those, because a filing that names four reportable segments in
-    its segment note and one somewhere else has four; taking the minimum would
-    read a stale or partial sentence as pure-play. The full match distribution
-    is recorded so a human can see what the number was read from.
+    Recorded for A2 to read; it decides nothing here (see THRESHOLDS). Prefers
+    the statements using the word the segment standard uses, and takes the
+    MODE of them rather than the max, because the max reads a note number or a
+    page number sitting above the heading "Reportable Segments" as a segment
+    count. Ties go to the larger value. Implausible counts are recorded but
+    cannot be chosen, and a number directly preceded by NOTE or ITEM is not a
+    statement at all.
     """
     found = Counter()
     for m in re.finditer(SEGMENT_RE, text, re.I):
@@ -306,17 +325,40 @@ def segments_from(text):
                 n = int(word)
             except ValueError:
                 continue
-        if not 1 <= n <= 30:
+        if not 1 <= n <= 40:
+            continue
+        if SEGMENT_HEADING_RE.search(text[max(0, m.start() - 12):m.start()]):
+            found[(n, "heading")] += 1
             continue
         found[(n, m.group(2).lower())] += 1
-    if not found:
-        return None, "unknown", ""
-    strong = [n for (n, q) in found if q in SEGMENT_STRONG]
-    basis = "reportable" if strong else "other"
-    count = max(strong) if strong else max(n for (n, _q) in found)
+
     matches = ";".join("%s:%d=%d" % (q, n, c)
                        for (n, q), c in sorted(found.items(),
-                                               key=lambda kv: (kv[0][1], kv[0][0])))
+                                               key=lambda kv: (kv[0][1],
+                                                               kv[0][0])))
+    if not found:
+        return None, "unknown", ""
+
+    def pick(pairs):
+        """Modal count among eligible statements; ties to the larger."""
+        tally = Counter()
+        for (n, _q), c in pairs:
+            if n <= SEGMENT_PLAUSIBLE_MAX:
+                tally[n] += c
+        if not tally:
+            return None
+        return max(tally.items(), key=lambda kv: (kv[1], kv[0]))[0]
+
+    strong = [kv for kv in found.items() if kv[0][1] in SEGMENT_STRONG]
+    count = pick(strong)
+    basis = "reportable"
+    if count is None:
+        other = [kv for kv in found.items()
+                 if kv[0][1] not in SEGMENT_STRONG + ("heading",)]
+        count = pick(other)
+        basis = "other"
+    if count is None:
+        return None, "implausible_only", matches
     return count, basis, matches
 
 
@@ -463,7 +505,16 @@ def measure_filing(cache, cik, filing, keep_text=False, textdir=None):
                 return json.load(f)
         except ValueError:
             pass
-    if not filing.get("primary_document"):
+    # A probe change invalidates every measurement. If the flattened text was
+    # kept, re-measuring is CPU only: no refetch, and no second pass over
+    # EDGAR for 3,506 filings because a regex moved.
+    cached_text = os.path.join(textdir or "", "%s_%s.txt"
+                               % (cik, filing["accession"].replace("-", ""))) \
+        if textdir else ""
+    if cached_text and os.path.exists(cached_text):
+        with open(cached_text, encoding="utf-8") as f:
+            m = measure_text(f.read())
+    elif not filing.get("primary_document"):
         m = {"error": "no primaryDocument recorded for %s" % filing["accession"]}
     else:
         try:

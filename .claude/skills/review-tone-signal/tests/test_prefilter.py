@@ -65,6 +65,37 @@ def t_segments():
     n, _b, _m = P.segments_from("We report in 12 reportable segments.")
     check("digits parse", n == 12, "got %r" % n)
 
+    n, basis, matches = P.segments_from("We report in 26 reportable segments.")
+    check("an implausible count is recorded but never chosen",
+          n is None and basis == "implausible_only"
+          and "reportable:26=1" in matches,
+          "got %r %r %r" % (n, basis, matches))
+
+    n, basis, matches = P.segments_from(
+        "NOTE 19 REPORTING SEGMENTS AND RELATED INFORMATION. The Company has "
+        "two reporting segments. Our two reporting segments are described "
+        "below. Each of the two reporting segments is a component.")
+    check("a number directly after NOTE is a heading, not a segment count",
+          (n, basis) == (2, "reportable"), "got %r %r %r" % (n, basis, matches))
+    check("the rejected heading number is still recorded for the audit",
+          "heading:19=1" in matches, matches)
+
+    n, basis, _m = P.segments_from(
+        "growth between 2018 and 2022. 29 Reportable Segments We operate our "
+        "business through two operating segments.")
+    check("a page number above the heading cannot be chosen as the count",
+          (n, basis) == (2, "other"), "got %r %r" % (n, basis))
+
+    n, _b, _m = P.segments_from(
+        "We have three reportable segments. We have three reportable "
+        "segments. Earlier we had nine reportable segments.")
+    check("the count is the mode, not the max",
+          n == 3, "got %r" % n)
+
+    n, _b, _m = P.segments_from(
+        "We have two reportable segments. We have five reportable segments.")
+    check("a tie goes to the larger count", n == 5, "got %r" % n)
+
     _n, _b, matches = P.segments_from(
         "two reportable segments. two reportable segments. one operating segment")
     check("the match distribution is recorded, not just the answer",
