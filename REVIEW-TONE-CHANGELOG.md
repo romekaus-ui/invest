@@ -111,3 +111,18 @@ repository access at creation time and returned `403 repo_access_denied` —
 `romek-aus/invest` does not exist yet and this repo has no remote. Its exact
 configuration is committed in `references/weekly-routine.md`; creating it is one
 call once the repo is pushed.
+
+## 2026-10-11 · weekly routine created
+
+Routine `trig_01MExfvhuF2g6841QWZ8htBR`, Mondays 06:00 UTC against
+`github.com/romekaus-ui/invest`. Config and verbatim prompt in
+`references/weekly-routine.md`.
+
+Connectors cleared after creation: the API attaches the account's connectors by
+default, which gave a job that reads SEC filings access to Gmail, Drive and
+Claude Docs. It now holds none.
+
+Not yet verified by a real fire — the repo had no commits pushed when the routine
+was created, and this machine has no git credentials, so the first run is the
+first test. If it fails, `list_runs` then `get_run_log` on the routine will say
+why.

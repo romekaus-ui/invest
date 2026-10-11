@@ -11,13 +11,15 @@ not with hand-rolled cron.
 
 | | |
 |---|---|
+| Routine ID | `trig_01MExfvhuF2g6841QWZ8htBR` — created 2026-10-11 |
 | Name | `review-tone-signal weekly run` |
 | Cron | `0 6 * * 1` — Mondays 06:00 UTC = **09:00 Europe/Tallinn** |
 | Environment | `env_017LE8TtL82aXVN53oPVcwNv` (Default) |
 | Model | `claude-sonnet-5-5` — the hard logic is in `orchestrate.py`; the agent reads the gate verdicts and relays them |
-| Repository | `https://github.com/romek-aus/invest` |
+| Repository | `https://github.com/romekaus-ui/invest` |
 | Tools | Bash, Read, Write, Edit, Glob, Grep |
 | Output | commits to `review-tone-run/<date>`, pushes, opens a PR. Never main. |
+| Connectors | none. The server attaches the account's connectors by default; they were cleared with `clear_mcp_connections`. A job that reads SEC filings has no business holding Gmail or Drive access. |
 
 Routines are listed and managed at https://claude.ai/code/routines
 
@@ -38,15 +40,14 @@ session just built, or a drifted hash within days.
 
 ## Prerequisite
 
-The API checks repository access when the routine is created, so the repo must
-exist and be reachable by the account's GitHub connection first:
+The API checks repository access when the routine is created, against the
+account's claude.ai GitHub connection — not against local git credentials. A
+`403 repo_access_denied` means the repo does not exist, the owner is not the one
+you typed, or the GitHub App installation is scoped to selected repositories and
+this one is not among them (https://github.com/settings/installations).
 
-```bash
-cd /Users/romekaus/invest && git remote add origin https://github.com/romek-aus/invest.git && git push -u origin main
-```
-
-A `403 repo_access_denied` on creation means the repo does not exist yet, or the
-connected GitHub account cannot see it.
+The routine clones the **default branch**, so work has to be on `main` before a
+run can use it.
 
 ## What the cloud run can and cannot do
 
