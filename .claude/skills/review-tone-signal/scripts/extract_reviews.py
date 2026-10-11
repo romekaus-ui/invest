@@ -96,6 +96,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import corpus  # noqa: E402
 from fetch_sec import fiscal_quarter, fiscal_year_end_month  # noqa: E402
 from screen_universe import ua  # noqa: E402
+import window as windowmod  # noqa: E402
 
 # CORE-PROMPT s5. Enforced downstream; reported here so a company that cannot
 # clear the floors is known before anything is spent on scoring it.
@@ -316,7 +317,8 @@ def stream_pass(categories, asin_owner, tickers, outdir, max_bytes):
     return scanned
 
 
-def build_ticker(ticker, outdir, categories, scanned, n_tracked, args):
+def build_ticker(ticker, outdir, categories, scanned, n_tracked, args,
+                 win):
     """Pass 2. Raw rows -> deduped, quarter-labelled, sorted reviews.csv."""
     raw = os.path.join(outdir, ticker, "reviews_raw.jsonl")
     if not os.path.exists(raw):
@@ -334,7 +336,7 @@ def build_ticker(ticker, outdir, categories, scanned, n_tracked, args):
               % (overlaps[0][0], overlaps[0][1]))
 
     rows, seen = [], set()
-    dupes = bad_ts = unmapped = no_helpful = 0
+    dupes = bad_ts = unmapped = no_helpful = out_of_window = 0
     how_counts = defaultdict(int)
 
     with open(raw, encoding="utf-8") as f:
@@ -360,6 +362,12 @@ def build_ticker(ticker, outdir, categories, scanned, n_tracked, args):
             how_counts[how] += 1
             if not q:
                 unmapped += 1
+                continue
+            # --window dev stops here, before the row is ever written. A review
+            # in a held-out quarter is not extracted, so no later stage can see
+            # one by accident (CORE-PROMPT s1.4).
+            if not win.allows(q):
+                out_of_window += 1
                 continue
 
             text = rec.get("text") or ""
@@ -417,6 +425,14 @@ def build_ticker(ticker, outdir, categories, scanned, n_tracked, args):
         "fy_end_month": fy_end_month,
         "fy_verified_from": fy_from,
         "n_periods_in_map": len(period_map),
+        # Provenance of the restriction: a reviews.csv is only interpretable
+        # alongside the window that produced it, and "fewer rows than expected"
+        # must be answerable without rerunning.
+        "window": win.mode,
+        "window_bounds": ("%dQ%d-%dQ%d" % (win.bounds[0] + win.bounds[1])
+                          if win.bounds else None),
+        "window_source": win.source,
+        "out_of_window_dropped": out_of_window,
         "out": out,
     })
     write_manifest(outdir, ticker, categories, scanned, stats, args)
@@ -580,8 +596,14 @@ def report(stats):
 def main():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("tickers", nargs="+",
-                   help="tickers with a data/{TICKER}/products.csv from coverage.py")
+    p.add_argument("tickers_pos", nargs="*", default=[], metavar="TICKER",
+                   help="tickers with a data/{TICKER}/products.csv from "
+                        "coverage.py; --tickers is the orchestrator's spelling "
+                        "of the same thing")
+    windowmod.add_tickers_argument(
+        p, "the orchestrator's spelling of the positional tickers "
+           "(.claude/commands/review-tone-run.md); equivalent, not additional")
+    windowmod.add_argument(p)
     p.add_argument("--categories", nargs="+",
                    help="corpus categories to stream; default: those in coverage.csv")
     p.add_argument("--outdir", default="data")
@@ -602,7 +624,18 @@ def main():
                    help="truncate each stream - ESTIMATION ONLY, marks output truncated")
     args = p.parse_args()
 
-    tickers = [t.upper() for t in args.tickers]
+    # One list, however it was spelled. Duplicates are collapsed rather than
+    # scored twice; order follows first appearance so a re-run is deterministic.
+    tickers, seen_t = [], set()
+    for x in list(args.tickers or []) + list(args.tickers_pos):
+        u = x.upper()
+        if u not in seen_t:
+            seen_t.add(u)
+            tickers.append(u)
+    if not tickers:
+        p.error("no tickers given; pass them positionally or with --tickers")
+    win = windowmod.resolve(args, "extract_reviews.py (B2)")
+    print(win.describe())
     if args.fy_end_month and len(tickers) > 1:
         sys.exit("--fy-end-month applies to every ticker in the run, and these\n"
                  "companies do not share a fiscal calendar unless you have\n"
@@ -637,7 +670,7 @@ def main():
 
     for tic in tickers:
         stats = build_ticker(tic, args.outdir, categories, scanned,
-                             tracked[tic], args)
+                             tracked[tic], args, win)
         report(stats)
 
     if args.max_bytes:

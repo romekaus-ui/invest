@@ -203,9 +203,23 @@ are the interfaces the orchestrator reads and writes; the stages above are
 unchanged.
 
 ## `data/calibration.json`
-Written by `score_reviews.py --calibrate`. The calibration gate in
-`tone-rubric-v1.md` is read from this file, so a missing or incomplete one blocks
-the pipeline rather than being treated as a pass.
+Written by `score_reviews.py --calibrate --labels <sheet>`. The calibration gate
+in `tone-rubric-v1.md` is read from this file, so a missing or incomplete one
+blocks the pipeline rather than being treated as a pass.
+
+**This file and `data/{TICKER}/calibration.json` above are the same record at two
+paths, and that was a real break until 2026-10-11.** `score_reviews.py` computed
+the result per company and wrote only the per-company copy, while
+`pipeline_state.detect_calibration` reads this path and nowhere else — so
+`B3.calibration` could never be met however good the agreement was. The scorer now
+promotes the result here once labels are in (`promote_calibration`), adding
+`calibrated_on` (the list of tickers the labelled sample came from).
+
+Calibration is a property of the **scorer**, not of a company, so there is one
+file at this path. When several companies are calibrated in one run it is written
+only if they agree on `gate`, `rubric_version` and `scorer_model_id`; a
+disagreement is reported and the gate stays unmet, because picking one would
+silently decide whether the pipeline is blocked.
 
 | key | type | notes |
 |---|---|---|
@@ -217,6 +231,24 @@ the pipeline rather than being treated as a pass.
 | `scorer_model_id` | str | must match the prereg; a change forces re-calibration (F10) |
 | `labelled_by` | str | who labelled, blind to model output |
 | `scored_at` | datetime | |
+
+## `data/{TICKER}/manifest.json` — window provenance
+
+Every stage that honours `--window` records which window produced its output, so
+a short series can be told from a restricted one after the fact. Written by
+`extract_reviews.py` (B2) and `aggregate.py` (B5):
+
+| key | type | notes |
+|---|---|---|
+| `window` | str | `dev` or `full` |
+| `window_bounds` | str/null | e.g. `2016Q1-2021Q2`; null when the prereg carries no window table |
+| `window_source` | str | the file the bound was read from, e.g. `prereg/TEMPLATE.md (NOT frozen)` |
+| `out_of_window_dropped` | int | B2 only: reviews refused by the window |
+
+The bound itself is never written down twice. `scripts/window.py` resolves it
+through `pipeline_state.parse_window`, the same function
+`heldout_contamination` uses, so the filter and the check cannot disagree about
+where held-out starts.
 
 ## The measurement JSON (`backtest.py`, `degrade.py`)
 Written to the `--out` path. The orchestrator reads it and builds the result row

@@ -782,3 +782,123 @@ this skill has seen a figure that came from the corpus or from EDGAR.
 Palette validated with the dataviz skill's `validate_palette.py` (no `node` on
 this machine) against the page's own surfaces, passing in both modes: worst
 adjacent CVD ΔE 24.7 light / 26.8 dark against a target of 8.
+
+## 2026-10-11 · six components merged, stage interface reconciled
+
+Integration session. Six finished components sat on unmerged branches and the
+orchestrator could not invoke any of them.
+
+**Merged into `main`, numeric stack first because it touches shared scripts:**
+
+| Branch | What it brought |
+|---|---|
+| `frosty-gould-047c87` | numeric stack decision, `env_stamp.py`, `requirements-dev.txt`, `references/numeric-stack.md` |
+| `musing-elgamal-4e54f6` | `extract_reviews.py` (B2) |
+| `determined-dijkstra-9813a8` | `score_reviews.py` (B3/B4) + data-contract additions |
+| `optimistic-pike-55e901` | `aggregate.py` (B5) + methodology §3 provisional markers |
+| `blissful-chaum-ff4834` | `score_eligibility.py`, `review-eligibility-scorer` agent, `data/eligibility_2016.*` |
+| `pensive-cartwright-d959f8` | the `review-tone-dashboard` skill |
+
+Binding outcome carried forward from the first: **the pipeline is stdlib-only;
+numpy/scipy are dev-only.** All six appended to the tail of this changelog, so
+each merge conflicted at the same spot; every entry was kept verbatim and ordered
+by topic, since the changelog is a record and not a summary. `vibrant-morse-5dc8e5`
+was not merged — it is already in `origin/main`. The weekly routine's first-fire
+branch was left alone.
+
+### The stage interface: the orchestrator's contract won
+
+`orchestrate.py` built every stage call as `script --tickers T1 T2 … --window dev`
+and **not one of the four built stages accepted it.** Each was fatal at argparse:
+B2 took a positional ticker list, B3/B4 a single positional ticker, B5 a
+repeatable `--ticker`; none took `--window` at all, and the dashboard was invoked
+with no arguments while requiring a positional ticker.
+
+The scripts were changed to match the orchestrator, for three reasons:
+
+1. **`--window` had to be added either way.** Invoking every pre-freeze stage
+   with `--window dev` is the mechanical half of held-out protection (CORE-PROMPT
+   §1.4, §6). Changing the orchestrator to stop sending it would have removed the
+   guarantee, which is not a reconciliation — it is a deletion.
+2. **The contract was already published.** `.claude/commands/review-tone-run.md`
+   documents this exact signature, and `backtest.py` and `degrade.py` are still
+   unbuilt and will be written against it. The test fixtures' stage stubs already
+   accepted `--tickers`/`--window` too.
+3. One signature across five stages beats three per-script conventions.
+
+The flag is **genuinely honoured, not accepted and ignored** — the failure the
+contamination check would otherwise catch far too late:
+
+- New `scripts/window.py` owns the contract. It resolves the development bound
+  through `pipeline_state.parse_window` — the same function
+  `heldout_contamination` uses — so the filter and the check cannot disagree
+  about where held-out starts. The bound is read from the active prereg, or from
+  `prereg/TEMPLATE.md` §3 when none is frozen.
+- B2 drops a held-out review before it is written; B3/B4 filter on read, so a
+  `reviews.csv` rebuilt over the full window after the freeze cannot smuggle one
+  into the scorer, and the calibration draw is restricted too (a human labelling
+  a held-out review is the inspection §1.4 forbids, and it happens before any
+  model scores it); B5 drops held-out quarters before `quarters.csv` exists,
+  which is the file the contamination check reads.
+- **The default is `dev`, not `full`.** The mistakes are not symmetric: the first
+  costs a re-run, the second spends the held-out window permanently.
+- **`--window full` is refused while the prereg is not frozen.** This is what
+  makes the flag binding rather than advisory: before the freeze there is no argv
+  that produces held-out output from a pre-freeze stage. B7 and C sit behind
+  `B1.prereg_frozen` and are allowed `full` once it is met.
+- Each stage records `window`, `window_bounds` and `window_source` in its
+  manifest, because a short series and a restricted one are otherwise
+  indistinguishable afterwards.
+
+The old spellings still work as aliases, so nothing documented elsewhere broke.
+
+### The dashboard went the other way
+
+`regenerate_dashboard()` now loops `build_dashboard.py` once per company, passing
+the positional ticker it requires. This is the one interface settled in the
+script's favour, and deliberately: `build_dashboard.py` renders one company's
+payload and is forbidden from computing a tone mean, an interval or a base rate
+(§1.3), so a whole-set mode would have had to combine companies — arithmetic of
+exactly the kind it exists to refuse. The loop belongs where the company set is
+already known. It takes no `--window`: it is not a pipeline stage, it only reads
+what the stages wrote, and under `--window dev` those files hold no held-out
+quarter to leak.
+
+### A fifth mismatch, found while reconciling the four
+
+`pipeline_state.detect_calibration` gates B3 on `data/calibration.json` and reads
+nowhere else, but `score_reviews.py` wrote only `data/{TICKER}/calibration.json`.
+**`B3.calibration` could therefore never have been met, however good the measured
+agreement was.** The scorer now promotes the result to the contract path once
+labels are in, recording which tickers the sample came from. Calibration is a
+property of the scorer, not a company, so with several companies calibrated in
+one run the file is written only if they agree on gate, rubric and model; a
+disagreement is reported and the gate stays unmet, because picking one would
+silently decide whether the pipeline is blocked.
+
+### Verified
+
+- `orchestrate.py --dry-run`: coherent plan, no argparse failure, exit 0.
+- Test suite **107 checks, 107 passed** (was 89). New section 16 runs the *real*
+  scripts, not the stubs — sections 5–15 exercise fixtures that satisfy the
+  contract by construction and so could only ever prove the orchestrator right.
+  Each of the four interfaces is checked twice: that the contract argv reaches
+  the script's own logic, and that `--window dev` genuinely restricts what is
+  written. Mutation-checked: making `window.allows()` return `True`
+  unconditionally — a flag that parses and does nothing — fails 16d, 16h and 16l.
+- Two pre-existing checks were corrected rather than worked around: `1i` asserted
+  the dashboard did not exist, and `4` asserted B2 did not. Both now do. Test 4
+  removes the script from its fixture, so the orchestrator's refusal to skip a
+  missing stage is still under test — it has to keep working for `backtest.py`
+  and `degrade.py`.
+- A real run still stops at **gate A2** with verdict `insufficient_data`, which is
+  correct: A2 is scored by hand and its shortlist pre-filter is being built
+  elsewhere. No `data/eligibility.csv` was created, no `--reform-universe` or
+  `--refresh-coverage` passed, no gate worked around.
+- `backtest.py` and `degrade.py` remain unbuilt, so the test statistic still
+  cannot be chosen after seeing the data.
+
+**Known and not fixed** (pre-existing, unrelated to the interface): the scorer's
+`--self-test` exits 2 at section 5, which reads `reviews.csv` from `--outdir`
+without the documented invocation having created one. Sections 1–4 pass. The
+behaviour is identical before these changes.

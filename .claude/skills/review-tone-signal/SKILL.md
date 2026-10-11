@@ -60,10 +60,15 @@ Load these as needed; do not load them all up front.
 - `references/data-contracts.md` — exact schemas for every CSV and JSONL in the pipeline.
 - `references/weekly-routine.md` — the scheduled weekly run: cron, config and its
   verbatim prompt. Read before changing the schedule.
+- `scripts/window.py` — the `--window {dev,full}` contract every stage shares.
+  Read before writing a stage that reads or writes quarter-labelled data: the
+  development bound is resolved there from the prereg, and `--window full` is
+  refused until the prereg is frozen.
 - `references/numeric-stack.md` — the pipeline is **stdlib only**, including the
   statistics. Binding. Read before writing any stage that resamples, correlates or
   computes an interval, and before adding any dependency. Fixes the seeding
   convention and the `numeric_env` run metadata.
+
 ## Running the pipeline
 
 Do not retype the phase map as a prompt. `/review-tone-run` runs it:

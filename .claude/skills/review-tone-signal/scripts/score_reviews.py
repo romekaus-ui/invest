@@ -83,6 +83,9 @@ import urllib.request
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import window as windowmod  # noqa: E402
+
 # --------------------------------------------------------------------------
 # Frozen rubric
 # --------------------------------------------------------------------------
@@ -459,7 +462,14 @@ def read_csv(path):
         return list(csv.DictReader(f))
 
 
-def read_reviews(path):
+def read_reviews(path, win=None):
+    """Load reviews.csv, restricted to `win` when one is given.
+
+    The scorer filters independently of the extractor rather than trusting that
+    reviews.csv was itself built under `--window dev`: the same file may be
+    rebuilt over the full window after the freeze, and a scorer that inferred
+    its window from its input would then silently score held-out reviews.
+    """
     rows = read_csv(path)
     if not rows:
         die("%s has no rows" % path)
@@ -467,6 +477,19 @@ def read_reviews(path):
     missing = need - set(rows[0])
     if missing:
         die("%s is missing required columns: %s" % (path, sorted(missing)))
+    if win is not None and win.restricts:
+        if "fiscal_quarter" not in rows[0]:
+            die("%s has no fiscal_quarter column, so --window %s cannot be\n"
+                "honoured. Scoring it would put held-out reviews through the\n"
+                "scorer with nothing able to tell afterwards (CORE-PROMPT s1.4).\n"
+                "Re-extract it with extract_reviews.py." % (path, win.mode))
+        kept = [r for r in rows if win.allows(r.get("fiscal_quarter"))]
+        if not kept:
+            die("%s has no reviews inside %s" % (path, win.describe()))
+        if len(kept) != len(rows):
+            print("window             %d of %d reviews inside %s"
+                  % (len(kept), len(rows), win.mode))
+        rows = kept
     # The 2023 corpus contains exact duplicate records - the same review text
     # from the same user on the same parent_asin at the same second appears
     # twice. review_id is a hash of exactly those three fields, so a repeated id
@@ -609,8 +632,8 @@ def pearson(xs, ys):
 # B4 - scoring
 # --------------------------------------------------------------------------
 
-def cmd_score(args, paths, rubric_version, backend):
-    reviews = read_reviews(paths["reviews"])
+def cmd_score(args, paths, rubric_version, backend, win=None):
+    reviews = read_reviews(paths["reviews"], win)
     existing = load_scores(paths["scores"])
     already = set(r["review_id"] for r in
                   select_scores(existing, rubric_version, backend.model))
@@ -811,9 +834,14 @@ def print_report(rep, paths):
 # B3 - calibration
 # --------------------------------------------------------------------------
 
-def cmd_calibrate_draw(args, paths, rubric_version, model_id):
-    """Draw a stratified sample and write a blind labelling sheet."""
-    reviews = {r["review_id"]: r for r in read_reviews(paths["reviews"])}
+def cmd_calibrate_draw(args, paths, rubric_version, model_id, win=None):
+    """Draw a stratified sample and write a blind labelling sheet.
+
+    The draw is restricted to the window too. A calibration sample drawn from
+    held-out reviews would have a human read them, which is precisely the
+    inspection s1.4 forbids - and it happens before any model scores them.
+    """
+    reviews = {r["review_id"]: r for r in read_reviews(paths["reviews"], win)}
     scores = select_scores(load_scores(paths["scores"]), rubric_version, model_id)
     if not scores:
         die("no rows in %s for (rubric %s, model %s).\n"
@@ -914,7 +942,7 @@ How to label
 Gate: quadratic-weighted kappa >= %.2f AND adjacent agreement >= %.2f.
 Below either, the pipeline is blocked.""" % (
         rubric_version, os.path.relpath(os.path.abspath(__file__)),
-        args.ticker, paths["cal_sample"], GATE_KAPPA, GATE_ADJACENT))
+        paths["ticker"], paths["cal_sample"], GATE_KAPPA, GATE_ADJACENT))
     print("\ngate status: PENDING - no human labels yet, so B3 is unmet.")
     return 1
 
@@ -1260,6 +1288,60 @@ def cmd_selftest(args, paths, rubric_version):
     return 1 if fails else 0
 
 
+def promote_calibration(outdir, tickers):
+    """Publish the per-company calibration result at the contract path.
+
+    `references/data-contracts.md` and `pipeline_state.detect_calibration` both
+    name `data/calibration.json` as the B3 gate file, and the gate is read from
+    nowhere else. This script computes the result per company, into
+    `data/{TICKER}/calibration.json`, so without this step the gate could never
+    be met no matter how good the agreement was - the file it reads would simply
+    not exist.
+
+    Calibration is a property of the *scorer*, not of a company, so there is one
+    contract file. With several companies calibrated in one run it is only
+    written when they agree on the gate, the rubric and the model; a
+    disagreement is reported rather than resolved by picking one, because which
+    one got picked would then silently decide whether the pipeline is blocked.
+    """
+    found = []
+    for tic in tickers:
+        path = os.path.join(outdir, tic, "calibration.json")
+        if not os.path.exists(path):
+            continue
+        try:
+            with open(path, encoding="utf-8") as f:
+                found.append((tic, json.load(f)))
+        except (OSError, ValueError) as e:
+            print("!! cannot read %s: %s" % (path, e))
+    if not found:
+        return 0
+
+    keyed = set((r.get("gate"), r.get("rubric_version"), r.get("scorer_model_id"))
+                for _, r in found)
+    dest = os.path.join(outdir, "calibration.json")
+    if len(keyed) > 1:
+        print("\n!! NOT writing %s: the %d calibrations in this run disagree on"
+              % (dest, len(found)))
+        print("!! gate, rubric or model:")
+        for tic, r in found:
+            print("!!   %-6s gate=%s rubric=%s model=%s"
+                  % (tic, r.get("gate"), r.get("rubric_version"),
+                     r.get("scorer_model_id")))
+        print("!! B3 is a property of the scorer, so one of these is wrong about")
+        print("!! it. The gate stays unmet until they agree (CORE-PROMPT s7).")
+        return 1
+
+    tic, result = found[0]
+    out = dict(result)
+    out["calibrated_on"] = sorted(t for t, _ in found)
+    with open(dest, "w", encoding="utf-8") as f:
+        json.dump(out, f, indent=2, sort_keys=True)
+    print("\nB3 gate file  -> %s (from %s)" % (dest, ", ".join(out["calibrated_on"])))
+    print("This is the file pipeline_state reads for B3.calibration.")
+    return 0
+
+
 def guard_stub_path(path):
     norm = os.path.normpath(os.path.abspath(path))
     parts = norm.split(os.sep)
@@ -1274,7 +1356,13 @@ def guard_stub_path(path):
 def main():
     p = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("ticker")
+    p.add_argument("tickers_pos", nargs="*", default=[], metavar="TICKER",
+                   help="one or more tickers; --tickers is the orchestrator's "
+                        "spelling of the same thing")
+    windowmod.add_tickers_argument(
+        p, "the orchestrator's spelling of the positional tickers "
+           "(.claude/commands/review-tone-run.md); equivalent, not additional")
+    windowmod.add_argument(p)
     p.add_argument("--outdir", default="data")
     p.add_argument("--reviews", help="override data/{TICKER}/reviews.csv")
     p.add_argument("--scores", help="override data/{TICKER}/scores.csv")
@@ -1302,8 +1390,37 @@ def main():
                    help="offline verification; writes synthetic tone, not scores")
     args = p.parse_args()
 
-    tdir = os.path.join(args.outdir, args.ticker)
+    tickers, seen_t = [], set()
+    for x in list(args.tickers or []) + list(args.tickers_pos):
+        u = x.upper()
+        if u not in seen_t:
+            seen_t.add(u)
+            tickers.append(u)
+    if not tickers:
+        p.error("no tickers given; pass them positionally or with --tickers")
+    if (args.reviews or args.scores) and len(tickers) > 1:
+        p.error("--reviews/--scores override a single company's paths; they "
+                "cannot stand for %d companies" % len(tickers))
+
+    win = windowmod.resolve(args, "score_reviews.py (B3/B4)")
+    print(win.describe())
+
+    rc = 0
+    for ticker in tickers:
+        if len(tickers) > 1:
+            print("\n=== %s ===" % ticker)
+        rc = run_one(args, p, ticker, win) or rc
+    if args.calibrate and not args.labels:
+        return rc
+    if args.calibrate:
+        rc = promote_calibration(args.outdir, tickers) or rc
+    return rc
+
+
+def run_one(args, p, ticker, win):
+    tdir = os.path.join(args.outdir, ticker)
     paths = {
+        "ticker": ticker,
         "reviews": args.reviews or os.path.join(tdir, "reviews.csv"),
         "scores": args.scores or os.path.join(tdir, "scores.csv"),
         "report": os.path.join(tdir, "scoring_report.json"),
@@ -1322,7 +1439,7 @@ def main():
     if args.calibrate:
         if args.labels:
             return cmd_calibrate_report(args, paths, rv, args.model)
-        return cmd_calibrate_draw(args, paths, rv, args.model)
+        return cmd_calibrate_draw(args, paths, rv, args.model, win)
 
     if args.backend == "stub":
         guard_stub_path(paths["scores"])
@@ -1333,9 +1450,9 @@ def main():
     else:
         backend = ApiBackend(args.model, build_system_prompt(rubric_text),
                              base_url=args.base_url, max_tokens=args.max_tokens)
-    rc = cmd_score(args, paths, rv, backend)
+    rc = cmd_score(args, paths, rv, backend, win)
     if rc == 0:
-        ok, detail = calibration_status(args.outdir, args.ticker, rv,
+        ok, detail = calibration_status(args.outdir, ticker, rv,
                                         backend.resolved_models.most_common(1)[0][0]
                                         if backend.resolved_models else args.model)
         if not ok:

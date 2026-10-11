@@ -72,6 +72,9 @@ import re
 import sys
 from collections import defaultdict
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import window as windowmod  # noqa: E402
+
 # ---------------------------------------------------------------------------
 # Thresholds. Configurable, but these defaults are the prereg's stated values
 # (prereg/TEMPLATE.md s4) and CORE-PROMPT s5. Changing them for a real run is a
@@ -192,8 +195,14 @@ def as_bool(v):
     return str(v).strip().lower() in ("true", "1", "yes", "t")
 
 
-def load_quarters(ticker, datadir):
+def load_quarters(ticker, datadir, win=None):
     """Join reviews to scores and bucket by fiscal quarter.
+
+    `win` restricts which quarters are bucketed at all. This is the stage the
+    contamination check actually watches - `pipeline_state.heldout_contamination`
+    reads `data/{TICKER}/quarters.csv` - so a held-out quarter dropped here
+    never reaches disk, and the run is not aborted at exit 2 for a file it
+    should never have written (CORE-PROMPT s1.4).
 
     Precedence on the three mutually exclusive dispositions, so that no review
     is counted twice and none vanishes:
@@ -224,9 +233,13 @@ def load_quarters(ticker, datadir):
         "n_price_complaint": 0,
     })
     unscored = 0
+    out_of_window = 0
     bad_quarter = defaultdict(int)
     with open(rpath, newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):
+            if win is not None and not win.allows(row.get("fiscal_quarter")):
+                out_of_window += 1
+                continue
             qi = q_index(row.get("fiscal_quarter"))
             if qi is None:
                 bad_quarter[row.get("fiscal_quarter", "")] += 1
@@ -276,7 +289,14 @@ def load_quarters(ticker, datadir):
                       "run the scoring stage to completion before aggregating"
                       % unscored)
     if not buckets:
+        if out_of_window:
+            return None, ("all %d reviews fall outside %s, so there is nothing "
+                          "to aggregate in this window"
+                          % (out_of_window, win.describe() if win else "the window"))
         return None, "no reviews survived parsing"
+    if out_of_window:
+        print("  window           %d reviews outside %s, not aggregated"
+              % (out_of_window, win.mode))
     return buckets, None
 
 
@@ -717,7 +737,11 @@ def self_test(args):
 def main():
     p = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--ticker", action="append", dest="tickers", default=None,
+    windowmod.add_tickers_argument(
+        p, "the orchestrator's spelling (.claude/commands/review-tone-run.md); "
+           "combined with any --ticker flags, not overridden by them")
+    windowmod.add_argument(p)
+    p.add_argument("--ticker", action="append", dest="ticker_each", default=None,
                    help="repeatable; default is every data/*/ with scores.csv")
     p.add_argument("--datadir", default="data")
     p.add_argument("--min-reviews", type=int, default=MIN_REVIEWS_PER_QUARTER,
@@ -745,7 +769,12 @@ def main():
                  MIN_REVIEWS_PER_QUARTER, MIN_QUARTERS))
         print("!! A real run uses the prereg's values. This output is not a result.")
 
-    tickers = args.tickers
+    tickers, seen_t = [], set()
+    for x in list(args.tickers or []) + list(args.ticker_each or []):
+        u = x.upper()
+        if u not in seen_t:
+            seen_t.add(u)
+            tickers.append(u)
     if not tickers:
         tickers = sorted(
             d for d in os.listdir(args.datadir)
@@ -760,6 +789,8 @@ def main():
             "re-run this.\n\nTo check this code without data: --self-test"
             % args.datadir)
 
+    win = windowmod.resolve(args, "aggregate.py (B5)")
+    print(win.describe())
     print("stage B5 aggregate - floors %d reviews/quarter, %d quarters/company"
           % (args.min_reviews, args.min_quarters))
     print("bootstrap: %d replicates, seed %d, 95%% percentile CI, impl %s"
@@ -773,7 +804,7 @@ def main():
 
     outcomes, failures = [], []
     for ticker in tickers:
-        buckets, err = load_quarters(ticker, args.datadir)
+        buckets, err = load_quarters(ticker, args.datadir, win)
         if err:
             print("\n=== %s ===\n  !! %s" % (ticker, err))
             failures.append((ticker, err))
@@ -790,6 +821,13 @@ def main():
         update_manifest(os.path.join(d, "manifest.json"), {
             "stage": "B5",
             "aggregated_at": datetime.datetime.utcnow().isoformat() + "Z",
+            # Which window produced quarters.csv. Without this a short series
+            # cannot be told apart from a restricted one, and the restriction
+            # is the whole of the held-out guarantee.
+            "window": win.mode,
+            "window_bounds": ("%dQ%d-%dQ%d" % (win.bounds[0] + win.bounds[1])
+                              if win.bounds else None),
+            "window_source": win.source,
             "min_reviews_per_quarter": args.min_reviews,
             "min_quarters": args.min_quarters,
             "bootstrap_replicates": args.bootstrap,
