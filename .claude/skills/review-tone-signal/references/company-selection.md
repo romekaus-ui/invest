@@ -206,6 +206,21 @@ already treats a paragraph matched by three probes as one piece of evidence; the
 filter now does the same. The per-family raw counts are still recorded, next to
 the deduplicated total the decision reads.
 
+### Two limitations that are not fixable by a better regex
+
+- **It cannot tell whose channel it is.** Natural Alternatives is a private-label
+  contract manufacturer whose 10-K describes the e-commerce channels *its
+  customers* sell through. Two distinct mentions, so it is kept — and criterion 4
+  is what fails it. The filter reads disclosure, not ownership.
+- **It reads the filing, not the world.** Bassett Furniture's FY2014 10-K
+  mentions the internet as an advertising medium and as a competitor's channel,
+  and its own website only in the "available free of charge" boilerplate. It is
+  cut as disclosing no channel, which is what the filing says, whether or not the
+  company was selling online. A company that sells online without disclosing it
+  leaves the universe for a year, and re-enters the year it discloses — which is
+  the rolling formation behaving as §1 intends, not a bug, but it does mean the
+  filter measures *disclosure* and nothing more.
+
 ### Output, and the limit of what it bounds
 
 ```
