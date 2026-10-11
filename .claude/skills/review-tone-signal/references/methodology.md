@@ -86,6 +86,45 @@ quarter. A quarter below `MIN_REVIEWS_PER_QUARTER` (default 30) emits
 `insufficient_history` and no number. The source video's worked example rests on six
 reviews; six reviews cannot distinguish a mood from a rounding error.
 
+### 4b. Second specification: peer-relative tone
+
+**Decided 2026-10-11, not yet frozen.** Two specifications will be preregistered, not
+one:
+
+```
+S1 (primary)  signal(Q)      = tone_within(Q) − baseline(Q)          [as above]
+S2 (peer)     signal_peer(Q) = signal(Q) − mean_{j in peers(i)} signal_j(Q)
+```
+
+A category-wide shock moves every brand in a group together. If snack-food reviews sour
+across the board in one quarter, S1 reads that as news about each company; S2 reads it as
+news about the category and keeps only what is specific to the firm. Which of the two
+carries information is an empirical question, and preregistering both is cheaper and more
+honest than preregistering one and wishing afterwards it had been the other.
+
+**Peer set construction**, fixed at formation and never revised:
+
+- Peers are the other companies in the same **3-digit SIC group**, within the **same
+  formation cohort**, that clear A2 eligibility, A3 coverage and the §5 quarter floor.
+- The set is computed once, from the cohort, before any tone is scored. A peer set
+  chosen after seeing which companies produced a clean series is selection.
+- A company with **no surviving peer** emits no `signal_peer` for any quarter. It is
+  reported as peerless and **stays in S1** — dropping it would make the two
+  specifications run on different samples, and a difference between them would then be
+  partly a difference of population.
+
+**Feasibility, measured before committing to it.** At the 2016 formation the shortlist's
+83 company-years fall into 38 three-digit SIC groups, of which 20 hold two or more —
+covering 65 of the 83. The largest are apparel retail (7), supplements (5), furniture (5)
+and consumer electronics retail (5). This is measured at the **shortlist** stage: A2 and
+A3 both cut further, so the realised peer count will be smaller, and a group that loses
+all but one member yields a peerless company rather than a peer signal.
+
+**Cost, stated plainly.** This is a second specification against §6's multiple-testing
+budget. Both are declared in the prereg with their thresholds before the backtest runs,
+`specifications_tested` records 2, and **a result that holds on S2 but not S1 is reported
+as exactly that** — not as "the signal works". The shuffled-date null runs against both.
+
 ## 5. Endpoints
 
 ### Primary: revenue surprise
@@ -149,4 +188,5 @@ a mechanism explains it.
 | 2026-10-11 | `baseline_prior4` requires all four prior within values; no partial baseline | A mean over three quarters in one row and four in another is two different estimators in one column. That is how a formula changes mid-series without anyone deciding to change it |
 | 2026-10-11 | The decomposition requires Q and Q−1 to be *adjacent* and both above the review floor | Reaching past a gap to the last usable quarter is forward fill by another name (CORE-PROMPT §4). A quarter after a gap emits no decomposition |
 | 2026-10-11 | F4's residual flag is measured against `\|within\|+\|mix\|+\|residual\|`, not against the total change | The total change can sit near zero through cancellation; dividing by it reported a quiet quarter as a 900% residual alarm during the build. The gross-magnitude denominator is scale-free and the flag names which term dominates, since entrant/exit churn and the interaction term are different problems |
+| 2026-10-11 | A second specification, peer-relative tone (§4b), will be preregistered alongside the primary | A category-wide demand or sentiment shock moves every brand in a group together, and the primary specification reads that as company news. Feasibility was measured before the decision rather than assumed: 20 of 38 SIC groups in the 2016 shortlist hold two or more company-years. It costs one specification against §6 and is declared before the freeze, not chosen after a result |
 | _pending_ | Reconcile all of the above against the paper's actual construction | Paper not yet read in full |

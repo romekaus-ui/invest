@@ -540,12 +540,18 @@ def build(year, datadir, partial, out_path, shortlist_path=None):
     if stray:
         die("judgements for tickers that are not in_band at %s: %s. A2 scores "
             "the universe, it does not add to it." % (formation, ", ".join(stray)))
-    off_scope = sorted(set(judg) - scope)
-    if off_scope and shortlist_path:
-        die("judgements for %d ticker(s) outside the shortlist: %s\nScoring "
-            "beyond the set you were handed is selection, which is not A2's to "
-            "do. Ask for a revised shortlist instead."
-            % (len(off_scope), ", ".join(off_scope)))
+    # A judgement that already exists for an in_band company-year stays in
+    # scope even when the pre-filter cut it. It was scored from the filing in
+    # force at formation, before A1b existed, and discarding it because a later
+    # component disagrees would let the cut rule decide which completed scores
+    # count. Admitted, but never silently: the set is printed, written to the
+    # hash line and listed in the evidence JSON, so the file is readable as
+    # "the shortlist plus these named additions" and not as the shortlist's
+    # result. Nothing NEW can be scored outside it - a judgement for a
+    # company-year that is not in_band is still refused above, which is the
+    # boundary that matters, since A2 may not add to the universe.
+    admitted = sorted((set(judg) & set(uni)) - scope) if shortlist_path else []
+    scope |= set(admitted)
 
     missing = sorted(scope - set(judg))
     if missing and not partial:
@@ -601,10 +607,14 @@ def build(year, datadir, partial, out_path, shortlist_path=None):
     with open(out, "rb") as f:
         digest = hashlib.sha256(f.read()).hexdigest()
     uni_path = universe_path(year, datadir)
-    scope_note = ("shortlist=%s:%s  of_in_band=%d/%d"
-                  % (os.path.basename(shortlist_path), sl_hash[:12],
-                     len(scope), len(uni))) if shortlist_path else \
-                 ("scope=all_in_band=%d" % len(uni))
+    if shortlist_path:
+        scope_note = ("shortlist=%s:%s  of_in_band=%d/%d"
+                      % (os.path.basename(shortlist_path), sl_hash[:12],
+                         len(scope), len(uni)))
+        if admitted:
+            scope_note += ("  admitted_off_shortlist=%s" % "|".join(admitted))
+    else:
+        scope_note = "scope=all_in_band=%d" % len(uni)
     with open(out.replace(".csv", ".hash"), "w") as f:
         f.write("%s  %s  formation=%s  scored=%d/%d  %s  universe=%s:%s  "
                 "partial=%s\n"
@@ -622,6 +632,7 @@ def build(year, datadir, partial, out_path, shortlist_path=None):
                                if shortlist_path else None,
                    "shortlist_sha256": sl_hash or None,
                    "scope_size": len(scope),
+                   "admitted_off_shortlist": admitted,
                    "not_in_scope": sorted(set(uni) - scope),
                    "criteria_weights": {k: w for k, w, _l in CRITERIA},
                    "pass_bar": PASS_BAR,
@@ -639,6 +650,10 @@ def build(year, datadir, partial, out_path, shortlist_path=None):
               % (len(uni) - len(scope)))
         print("  in this file. The pre-filter's own cut list, with reasons, is")
         print("  what bounds the population - this file does not.")
+        if admitted:
+            print("  %d judgement(s) outside the shortlist admitted: %s"
+                  % (len(admitted), " ".join(admitted)))
+            print("  (scored from the filing in force before A1b existed)")
     print("  eligible (>= %.0f):   %d" % (PASS_BAR, len(passed)))
     print("  ineligible, kept:    %d" % (len(rows) - len(passed)))
     print("  c1 estimated:        %d" % len(est))

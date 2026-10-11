@@ -1,1 +1,1 @@
-e15547c1d4bd226bd12fdb573c9f95be1f92cce090a810c89f74f1ee52837f96  eligibility_2016.csv  formation=2016-01-01  scored=3/3  shortlist=shortlist_2016.csv:904279d58657  of_in_band=3/40  universe=universe_2016.csv:30bda3c0eb0d  partial=False
+e15547c1d4bd226bd12fdb573c9f95be1f92cce090a810c89f74f1ee52837f96  eligibility_2016.csv  formation=2016-01-01  scored=3/84  shortlist=shortlist_2016.csv:866550a5fe02  of_in_band=84/396  admitted_off_shortlist=NTAP  universe=universe_panel.csv:28db9bdb5609  partial=True

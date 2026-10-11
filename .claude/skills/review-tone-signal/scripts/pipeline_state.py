@@ -14,7 +14,9 @@ Gates, in order (CORE-PROMPT s8, SKILL.md phase map, tone-rubric-v1 calibration
 gate). Each is the ENTRY condition for the work that follows it:
 
     A1  universe exists, hashed, hash matches, scan not truncated
-    A2  >= 8 structurally eligible companies, every rejection carries a reason
+    A1b the pre-filter has cut the panel to a hashed shortlist per formation
+    A2  >= 8 structurally eligible companies IN ONE FORMATION, every rejection
+        carrying a reason, the file not partial
     A3  >= 8 of those have usable, untruncated review coverage   <- Gate A
     B1  prereg frozen: hash matches, both files committed, no placeholders
     B3  calibration kappa >= 0.60 AND adjacent agreement >= 0.85 <- Gate B
@@ -46,6 +48,26 @@ import subprocess
 # rubric; they are not tuning parameters and are not exposed as CLI flags.
 MIN_ELIGIBLE = 8              # CORE-PROMPT s8, phase A gate
 MIN_COVERAGE = 8              # CORE-PROMPT s8, phase A gate
+MIN_QUARTERS = 12             # CORE-PROMPT s5, per-company floor
+
+# The review corpus is a fixed snapshot ending September 2023 and will never
+# grow (README; weekly-routine.md, "Why weekly"). extract_reviews.py holds the
+# authoritative constant as CORPUS_SNAPSHOT; this is a second copy because
+# pipeline_state imports nothing from the pipeline it inspects, and the test
+# suite checks the two agree.
+CORPUS_SNAPSHOT = (2023, 3)   # 2023Q3
+
+
+def quarters_to_corpus_end(year):
+    """Quarters from a 1 January formation to the end of the corpus.
+
+    A formation that leaves fewer than MIN_QUARTERS cannot produce a company
+    that clears the s5 floor, however eligible its companies are. That is
+    reported at the A2 gate rather than enforced, because s5 drops companies
+    and this is a property of a cohort - a rule about cohorts is the user's to
+    add, not this module's to invent.
+    """
+    return (CORPUS_SNAPSHOT[0] - year) * 4 + CORPUS_SNAPSHOT[1]
 MIN_KAPPA = 0.60              # tone-rubric-v1, calibration gate
 MIN_ADJACENT = 0.85           # tone-rubric-v1, calibration gate
 HELDOUT_QUARTERS = 8          # CORE-PROMPT s6
@@ -213,57 +235,224 @@ def detect_universe(root):
 
 
 # --------------------------------------------------------------------------
+# stage A1b - mechanical pre-filter
+# --------------------------------------------------------------------------
+
+def detect_shortlist(root):
+    """Read the pre-filter's cut record and its per-formation shortlists.
+
+    A1b sits between the universe and A2: it cuts the in_band panel down to the
+    set A2 is handed, on disclosed structure read from the filing in force at
+    each formation. `prefilter_panel.csv` carries every in_band company-year
+    with a reason per cut, and is what bounds the population - the eligibility
+    file does not. Both are hashed and checked like the universe, because a
+    shortlist edited after its hash was recorded decides which company-years
+    may be scored, which is the same defect as a universe edited after freezing.
+    """
+    d = os.path.join(root, "data")
+    st = {"present": False, "years": {}, "problems": [], "notes": [],
+          "panel_hash": None}
+    if not os.path.isdir(d):
+        return st
+
+    panel = os.path.join(d, "prefilter_panel.csv")
+    if os.path.exists(panel):
+        st["panel_hash"] = sha256_file(panel)
+        hp = panel[:-4] + ".hash"
+        if not os.path.exists(hp):
+            st["problems"].append("data/prefilter_panel.csv has no .hash file")
+        else:
+            with open(hp) as f:
+                rec = (f.read().strip().split() or [""])[0]
+            if rec != st["panel_hash"]:
+                st["problems"].append(
+                    "data/prefilter_panel.csv does not match its recorded hash "
+                    "(recorded %s, actual %s): the cut record changed after it "
+                    "was written" % (rec[:12], st["panel_hash"][:12]))
+        if not is_tracked(root, "data/prefilter_panel.csv"):
+            st["problems"].append(
+                "data/prefilter_panel.csv is not committed: the cut list is "
+                "what bounds the population, and an uncommitted one is not a "
+                "record")
+
+    for fn in sorted(os.listdir(d)):
+        m = re.fullmatch(r"shortlist_(\d{4})\.csv", fn)
+        if not m:
+            continue
+        year, path = int(m.group(1)), os.path.join(d, fn)
+        rel = os.path.relpath(path, root)
+        try:
+            tickers = [(r.get("ticker") or "").strip() for r in read_csv(path)
+                       if (r.get("ticker") or "").strip()]
+        except (OSError, csv.Error) as e:
+            st["problems"].append("cannot read %s: %s" % (rel, e))
+            continue
+        actual = sha256_file(path)
+        hp = path[:-4] + ".hash"
+        if not os.path.exists(hp):
+            st["problems"].append("%s has no .hash file" % rel)
+        else:
+            with open(hp) as fh:
+                rec = (fh.read().strip().split() or [""])[0]
+            if rec != actual:
+                st["problems"].append(
+                    "%s does not match its recorded hash (recorded %s, actual "
+                    "%s): a shortlist edited after the fact silently changes "
+                    "which company-years A2 was allowed to score"
+                    % (rel, rec[:12], actual[:12]))
+        if not is_tracked(root, rel):
+            st["problems"].append("%s is not committed" % rel)
+        st["years"][year] = {"n": len(tickers), "hash": actual,
+                             "tickers": tickers}
+
+    st["present"] = bool(st["years"])
+    if st["present"] and not os.path.exists(panel):
+        st["problems"].append(
+            "shortlists exist but data/prefilter_panel.csv does not: the cut "
+            "company-years and their reasons are the half of the record that "
+            "company-selection.md s2 asks for, and without it the shortlist is "
+            "a set of names with no account of what was excluded")
+    return st
+
+
+# --------------------------------------------------------------------------
 # stage A2 - structural eligibility
 # --------------------------------------------------------------------------
 
-def detect_eligibility(root, universe):
-    """Read data/eligibility.csv and check it against its contract.
+def eligibility_files(root):
+    """Per-formation scorecards, newest naming first.
 
-    This stage is scored by a human from filings
-    (company-selection.md s2). It is never automated and never re-scored by a
-    scheduled run: "Never revise a score after seeing an outcome."
+    A2 writes one file per formation - data/eligibility_<YEAR>.csv - because
+    the universe re-forms annually and a company is scored once per formation,
+    against the filing in force then. The single data/eligibility.csv that
+    predates the rolling panel is still read when present, under year None.
     """
-    path = os.path.join(root, "data", "eligibility.csv")
+    d = os.path.join(root, "data")
+    out = []
+    if not os.path.isdir(d):
+        return out
+    for fn in sorted(os.listdir(d)):
+        m = re.fullmatch(r"eligibility_(\d{4})\.csv", fn)
+        if m:
+            out.append((int(m.group(1)), os.path.join(d, fn)))
+    flat = os.path.join(d, "eligibility.csv")
+    if os.path.exists(flat):
+        out.append((None, flat))
+    return out
+
+
+def detect_eligibility(root, universe):
+    """Read every per-formation scorecard and check it against its contract.
+
+    This stage is scored by a human from filings (company-selection.md s2). It
+    is never automated and never re-scored by a scheduled run: "Never revise a
+    score after seeing an outcome."
+
+    The gate is satisfied by one formation, not by a total swept across all of
+    them, so the per-year counts are kept separate and a cohort is chosen from
+    them rather than summed. `eligible` is that cohort's list: the set the rest
+    of the pipeline is entitled to act on.
+    """
     st = {"present": False, "eligible": [], "ineligible": [], "problems": [],
-          "hash": None}
-    if not os.path.exists(path):
+          "notes": [], "hash": None, "by_year": {}, "cohort_year": None,
+          "partial": {}}
+    found = eligibility_files(root)
+    if not found:
         return st
     st["present"] = True
-    st["hash"] = sha256_file(path)
-    try:
-        rows = read_csv(path)
-    except (OSError, csv.Error) as e:
-        st["problems"].append("cannot read data/eligibility.csv: %s" % e)
-        return st
 
-    for r in rows:
-        tic = (r.get("ticker") or "").strip()
-        if not tic:
-            continue
-        ok = truthy(r.get("eligible"))
-        reason = (r.get("reason") or "").strip()
-        if ok:
-            st["eligible"].append(tic)
-        else:
-            st["ineligible"].append({"ticker": tic,
-                                     "reason": reason or "(none recorded)",
-                                     "score": r.get("weighted_score", "")})
-            if not reason:
+    for year, path in found:
+        rel = os.path.relpath(path, root)
+        per = {"eligible": [], "ineligible": [], "hash": sha256_file(path),
+               "partial": False, "scope": None}
+        hp = path[:-4] + ".hash"
+        if os.path.exists(hp):
+            with open(hp) as f:
+                meta = f.read().strip()
+            rec = (meta.split() or [""])[0]
+            if rec != per["hash"]:
                 st["problems"].append(
-                    "%s is ineligible with no reason recorded: the contract "
-                    "requires a binding reason" % tic)
-        if universe["tickers"] and tic not in universe["tickers"]:
-            st["problems"].append(
-                "%s is scored for eligibility but is not in the universe: "
-                "eligibility applies to universe members only, and scoring a "
-                "non-member is how a hand-picked name enters the test" % tic)
-        asof = (r.get("scored_asof") or "").strip()
-        form = universe["formation_dates"].get(tic)
-        if asof and form and asof > form:
-            st["problems"].append(
-                "%s scored from evidence dated %s, after its formation date %s: "
-                "the scorecard may only use evidence knowable at formation"
-                % (tic, asof, form))
+                    "%s does not match its recorded hash (recorded %s, actual "
+                    "%s): a scorecard edited after it was written is not a "
+                    "record of what was scored" % (rel, rec[:12],
+                                                   per["hash"][:12]))
+            # A partial file is a verification sample, not a scored formation.
+            # score_eligibility.py marks it; without this the gate could be met
+            # by eight companies scored out of a scope of eighty.
+            per["partial"] = "partial=True" in meta
+        else:
+            # Recorded, not blocked. Requiring a hash file here would be a new
+            # rule: s2 hashes the universe, and the scorecard contract does not
+            # ask for one. The cost is that completeness cannot be read, so the
+            # file is taken at face value - which is what the gate did before.
+            st["notes"].append(
+                "%s has no .hash file, so whether it is a complete formation "
+                "or a verification sample cannot be read from disk" % rel)
+
+        try:
+            rows = read_csv(path)
+        except (OSError, csv.Error) as e:
+            st["problems"].append("cannot read %s: %s" % (rel, e))
+            continue
+
+        for r in rows:
+            tic = (r.get("ticker") or "").strip()
+            if not tic:
+                continue
+            reason = (r.get("reason") or "").strip()
+            if truthy(r.get("eligible")):
+                per["eligible"].append(tic)
+            else:
+                per["ineligible"].append({"ticker": tic,
+                                          "reason": reason or "(none recorded)",
+                                          "score": r.get("weighted_score", "")})
+                if not reason:
+                    st["problems"].append(
+                        "%s in %s is ineligible with no reason recorded: the "
+                        "contract requires a binding reason" % (tic, rel))
+            if universe["tickers"] and tic not in universe["tickers"]:
+                st["problems"].append(
+                    "%s is scored for eligibility but is not in the universe: "
+                    "eligibility applies to universe members only, and scoring "
+                    "a non-member is how a hand-picked name enters the test"
+                    % tic)
+            asof = (r.get("scored_asof") or "").strip()
+            form = universe["formation_dates"].get(tic)
+            if asof and form and asof > form:
+                st["problems"].append(
+                    "%s scored from evidence dated %s, after its formation date "
+                    "%s: the scorecard may only use evidence knowable at "
+                    "formation" % (tic, asof, form))
+        st["by_year"][year] = per
+        st["partial"][year] = per["partial"]
+
+    # One formation carries the gate. The earliest qualifying one is chosen:
+    # a formation is a cohort followed forward, and the earliest leaves the
+    # longest run of quarters against a corpus that ends at a fixed date.
+    qualifying = [y for y, v in st["by_year"].items()
+                  if y is not None and not v["partial"]
+                  and len(v["eligible"]) >= MIN_ELIGIBLE]
+    if None in st["by_year"] and not st["by_year"][None]["partial"] \
+            and len(st["by_year"][None]["eligible"]) >= MIN_ELIGIBLE:
+        qualifying.append(None)
+    if qualifying:
+        st["cohort_year"] = min(y for y in qualifying if y is not None) \
+            if any(y is not None for y in qualifying) else None
+        coh = st["by_year"][st["cohort_year"]]
+        st["eligible"] = list(coh["eligible"])
+        st["ineligible"] = list(coh["ineligible"])
+        st["hash"] = coh["hash"]
+    else:
+        # No cohort: report everything, entitle nothing. `eligible` stays empty
+        # so no later stage can act on a set that has not met the gate.
+        st["ineligible"] = [x for v in st["by_year"].values()
+                            for x in v["ineligible"]]
+        st["hash"] = hashlib.sha256(
+            "|".join("%s:%s" % (y, v["hash"])
+                     for y, v in sorted(st["by_year"].items(),
+                                        key=lambda kv: (kv[0] is None,
+                                                        kv[0]))).encode()
+        ).hexdigest()
     return st
 
 
@@ -650,6 +839,7 @@ def heldout_contamination(root, window, prereg_frozen):
 def collect(root):
     st = {"root": root}
     st["universe"] = detect_universe(root)
+    st["shortlist"] = detect_shortlist(root)
     st["eligibility"] = detect_eligibility(root, st["universe"])
     st["coverage"] = detect_coverage(root, st["eligibility"])
     st["prereg"] = detect_prereg(root)
@@ -674,6 +864,7 @@ def evaluate_gates(st):
     g = []
     u, e, c = st["universe"], st["eligibility"], st["coverage"]
     p, cal = st["prereg"], st["calibration"]
+    sl = st.get("shortlist") or {"present": False, "years": {}, "problems": []}
 
     # A1
     if u["problems"]:
@@ -683,19 +874,60 @@ def evaluate_gates(st):
                       "%s (%s), hash %s verified"
                       % (", ".join(u["files"]), u["shape"], (u["hash"] or "")[:12])))
 
+    # A1b
+    if not sl["present"]:
+        g.append(gate("A1b.shortlist", "A", False,
+                      "no data/shortlist_<YEAR>.csv: the mechanical pre-filter "
+                      "(prefilter_panel.py) has not been run. A2 scores the set "
+                      "it is handed, so until the panel is cut there is nothing "
+                      "for it to score"))
+    elif sl["problems"]:
+        g.append(gate("A1b.shortlist", "A", False, "; ".join(sl["problems"])))
+    else:
+        sizes = ", ".join("%d:%d" % (y, v["n"])
+                          for y, v in sorted(sl["years"].items()))
+        g.append(gate("A1b.shortlist", "A", True,
+                      "%d formation(s) shortlisted (%s), panel hash %s verified"
+                      % (len(sl["years"]), sizes,
+                         (sl["panel_hash"] or "")[:12])))
+
     # A2
     if not e["present"]:
         g.append(gate("A2.eligibility", "A", False,
-                      "data/eligibility.csv absent. This stage is scored by hand "
-                      "from filings against company-selection.md s2; it is not a "
-                      "missing script and a scheduled run must not invent it"))
+                      "no data/eligibility_<YEAR>.csv. This stage is scored by "
+                      "hand from filings against company-selection.md s2; it is "
+                      "not a missing script and a scheduled run must not invent "
+                      "it"))
     elif e["problems"]:
         g.append(gate("A2.eligibility", "A", False, "; ".join(e["problems"])))
-    else:
+    elif e["cohort_year"] is not None or e["eligible"]:
+        y = e["cohort_year"]
         n = len(e["eligible"])
-        g.append(gate("A2.eligibility", "A", n >= MIN_ELIGIBLE,
-                      "%d structurally eligible (needs >= %d), %d recorded "
-                      "ineligible" % (n, MIN_ELIGIBLE, len(e["ineligible"]))))
+        detail = ("%d structurally eligible at the %s formation (needs >= %d in "
+                  "one formation), %d recorded ineligible"
+                  % (n, y if y is not None else "single-file",
+                     MIN_ELIGIBLE, len(e["ineligible"])))
+        if y is not None:
+            q = quarters_to_corpus_end(y)
+            if q < MIN_QUARTERS:
+                detail += ("; NOTE: %d quarters from that formation to the end "
+                           "of the corpus, below the s5 floor of %d, so every "
+                           "company in this cohort will be dropped"
+                           % (q, MIN_QUARTERS))
+        g.append(gate("A2.eligibility", "A", True, detail))
+    else:
+        bits = []
+        for y, v in sorted(e["by_year"].items(),
+                           key=lambda kv: (kv[0] is None, kv[0])):
+            bits.append("%s: %d eligible of %d scored%s"
+                        % (y if y is not None else "eligibility.csv",
+                           len(v["eligible"]),
+                           len(v["eligible"]) + len(v["ineligible"]),
+                           " (PARTIAL, not a scored formation)"
+                           if v["partial"] else ""))
+        g.append(gate("A2.eligibility", "A", False,
+                      "no formation has >= %d structurally eligible companies. "
+                      "%s" % (MIN_ELIGIBLE, "; ".join(bits))))
 
     # A3 -> Gate A
     if not c["present"]:
@@ -806,6 +1038,10 @@ def fingerprint(st):
         "universe_files": sorted(st["universe"]["files"]),
         "eligibility_hash": st["eligibility"]["hash"],
         "n_eligible": len(st["eligibility"]["eligible"]),
+        "eligibility_cohort": st["eligibility"].get("cohort_year"),
+        "shortlist_hashes": {
+            str(y): v["hash"][:12] for y, v
+            in (st.get("shortlist") or {"years": {}})["years"].items()},
         "coverage_hash": st["coverage"]["hash"],
         "n_usable_coverage": len(st["coverage"]["usable"]),
         "prereg_hash": st["prereg"]["hash"],
@@ -839,6 +1075,7 @@ def diff_fingerprints(old, new):
         "coverage_hash": "coverage", "prereg_hash": "active prereg",
         "calibration_kappa": "calibration kappa",
         "prereg_frozen": "prereg frozen",
+        "eligibility_cohort": "A2 cohort formation",
     }
     for k, label in labels.items():
         a, b = old.get(k), new.get(k)
@@ -850,6 +1087,15 @@ def diff_fingerprints(old, new):
                      ("n_usable_coverage", "companies with usable coverage")):
         if old.get(k) != new.get(k):
             out.append("%s: %s -> %s" % (label, old.get(k), new.get(k)))
+    os_, ns_ = old.get("shortlist_hashes") or {}, new.get("shortlist_hashes") or {}
+    if os_ != ns_:
+        added = sorted(set(ns_) - set(os_))
+        moved = sorted(y for y in set(ns_) & set(os_) if ns_[y] != os_[y])
+        if added:
+            out.append("shortlist added for: %s" % ", ".join(added))
+        if moved:
+            out.append("shortlist changed for: %s" % ", ".join(moved))
+
     oc, nc = old.get("per_company") or {}, new.get("per_company") or {}
     added = sorted(set(nc) - set(oc))
     changed = sorted(t for t in set(nc) & set(oc) if nc[t] != oc[t])

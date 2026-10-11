@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Synthetic fixtures for exercising the orchestrator's gate paths."""
+import hashlib
 import json
 import os
 import subprocess
@@ -33,6 +34,48 @@ def eligibility(root, n_eligible=9, reason_missing=False, late_asof=False,
         f.write(",".join(cols) + "\n")
         for r in rows:
             f.write(",".join(str(x) for x in r) + "\n")
+
+
+def eligibility_year(root, year, n_eligible=9, partial=False):
+    """A per-formation scorecard with the hash line score_eligibility writes.
+
+    A2 writes one of these per formation. `partial` sets the marker that makes
+    a file a verification sample rather than a scored formation.
+    """
+    cols = ["ticker"] + ["c%d_x" % i for i in range(1, 8)] + [
+        "c1_estimated", "weighted_score", "eligible", "reason", "scored_asof"]
+    p = os.path.join(root, "data", "eligibility_%d.csv" % year)
+    with open(p, "w") as f:
+        f.write(",".join(cols) + "\n")
+        for i, t in enumerate(TICKERS):
+            ok = i < n_eligible
+            f.write(",".join([t] + ["3"] * 7 + [
+                "False", "72.0" if ok else "41.0", str(ok),
+                "" if ok else "criterion 1: Amazon immaterial to revenue",
+                "2015-12-01"]) + "\n")
+    with open(p, "rb") as f:
+        digest = hashlib.sha256(f.read()).hexdigest()
+    with open(p.replace(".csv", ".hash"), "w") as f:
+        f.write("%s  eligibility_%d.csv  formation=%d-01-01  scored=%d/%d  "
+                "universe=universe_panel.csv  partial=%s\n"
+                % (digest, year, year, len(TICKERS), len(TICKERS), partial))
+
+
+def drop_shortlists(root):
+    """Remove every A1b artefact, so the pre-filter reads as not yet run."""
+    d = os.path.join(root, "data")
+    for f in sorted(os.listdir(d)):
+        if f.startswith("shortlist_") or f.startswith("prefilter_panel"):
+            os.remove(os.path.join(d, f))
+
+
+def corrupt_shortlist(root, year=2016):
+    """Append a ticker after the hash was recorded."""
+    p = os.path.join(root, "data", "shortlist_%d.csv" % year)
+    with open(p) as f:
+        ncols = len(f.readline().strip().split(","))
+    with open(p, "a") as f:
+        f.write(",".join(["999", "SNUCKIN"] + [""] * (ncols - 2)) + "\n")
 
 
 def coverage(root, n_usable=9, truncated=False):

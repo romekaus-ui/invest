@@ -78,7 +78,12 @@ root = fresh("t2")
 F.eligibility(root, n_eligible=7)
 code, out = orch(root)
 check("2a stops at A2 gate", "requires gate A2.eligibility" in out, out[-500:])
-check("2b says 7 of 8", "7 structurally eligible (needs >= 8)" in out, out[-500:])
+# The gate is satisfied by one formation, not by a total swept across all of
+# them, so the shortfall is reported per formation. 7 eligible of 9 scored in
+# the only scorecard present.
+check("2b says 7 eligible, short of 8",
+      "no formation has >= 8 structurally eligible" in out
+      and "7 eligible of 9 scored" in out, out[-500:])
 
 print("\n2c. ineligible row with no reason is a contract violation")
 root = fresh("t2c")
@@ -577,6 +582,83 @@ F.eligibility(root); F.coverage(root); F.all_b_stubs(root); F.calibration(root)
 code, out = orch(root, "--dry-run")
 check("16r orchestrator renders the dashboard per company",
       "once per company" in out, out[-800:])
+
+# ---------------------------------------------------------------- 17
+print("\n17. A1b pre-filter gate, and A2 scored per formation")
+
+# -- A1b: the gate exists and reads the committed shortlists.
+root = fresh("t17a")
+code, out = orch(root, "--dry-run")
+check("17a A1b gate is met by the committed shortlists",
+      "`A1b.shortlist` | phase A | yes" in out, out[-900:])
+
+# -- Without the pre-filter's output there is nothing for A2 to score, and the
+#    run must say so rather than reporting A2 as a missing human step.
+root = fresh("t17b")
+F.drop_shortlists(root)
+code, out = orch(root, "--dry-run")
+check("17b no shortlist -> A1b unmet",
+      "`A1b.shortlist` | phase A | **NO**" in out, out[-900:])
+check("17c it names the pre-filter, not a human step",
+      "prefilter_panel.py" in out and "has not been run" in out, out[-900:])
+
+# -- A shortlist edited after its hash was recorded decides which company-years
+#    A2 was allowed to score. Same defect class as an altered universe.
+root = fresh("t17d")
+F.corrupt_shortlist(root)
+code, out = orch(root, "--dry-run")
+check("17d edited shortlist caught by its hash",
+      "`A1b.shortlist` | phase A | **NO**" in out
+      and "does not match its recorded hash" in out, out[-900:])
+
+# -- A2 satisfied by ONE formation, from a per-formation scorecard.
+root = fresh("t17e")
+F.eligibility_year(root, 2016, n_eligible=9)
+code, out = orch(root, "--dry-run")
+check("17e a scored formation meets A2",
+      "`A2.eligibility` | phase A | yes" in out
+      and "at the 2016 formation" in out, out[-900:])
+
+# -- A partial file is a verification sample. Eight of eighty is not a cohort.
+root = fresh("t17f")
+F.eligibility_year(root, 2016, n_eligible=9, partial=True)
+code, out = orch(root, "--dry-run")
+check("17f a partial scorecard does NOT meet A2",
+      "`A2.eligibility` | phase A | **NO**" in out and "PARTIAL" in out,
+      out[-900:])
+
+# -- Two qualifying formations: the earliest wins, because a formation is a
+#    cohort followed forward and the corpus ends at a fixed date.
+root = fresh("t17g")
+F.eligibility_year(root, 2019, n_eligible=9)
+F.eligibility_year(root, 2017, n_eligible=9)
+code, out = orch(root, "--dry-run")
+check("17g earliest qualifying formation is the cohort",
+      "at the 2017 formation" in out, out[-900:])
+
+# -- A late formation can be fully scored and still leave too few quarters for
+#    any company to clear the s5 floor. Reported, not enforced.
+root = fresh("t17h")
+F.eligibility_year(root, 2022, n_eligible=9)
+code, out = orch(root, "--dry-run")
+check("17h late formation meets A2 but is flagged below the s5 floor",
+      "`A2.eligibility` | phase A | yes" in out
+      and "below the s5 floor" in out, out[-900:])
+
+# -- pipeline_state keeps its own copy of the corpus end date because it
+#    imports nothing from the pipeline. The copies must not drift.
+sys.path.insert(0, os.path.join(os.path.dirname(HERE), "scripts"))
+import pipeline_state as _ps
+_snap = None
+for _line in open(os.path.join(os.path.dirname(HERE), "scripts",
+                               "extract_reviews.py")):
+    if _line.startswith("CORPUS_SNAPSHOT"):
+        _snap = _line.split("=")[1].strip().strip('"\'')
+        break
+_y, _m = (int(x) for x in (_snap or "0-0").split("-"))
+check("17i corpus snapshot agrees with extract_reviews.py",
+      _ps.CORPUS_SNAPSHOT == (_y, (_m - 1) // 3 + 1),
+      "%s vs %s" % (_ps.CORPUS_SNAPSHOT, _snap))
 
 # ---------------------------------------------------------------- summary
 print("\n" + "=" * 70)

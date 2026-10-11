@@ -1156,3 +1156,95 @@ Neither is this component's to change, and both are now blocking or misleading.
    `of_in_band=3/40`, the superseded 27-code screen. The three judgements remain
    valid — all three are in-band 2016 company-years in the panel — but that
    denominator is stale, and the shortlist supersedes it.
+
+## 2026-10-11 · branches merged, handoff defects fixed, second specification decided
+
+Merged the integration branch and the A1b pre-filter into `main`, then fixed the
+four defects the pre-filter session reported but correctly declined to own,
+because each belonged to a neighbouring component.
+
+**Merges.** Two conflicts, neither needing a judgement call: `score_eligibility.py`
+took the pre-filter's version, whose only difference is that `in_force_filing` is
+split into a pure `choose_in_force(filings, formation)` plus a fetching wrapper,
+so A1b applies the same point-in-time rule rather than a second copy of it; and
+the changelog kept every entry from both sides. Both suites were run from clean
+exports of each branch before merging — 107 and 72 — rather than trusting either
+branch's own account of itself.
+
+**A2 no longer deadlocks on a judgement made before A1b existed.** `build` refused
+the 2016 formation because NTAP was scored at 31.0 before the pre-filter existed
+and the filter then cut it. The two agree about NetApp, which made the refusal
+correct in spirit and useless in practice. A judgement that already exists for an
+`in_band` company-year now stays in scope, but never silently: the admitted set is
+printed, written to the hash line as `admitted_off_shortlist=` and listed in the
+evidence JSON, so the file reads as "the shortlist plus these named additions"
+rather than as the shortlist's result. Nothing **new** can be scored outside the
+shortlist — a judgement for a company-year that is not `in_band` is still refused,
+which is the boundary that matters, since A2 may not add to the universe.
+
+Re-running the 2016 build also cleared the stale denominator: the hash line now
+records `universe=universe_panel.csv:28db9bdb5609  of_in_band=84/396`, where it
+had recorded `universe_2016.csv` and `3/40` from the superseded 27-code screen.
+The CSV's own sha256 is unchanged at `e15547c1`, which is the pre-filter session's
+design holding — scope lives in the hash file, never in the contract CSV.
+
+**The orchestrator now reads the files A2 actually writes, and has a gate for A1b.**
+`pipeline_state.py` checked `data/eligibility.csv`; A2 writes
+`data/eligibility_<YEAR>.csv`, one per formation. A run therefore reported A2 as a
+missing human step when the real state was "partially scored", and it had no gate
+for the pre-filter at all — so a repository with no shortlist blamed the human
+rather than the unrun stage. Added `detect_shortlist` and an `A1b.shortlist` gate
+that verifies `prefilter_panel.csv` and every `shortlist_<YEAR>.csv` against its
+recorded hash, since a shortlist edited afterwards decides which company-years A2
+was allowed to score — the same defect class as an altered universe.
+
+**A2's gate is satisfied by one formation, not by a total swept across all seven.**
+This was ambiguous and the ambiguity mattered. The deciding fact is arithmetic: the
+corpus ends September 2023, so a 2021 formation leaves 11 quarters and a 2022
+formation 7, both below §5's floor of 12. Counting eight eligible companies spread
+across formations can therefore produce a cohort in which every company is dropped.
+The gate now reads per formation and chooses the **earliest** qualifying one, which
+leaves the longest run of quarters. A formation that qualifies but cannot clear the
+floor is **flagged, not blocked** — `quarters_to_corpus_end()` adds a note to the
+gate detail. A rule about cohorts is the user's to add, not this module's to invent.
+
+A partial scorecard also no longer meets the gate. `score_eligibility.py` has always
+marked `partial=True`, and nothing read it: eight companies scored out of a scope of
+eighty would have passed.
+
+**Narrowed on the second attempt.** The first version of this change also required
+every scorecard to carry a `.hash` file and to be committed. That broke 23 of 107
+checks, and correctly — §2 hashes the *universe*, and the scorecard contract asks
+for neither. Those were new rules being smuggled in under a bug fix. A missing hash
+file is now a note (completeness cannot be read from disk) rather than a refusal;
+only the partial marker and a hash *mismatch* block, and a mismatch is the existing
+"artefact changed after it was written" rule, not a new one.
+
+**Second specification decided: peer-relative tone** (`methodology.md` §4b). A
+category-wide shock moves every brand in a group together, and the primary
+specification reads that as company news. Both will be preregistered —
+`signal(Q)` and `signal(Q) − peer mean` — with `specifications_tested` recording 2
+and a result that holds on one but not the other reported as exactly that.
+Feasibility was measured before the decision rather than assumed: the 2016
+shortlist's 83 company-years fall into 38 three-digit SIC groups, 20 of which hold
+two or more, covering 65 of the 83. Measured at the shortlist stage, so A2 and A3
+will cut it further; a group reduced to one member yields a peerless company, which
+stays in the primary rather than being dropped.
+
+**Verified:** 116 checks, 116 passed (was 107). New section 17 covers the A1b gate,
+a shortlist edited after its hash was recorded, a scored formation meeting A2, a
+partial one failing it, the earliest-cohort choice, the below-floor note, and a
+drift check between `pipeline_state.CORPUS_SNAPSHOT` and
+`extract_reviews.CORPUS_SNAPSHOT`. Mutation-checked: making the partial marker
+always `False` fails 17f, and choosing the latest cohort instead of the earliest
+fails 17g. One pre-existing check was corrected rather than worked around — 2b
+asserted the old single-file wording of the A2 shortfall message.
+
+A real run still stops at **A2** with verdict `insufficient_data`, now reported
+honestly as "no formation has >= 8 structurally eligible companies. 2016: 1
+eligible of 3 scored (PARTIAL, not a scored formation)" rather than
+"data/eligibility.csv absent".
+
+**Still unbuilt, deliberately:** `backtest.py`, `degrade.py`. **Still human:** the
+B1 freeze, the B3 calibration labels, and scoring the 2016 shortlist — 81 of 83
+company-years to go.
