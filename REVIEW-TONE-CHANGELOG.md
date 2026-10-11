@@ -260,3 +260,257 @@ recorded in the hash file and evidence JSON, never in the contract CSV.
 **Still not run:** the new 126-code rolling screen, the pre-filter, and therefore
 A2 at real scale. The 2016 verification file covers 3 company-years from the stale
 universe and does not meet the A2 gate.
+
+## 2026-10-11 · A1b mechanical pre-filter
+
+The component the root planning session described as "a cheap mechanical
+pre-filter on the panel first (segment count, revenue concentration, SIC group)"
+and never built. It was the binding constraint on the whole project: A1 produces
+3,522 in-band company-years, A2 costs 6–8k tokens and 2–3 EDGAR requests of a
+human's attention each, three had been scored, and `eligibility_2016.csv` was
+marked `partial=True`. A scorecard that is never applied bounds nothing.
+
+`scripts/prefilter_panel.py` reads `data/universe_panel.csv` and writes, per
+formation year, the shortlist A2 scores with `--shortlist`, plus a complete
+record of every company-year it cut and why. Documented in
+`references/company-selection.md` §1b, which sits between the universe rule and
+the scorecard because that is where the stage sits. Probe version
+`prefilter-v3`.
+
+### Counts in and out
+
+Panel `universe_panel.csv`, sha256 `28db9bdb5609`. Every number below is from
+`data/prefilter.manifest.json`, not from prose.
+
+| formation | in band | kept | cut | shortlist sha256 |
+|---|---|---|---|---|
+| 2016-01-01 | 396 | **83** | 313 | `866550a5fe02` |
+| 2017-01-01 | 412 | **96** | 316 | `55280c6cafc8` |
+| 2018-01-01 | 421 | **107** | 314 | `ace494661a42` |
+| 2019-01-01 | 500 | **127** | 373 | `5efed8a9d43b` |
+| 2020-01-01 | 526 | **137** | 389 | `f6a49f84422a` |
+| 2021-01-01 | 582 | **144** | 438 | `aa6f84fd50ea` |
+| 2022-01-01 | 685 | **171** | 514 | `8b2f3b9abd03` |
+| **all** | **3522** | **865** (24.6%) | **2657** | panel record `e91ffb20719a` |
+
+865 company-years over **235 distinct companies**, of 779 in the panel. Every
+cut carries the same reason, `no_consumer_channel_disclosed`: 2,457 at zero
+distinct channel mentions and 200 at one. No company-year lacked a filing in
+force at its formation, and no filing failed to parse — `no_filing_at_formation`
+and `filing_unreadable` are both zero.
+
+**Is that a scoreable amount of A2 work? No, not whole.** At 6–8k tokens per
+company-year, 865 is roughly 6M tokens. The shortlist is therefore written in a
+seeded random order (`numeric-stack.md` §3 convention, seed 20261011, stage
+offset 4 claimed here, Fisher–Yates on `randrange`), and A2 works it front to
+back: a prefix of a seeded permutation is a random sample of the keep set, so
+whatever A2 gets through estimates the keep set's pass rate instead of being the
+start of the alphabet. **Take a prefix from each formation year, not all of one
+year** — scoring 2016 to exhaustion gives a panel whose companies all entered in
+2016, which throws away the reason §1 re-forms annually.
+
+The thresholds were not tuned to make 865 smaller. Where the number is
+sensitive, for the record: moving the floor to 1 mention would add 200
+company-years; moving it to 3 would remove 100, **including Logitech, the only
+company-year A2 has passed.**
+
+### What it reads, and what it cannot
+
+Structural facts from the filing in force at the formation date: whether the
+registrant discloses selling through Amazon, e-commerce or a direct channel
+(the cut), and how many reportable segments it says it has (recorded, decides
+nothing). The filing is resolved by `score_eligibility.choose_in_force()` —
+refactored out of `in_force_filing()` so that A2's point-in-time boundary is
+*called* rather than copied, leaving one definition of "in force" and one EDGAR
+client in the project. Nothing about how a company turned out is read, computed
+or available in the stage: no later revenue, no price, no survival, no
+present-day anything. CORE-PROMPT §1.2.
+
+Cuts are **absence-only**: the filter never decides a company is good, only that
+the structural evidence is missing from the filing in force. A company-year it
+keeps is one A2 may still fail, which is the division of labour working — Helen
+of Troy is kept with eighteen channel mentions and then fails A2 at 49.0.
+
+### Inputs deliberately not used
+
+- **SIC group.** §1 keeps communications equipment and computers at the SIC
+  stage on purpose, so the enterprise names leave "with a documented reason per
+  company rather than a silent omission at the SIC stage". A SIC-group cut here
+  reinstates that omission one stage later — and could not work anyway, since
+  Logitech, NetApp and Fortinet share SIC 357x. The group is recorded on every
+  row and used by nothing. **This has a visible cost and it is not hidden:**
+  retail (SIC 52xx–59xx) is 326 of the 865 kept company-years, 38% of the
+  shortlist, and most will fail criterion 1 because a retailer's shelf is not
+  its own product reviewed on Amazon. Cutting them mechanically would also have
+  cut Williams-Sonoma, RH and Build-A-Bear, which are own-brand sellers. A2 is
+  what separates them.
+- **Quantification of the channel share.** Measured and recorded — 407 of 865
+  keeps disclose a quantified share — because it is what criterion 1 asks for.
+  Not a cut: Logitech's Amazon share is undisclosed.
+- **A revenue floor.** Considered, to cut the clinical-stage registrants that
+  dominate SIC 2834. Rejected: the channel test already cuts them on structure
+  (personal_care, which holds 2833/2834, goes from 1,309 company-years to 87),
+  and a revenue level threshold is the input closest to the outcome the study
+  measures.
+- **A disclosed SKU count.** Structural and point-in-time, but almost no filing
+  states a number, so it would fire only on companies that disclose one —
+  penalising disclosure rather than applying one rule to everyone.
+
+### Defects found, and what was done about each
+
+Every one came from reading real filings in the seeded audit of the filter's own
+decisions. None was fixed by moving a threshold.
+
+1. **The segment-count cut was removed outright.** v1 cut the 57 company-years
+   disclosing five or more reportable segments. The audit showed the test does
+   not measure what it claims: criterion 3 asks whether *unrelated* segments
+   dominate, and a count cannot tell unrelated businesses from one business
+   reported by brand, channel or geography. It had cut **Deckers** (six
+   segments, 106 e-commerce mentions — UGG, Teva and Sanuk by brand) and
+   **Carter's** (five, children's apparel by brand and geography), and GameStop
+   crossed the bar between 2017 and 2021 on a reporting change rather than a
+   structural one. Removing it **enlarged** the shortlist by 57. The count is
+   still recorded, so A2 judges relatedness from the filing.
+2. **The segment count was reading note numbers and page numbers.** v1 took the
+   max of the statements it found. BorgWarner's "NOTE 19 REPORTING SEGMENTS AND
+   RELATED INFORMATION" was read as 19 in a filing that says "two reporting
+   segments" seven times; Atkore's "...between 2018 and 2022. 29 Reportable
+   Segments We operate our business through two operating segments" was read as
+   29, where the 29 is a page number and the answer is two words later. Fourteen
+   company-years carried a count of 17–29. Now the **mode** of the plausible
+   statements, ties to the larger; values above 12 recorded but never chosen; a
+   number directly preceded by NOTE or ITEM is not a statement. Zero rows now
+   carry a chosen count above 16, and seven are marked `implausible_only`. Had
+   the v1 cut survived, it would have cut those fourteen on a page number.
+3. **One clause was counting as two mentions.** Natural Alternatives' FY2019
+   10-K says its customers market "through direct sales marketing channels,
+   direct to consumer ecommerce channels and retail stores" — one clause,
+   matched by two probe families, summing to two and clearing a floor of two on
+   a single phrase. A2's own `probe_text` already treats a paragraph matched by
+   three probes as one piece of evidence; the filter now does the same within
+   120 characters. Raw per-family counts stay on the row beside the
+   deduplicated total.
+4. **The direct-to-consumer-advertising exclusion required adjacency.** Acadia's
+   filing says "direct-to-consumer **television** advertisements" and Vanda's
+   "direct-to-consumer **campaign**"; both reached the shortlist. The exclusion
+   now tolerates up to 40 characters between the phrase and advertising,
+   promotion, marketing, campaign, television, media or print.
+5. **`our direct channel` is a sales force, not a consumer channel.** Aviat
+   Networks was kept at exactly two mentions on it. Probe dropped.
+6. **`our website` and bare `DTC` were dropped before the first run**, after
+   reading what they matched: every 10-K says the code of conduct is available
+   on a website (it kept NetApp, an enterprise storage vendor, on a *channel*
+   test), and `DTC` in a 10-K is usually the Depository Trust Company.
+7. **My own cache could have mixed two instruments.** The measurement cache was
+   keyed by (cik, accession) with no probe version, so changing a regex left
+   every cached measurement silently stale. The key now carries the probe
+   version, and a measurement taken under different probes refuses the build.
+   `measure` also reads the flattened text that `--keep-text` saved, so a probe
+   change costs CPU rather than a second pass over EDGAR for 3,506 filings.
+
+**Defects found and not fixed**, because no regex fixes them:
+
+- **It cannot tell whose channel it is.** Natural Alternatives is a
+  private-label contract manufacturer whose 10-K describes the channels *its
+  customers* sell through. Two distinct mentions, so it is kept, and criterion 4
+  is what fails it.
+- **It reads the filing, not the world.** Bassett Furniture's FY2014 10-K
+  mentions the internet as an advertising medium and as a competitor's channel,
+  and its own website only in the "available free of charge" boilerplate. It is
+  cut, whether or not the company was selling online. A company that sells
+  online without disclosing it leaves the universe for a year and re-enters the
+  year it discloses — the rolling formation behaving as §1 intends, but the
+  filter measures *disclosure* and nothing more.
+- **ClearOne @2021 is the closest call on record**, cut at exactly one distinct
+  mention (one naming of Amazon).
+
+**Stopping rule, stated because it matters:** the v3 audit of 6 cuts and 6 keeps
+found no further defect, and that is where the iteration stopped. Auditing after
+every fix until nothing turns up would eventually be fitting the probes to the
+sample.
+
+### The caveat on record — addressed, not closed
+
+`company-selection.md` §2 requires the ineligible list to be part of the result.
+The pre-filter cuts on channel disclosure, which is the same evidence as
+criterion 1, so **the cut is correlated with the scorecard and is not
+independent of it.** That cannot be engineered away by being careful. What can
+be done is to make the cut set complete and inspectable, which is what was done:
+
+- `data/prefilter_panel.csv` carries **all 3,522** in-band company-years, kept
+  or cut, with the facts read, the filing they were read from, and a structured
+  reason per cut.
+- `data/prefilter.evidence.json` carries the matched windows per company-year,
+  so a cut is auditable without refetching.
+- `prefilter_panel.csv` is therefore what bounds the population — not
+  `eligibility_<YEAR>.csv`. `score_eligibility.py build` already prints the
+  upstream cut count so the two are never read as if the second were the whole
+  story.
+
+What is **not** closed: a cut company-year carries a structural reason and its
+evidence but **no scorecard score**. The ineligible list is complete in the
+first sense and not the second, and no run may describe the eligibility file as
+a complete account of what was considered.
+
+### Verified
+
+- **Reproducible.** Two consecutive builds over the same panel and cache produce
+  byte-identical shortlists and the same sha256. Artefacts carry no timestamps,
+  which is what makes that true.
+- **Contract.** `prefilter_panel.py verify` re-derives every decision and checks
+  the written artefacts: 3,522 rows against 3,522 in-band company-years, every
+  cut carrying a reason, every shortlist matching its recorded hash and its kept
+  count. Clean.
+- **The handoff is real, not assumed.** `score_eligibility.py queue --year 2016
+  --shortlist data/shortlist_2016.csv` reports "83 in scope, 2 scored, 81 to
+  go"; handing the 2022 shortlist to the 2016 formation is refused by name, 66
+  strays listed.
+- **72 offline tests** (`tests/test_prefilter.py`), no network: the segment
+  parse including both heading artefacts, every fixed exclusion, the dedupe, a
+  seeded order that is the same order twice and still a permutation, a
+  byte-identical second build, and the refusals — an unmeasured company-year, a
+  half-written cache file, a measurement from other probes, a shortlist edited
+  after its hash was recorded, a cut whose reason was deleted, an in-band
+  company-year dropped from the record. The last four check the handoff against
+  the real `load_shortlist`.
+- **Spot check**, seeded so it is not a hand-picked set: 11 cuts and 9 keeps read
+  against their actual filings across both audit rounds. The v1 round found
+  defects 1–5 above. The v3 round found none: six cuts correct (two
+  clinical-stage biotechs, a CDMO, a snack-food maker, an industrial, an
+  enterprise AV maker) and the keeps showing genuine channel disclosure with the
+  deduplication visible — Harley-Davidson raw 3 → distinct 2 on its "online
+  eCommerce channel", Lands' End raw 69 → distinct 43.
+- **The prospectus fallback does not disadvantage newly-listed companies**, which
+  was a live worry since they are the Amazon-native brands the rolling formation
+  exists to capture. 165 company-years were scored from a registration statement
+  rather than an annual report, and their keep rate is 22.4% against 24.7% for
+  annual reports. Academy Sports, which listed in October 2020, was kept at the
+  2021 formation from its 424B4.
+
+### Two defects in neighbouring components, reported not fixed
+
+Neither is this component's to change, and both are now blocking or misleading.
+
+1. **A2 cannot build 2016 while holding a judgement the pre-filter cut.**
+   `score_eligibility.py build --year 2016 --shortlist data/shortlist_2016.csv`
+   refuses: "judgements for 1 ticker(s) outside the shortlist: NTAP". NetApp was
+   hand-scored at 31.0 before this component existed, and the filter cuts it —
+   **the two agree**, since A2's own binding reason was "no consumer product
+   portfolio and no disclosed consumer or e-commerce channel", and the filter
+   records 0 channel mentions with 3 Amazon-as-AWS exclusions. The refusal is
+   correct in spirit and has no case for a pre-existing judgement. The one-line
+   fix belongs to A2: `scope |= set(judg) & set(uni)`, so a company-year already
+   scored from the filing in force stays in scope while nothing new outside the
+   shortlist can be scored. Not made here, because it changes A2's scope
+   semantics.
+2. **The orchestrator reads a file A2 does not write.** `pipeline_state.py`
+   checks `data/eligibility.csv`; A2 writes `data/eligibility_<YEAR>.csv`, one
+   per formation. The weekly run therefore reports `A2.eligibility` as "absent"
+   rather than "partial", and it has no gate for A1b at all — a run with no
+   shortlist will say A2 is a missing human step rather than that the pre-filter
+   has not been run. Also minor: SKILL.md's phase map still credits A1 to
+   `screen_universe.py`, while the panel is built by `screen_rolling.py`.
+3. Related: `eligibility_2016.hash` records `universe=universe_2016.csv` with
+   `of_in_band=3/40`, the superseded 27-code screen. The three judgements remain
+   valid — all three are in-band 2016 company-years in the panel — but that
+   denominator is stale, and the shortlist supersedes it.
