@@ -7,7 +7,10 @@ consulted here; that happens in coverage.py, afterwards and never before.
 
 Output: data/universe.csv  (+ data/universe.hash)
 
-Standard library only - no venv required.
+Standard library only. That is a binding policy for every pipeline stage,
+not an accident of this script: see references/numeric-stack.md. numpy and
+scipy are development-only, and no stage may import them.
+No venv is required to run the pipeline.
 
 SEC requires a declarative User-Agent with contact details. Set it yourself:
 

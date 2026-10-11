@@ -13,7 +13,9 @@ size of that gap is a finding and belongs in the results.
 Inputs : data/eligibility.csv, data/brand_aliases.json
 Outputs: data/{TICKER}/products.csv, data/coverage.csv
 
-Standard library only.
+Standard library only. That is a binding policy for every pipeline stage,
+not an accident of this script: see references/numeric-stack.md. numpy and
+scipy are development-only, and no stage may import them.
 """
 
 import argparse

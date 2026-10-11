@@ -128,9 +128,31 @@ Provenance. Written by every stage, never overwritten wholesale.
 One object per run. Append-only.
 
 Required keys: `run_id`, `run_at`, `phase`, `prereg_hash`, `universe_hash`,
-`rubric_version`, `scorer_model_id`, `companies`, `window`, `n_quarters`,
+`rubric_version`, `scorer_model_id`, `numeric_env`, `companies`, `window`, `n_quarters`,
 `point_estimate`, `ci_low`, `ci_high`, `baseline_value`, `base_rate`, `null_run_result`,
 `specifications_tested`, `verdict` ∈ {`signal`, `no_signal`, `insufficient_data`}.
 
 `specifications_tested` is a count, not a list of the good ones. Reporting only the
 surviving specification is F6.
+
+`numeric_env` is the object produced by `scripts/env_stamp.py`, and it is what makes
+the row's arithmetic recoverable. The pipeline is stdlib only, so the commit pins the
+statistics the way a pinned library version would otherwise have to
+(`references/numeric-stack.md` §4).
+
+| key | type | notes |
+|---|---|---|
+| `stack` | str | `stdlib`. Any other value means the §2 trip-wire was hit. |
+| `python_version` | str | e.g. `3.9.6` — the arithmetic is stdlib, so this is load-bearing |
+| `python_implementation` | str | `CPython` |
+| `platform` | str | e.g. `Darwin-25.5.0-arm64` |
+| `code_commit` | str | git SHA at run time; **this is the version pin** |
+| `code_dirty` | bool | true → produced from uncommitted code, verdict not citable |
+| `rng` | str | `stdlib-mt19937` |
+| `seed` | int | base seed, fixed in the prereg |
+| `stage_seeds` | object | derived per stage, e.g. `{"bootstrap": ..., "null": ...}` |
+| `bootstrap_reps` | int | required whenever a CI is reported |
+| `null_permutations` | int | required whenever `null_run_result` is populated |
+
+Row validation must reject a row with no `numeric_env`, and must reject
+`verdict: "signal"` on a row with `code_dirty: true`.

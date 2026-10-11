@@ -12,7 +12,10 @@ later restatement is flagged rather than substituted.
 
 Output: data/{TICKER}/fundamentals.csv
 
-Standard library only. Needs SEC_USER_AGENT (see screen_universe.py).
+Standard library only. That is a binding policy for every pipeline stage,
+not an accident of this script: see references/numeric-stack.md. numpy and
+scipy are development-only, and no stage may import them.
+Needs SEC_USER_AGENT (see screen_universe.py).
 """
 
 import argparse

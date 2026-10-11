@@ -58,6 +58,10 @@ Load these as needed; do not load them all up front.
 - `references/failure-modes.md` — the blocking checks, each with how it fails silently.
   Read when a result looks good; that is when it matters.
 - `references/data-contracts.md` — exact schemas for every CSV and JSONL in the pipeline.
+- `references/numeric-stack.md` — the pipeline is **stdlib only**, including the
+  statistics. Binding. Read before writing any stage that resamples, correlates or
+  computes an interval, and before adding any dependency. Fixes the seeding
+  convention and the `numeric_env` run metadata.
 
 ## Data sources
 

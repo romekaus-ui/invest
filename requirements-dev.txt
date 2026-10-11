@@ -1,0 +1,27 @@
+# Development and verification only. NOT a pipeline dependency.
+#
+# No script under .claude/skills/review-tone-signal/scripts/ may import these.
+# The pipeline is standard library only, so that a row in results/results.jsonl
+# never depends on a third-party version being installable years later.
+# Rationale and the full decision: references/numeric-stack.md
+#
+# What this stack is for: being the ORACLE. Every statistical primitive written
+# in-repo (tie-corrected Spearman, quadratic-weighted kappa, bootstrap
+# intervals, the shuffled-date null) ships with a test that cross-checks it
+# against scipy's reference implementation. scipy is how we know the stdlib
+# arithmetic is right; it is not how the arithmetic is done.
+#
+# Exact pins, never ranges. Resolved and verified 2026-10-11 on
+# macOS 15 arm64, CPython 3.9.6.
+#
+# These two pins are forced by the interpreter, not chosen: 2.0.2 and 1.13.1
+# are the last releases of each that support Python 3.9. They also only ship
+# wheels for CPython 3.9-3.12 — on 3.13+ pip will try to build from source and
+# will probably fail. If you are on a newer Python, bump both pins together,
+# re-run the cross-check tests, and record the bump in REVIEW-TONE-CHANGELOG.md.
+#
+#   python3 -m venv .venv
+#   .venv/bin/python -m pip install -r requirements-dev.txt
+
+numpy==2.0.2
+scipy==1.13.1
