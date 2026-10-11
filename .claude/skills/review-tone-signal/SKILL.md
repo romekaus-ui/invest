@@ -33,6 +33,7 @@ gate is unmet.
 | Phase | What happens | Script | Gate |
 |---|---|---|---|
 | A1 | Screen all US-listed registrants by SIC + point-in-time market cap | `scripts/screen_universe.py` | candidates produced |
+| A1b | Cut the panel to a shortlist A2 can actually score | `scripts/prefilter_panel.py` | shortlist hashed, every cut reasoned |
 | A2 | Score structural eligibility | `references/company-selection.md` | >= 8 pass |
 | A3 | Check Amazon review coverage; record the gap | `scripts/coverage.py` | >= 8 with usable data |
 | B1 | Freeze prereg | `prereg/TEMPLATE.md` | hash committed |
