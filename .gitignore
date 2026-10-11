@@ -5,7 +5,13 @@ data/*/reviews_raw.jsonl
 data/*/scores.csv
 *.pyc
 __pycache__/
-.venv/
 
 # Refetch cache for the rolling screen; safe to delete, costs only refetch time.
 .cache/
+
+# Development/verification venv — numpy and scipy, used only as the oracle the
+# in-repo statistics are cross-checked against. Never a pipeline dependency, so
+# it is never needed to reproduce a results.jsonl row. Rebuild it from
+# requirements-dev.txt; see references/numeric-stack.md.
+.venv/
+venv/

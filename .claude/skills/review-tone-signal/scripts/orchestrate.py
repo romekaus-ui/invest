@@ -638,18 +638,51 @@ def build_report(state, gates, rec, row, changes, blocked, dash):
     return "\n".join(L) + "\n"
 
 
-def regenerate_dashboard(root, dry):
+def regenerate_dashboard(root, dry, tickers):
+    """Render one dashboard per company.
+
+    The dashboard is per-company by construction: `build_dashboard.py` builds a
+    payload for one ticker, and the numbers it may touch are deliberately
+    limited to that company's record counts — it is forbidden from computing a
+    tone mean, an interval or a base rate (CORE-PROMPT s1.3). A whole-set mode
+    would have to combine companies, which is arithmetic of exactly the kind it
+    exists to refuse. So the loop belongs here, where the company set is already
+    known, and the renderer keeps its one-company honesty gate.
+
+    This is the one place the stage contract is settled in the script's favour
+    rather than the orchestrator's, and the reason is that the dashboard is not
+    a pipeline stage: it reads what the stages wrote, takes no window, and
+    cannot contaminate anything.
+
+    A dashboard failure never invalidates the run — the result row is already
+    written — so each company's outcome is reported and the rest still render.
+    """
     for cand in DASHBOARD_CANDIDATES:
         p = os.path.join(root, cand)
-        if os.path.exists(p):
-            if dry:
-                return "would regenerate via %s" % cand
-            r = subprocess.run([sys.executable, p], cwd=root,
+        if not os.path.exists(p):
+            continue
+        if not tickers:
+            return ("%s exists but the run has no company set, so there was "
+                    "nothing to render" % cand)
+        if dry:
+            return ("would regenerate via %s, once per company: %s"
+                    % (cand, ", ".join(sorted(tickers))))
+        ok, failed = [], []
+        for tic in sorted(tickers):
+            r = subprocess.run([sys.executable, p, tic], cwd=root,
                                capture_output=True, text=True)
             if r.returncode == 0:
-                return "regenerated via %s" % cand
-            return ("%s failed (exit %d): %s"
-                    % (cand, r.returncode, (r.stderr or "").strip()[:300]))
+                ok.append(tic)
+            else:
+                failed.append("%s (exit %d: %s)"
+                              % (tic, r.returncode,
+                                 (r.stderr or r.stdout or "").strip()[:160]))
+        parts = []
+        if ok:
+            parts.append("regenerated via %s for %s" % (cand, ", ".join(ok)))
+        if failed:
+            parts.append("failed for %s" % "; ".join(failed))
+        return "; ".join(parts)
     return ("dashboard not built yet — none of %s exists, so there was nothing "
             "to regenerate" % ", ".join(DASHBOARD_CANDIDATES))
 
@@ -820,7 +853,7 @@ def main():
          if state["results"]["rows"] else None), fp)
     blocked = blocked_companies(root, state, state["window"],
                                state["prereg"]["frozen"])
-    dash = regenerate_dashboard(root, args.dry_run)
+    dash = regenerate_dashboard(root, args.dry_run, tickers)
 
     report = build_report(state, gates, rec, row, changes, blocked, dash)
     report_rel = os.path.join("results", "reports", "%s.md" % run_id)

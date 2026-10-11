@@ -34,6 +34,20 @@ driven by price grumbling, and collapsing them loses that.
 
 ## 3. Aggregation, and the mix decomposition
 
+> **The formula in this section is PROVISIONAL and unverified.** It is the
+> highest-risk part of this file: reconstructed second-hand, and the part that
+> decides whether a tone reading means a company declining or a catalogue aging
+> into grumpier reviews. §8 carries the open row to reconcile it against the
+> paper; where the paper differs, the paper wins. `scripts/aggregate.py`
+> isolates it in one function (`decompose()`) tagged `DECOMPOSITION_SPEC`, and
+> that tag is written into every manifest, so outputs built under this version
+> stay identifiable after the paper is read.
+>
+> What is **not** provisional, because it rests on CORE-PROMPT §5/§7 and
+> `data-contracts.md` rather than on the paper: that the split must happen at
+> all, that only the within-ASIN component may feed the signal, and that the
+> three components must reconcile to the total change.
+
 Naive company tone for quarter Q is the mean of included review scores. That number is
 **not** the signal, because it moves for two different reasons:
 
@@ -129,4 +143,10 @@ a mechanism explains it.
 |---|---|---|
 | 2026-10-11 | Primary endpoint is revenue *surprise* vs a baseline, not revenue level | Predicting an anticipated quantity demonstrates nothing about information content |
 | 2026-10-11 | Within-ASIN/mix decomposition added | Portfolio ageing otherwise masquerades as business decline |
+| 2026-10-11 | `tone_within` / `tone_mix` / `tone_residual` in `quarters.csv` are the **Δ components** of §3, not levels | The contract requires the three to reconcile to the total tone change, which only holds if they are the change components. §4's "within-ASIN tone" therefore reads as `Δtone_within`, and `baseline_prior4` is the mean of the prior four within-ASIN *changes*. The alternative — chaining the within components into a mix-adjusted level — would break the reconciliation the decomposition exists to guarantee |
+| 2026-10-11 | The residual carries the within×mix **interaction** as well as entrants and exits | §3 names only entrants and exits, but `Δw·Δt` is left over by the two named components. Folding it into the residual makes `within + mix + residual = total` exact rather than approximate. `aggregate.py` builds the residual from its three terms explicitly and then asserts the identity, so the assertion tests the code instead of restating a definition |
+| 2026-10-11 | The emitted bootstrap CI is on `tone_mean`, not on `signal` | §4 asks for a CI on `signal(Q)`; the contract's `quarters.csv` has only `tone_ci_low` / `tone_ci_high`, and a signal CI requires a joint resample across five quarters. CORE-PROMPT §5's requirement (every tone mean carries an interval) is met. **Open gap:** the signal-level interval belongs to the backtest stage and must be specified in the prereg before `backtest.py` is written |
+| 2026-10-11 | `baseline_prior4` requires all four prior within values; no partial baseline | A mean over three quarters in one row and four in another is two different estimators in one column. That is how a formula changes mid-series without anyone deciding to change it |
+| 2026-10-11 | The decomposition requires Q and Q−1 to be *adjacent* and both above the review floor | Reaching past a gap to the last usable quarter is forward fill by another name (CORE-PROMPT §4). A quarter after a gap emits no decomposition |
+| 2026-10-11 | F4's residual flag is measured against `\|within\|+\|mix\|+\|residual\|`, not against the total change | The total change can sit near zero through cancellation; dividing by it reported a quiet quarter as a 900% residual alarm during the build. The gross-magnitude denominator is scale-free and the flag names which term dominates, since entrant/exit churn and the interaction term are different problems |
 | _pending_ | Reconcile all of the above against the paper's actual construction | Paper not yet read in full |

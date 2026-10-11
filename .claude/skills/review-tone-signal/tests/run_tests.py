@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Exercise every gate and refusal path of the orchestrator on throwaway copies."""
+import datetime
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -58,7 +60,8 @@ check("1f heldout not evaluated", rows[-1]["heldout_evaluated"] is False)
 check("1g changelog appended",
       "orchestrated run" in open(os.path.join(root, "REVIEW-TONE-CHANGELOG.md")).read())
 check("1h report written", os.path.isdir(os.path.join(root, "results/reports")))
-check("1i dashboard reported missing", "dashboard not built yet" in out)
+check("1i dashboard state reported, not silent",
+      "no company set" in out and "build_dashboard.py" in out, out[-600:])
 check("1j no advice words",
       not any(w in out.lower() for w in (" buy ", " sell ", "price target",
                                          "position size", "allocation of")),
@@ -116,6 +119,11 @@ print("\n4. gates met, next script not built -> loud, exit 3")
 root = fresh("t4")
 F.eligibility(root)
 F.coverage(root)
+# extract_reviews.py is built now, so its absence has to be staged. The
+# behaviour under test is the orchestrator's refusal to skip a missing stage,
+# which must keep working for backtest.py and degrade.py - still unbuilt, and
+# deliberately so until the prereg is frozen.
+os.remove(os.path.join(root, F.SCRIPTS, "extract_reviews.py"))
 code, out = orch(root)
 check("4a exit 3", code == 3, "exit %d" % code)
 check("4b names the stage and script",
@@ -405,6 +413,170 @@ check("15b changelog untouched", open(CL).read() == before_cl)
 check("15c says it would run", "would run:" in out, out[-600:])
 check("15d validates the row it would write", "result row would VALIDATE" in out,
       out[-400:])
+
+# ---------------------------------------------------------------- 16
+# The four stage interfaces reconciled when the component branches were merged.
+#
+# Sections 5-15 run against the stubs in fixtures.py, which accept the
+# orchestrator's contract by construction. They therefore prove the orchestrator
+# right and say nothing about whether the REAL scripts agree with it. Everything
+# below runs the real scripts.
+#
+# Each interface is checked twice: that the contract argv parses, and that
+# `--window dev` is genuinely honoured. A flag that parses and does nothing is
+# the failure mode this section exists for - it turns the held-out guarantee
+# into a crash at the contamination check, long after the damage is done.
+
+print("\n16. the real stage scripts accept the orchestrator's contract")
+
+SCRIPTS_ABS = os.path.join(os.path.dirname(HERE), "scripts")
+# The dev window from prereg/TEMPLATE.md s3: 2016Q1-2021Q2, held out 2021Q3 on.
+DEV_Q, HELDOUT_Q = "FY2019Q2", "FY2022Q1"
+
+USAGE_ERRORS = ("unrecognized arguments", "invalid choice",
+                "error: argument", "the following arguments are required")
+
+
+def real(script, *args, **kw):
+    """Run a real pipeline script, not a stub."""
+    path = script if os.path.isabs(script) else os.path.join(SCRIPTS_ABS, script)
+    r = subprocess.run([sys.executable, path] + list(args),
+                       cwd=kw.get("cwd") or BASE,
+                       capture_output=True, text=True)
+    return r.returncode, r.stdout + r.stderr
+
+
+def parses(name, script, *args):
+    """The contract argv must reach the script's own logic, not argparse's."""
+    code, out = real(script, *args)
+    bad = [e for e in USAGE_ERRORS if e in out]
+    check(name, not bad, "%s rejected %s: %s" % (script, " ".join(args), out[-300:]))
+    return out
+
+
+def workdir(name):
+    d = os.path.join(BASE, "iface", name)
+    if os.path.isdir(d):
+        shutil.rmtree(d)
+    os.makedirs(d)
+    return d
+
+
+# -- B2 extract_reviews.py: positional `tickers` -> --tickers, and no --window
+out = parses("16a B2 accepts --tickers T [T ...] --window dev",
+             "extract_reviews.py", "--tickers", "HELE", "YETI",
+             "--window", "dev", "--outdir", workdir("b2parse"))
+check("16b B2 resolves the dev window", "window dev" in out, out[:300])
+
+d = workdir("b2")
+os.makedirs(os.path.join(d, "HELE"))
+with open(os.path.join(d, "HELE", "products.csv"), "w") as f:
+    f.write("parent_asin,title,matched_on\nB00DEV0001,dev thing,brand\n"
+            "B00HELD001,held thing,brand\n")
+# One review inside the development window, one inside held-out.
+with open(os.path.join(d, "HELE", "reviews_raw.jsonl"), "w") as f:
+    for rid, asin, iso in (("d", "B00DEV0001", "2019-05-15"),
+                           ("h", "B00HELD001", "2022-02-15")):
+        ts = int(datetime.datetime(*(int(x) for x in iso.split("-")),
+                                   tzinfo=datetime.timezone.utc).timestamp() * 1000)
+        f.write(json.dumps({"parent_asin": asin, "timestamp": ts,
+                            "rating": 4.0, "title": "t" + rid, "text": "x" + rid,
+                            "user_id": "u" + rid, "verified_purchase": True,
+                            "helpful_vote": 1}) + "\n")
+code, out = real("extract_reviews.py", "--tickers", "HELE", "--window", "dev",
+                 "--outdir", d, "--from-raw", "--fy-end-month", "2",
+                 "--quarter-method", "fy_month",
+                 "--categories", "Home_and_Kitchen")
+rpath = os.path.join(d, "HELE", "reviews.csv")
+body = open(rpath).read() if os.path.exists(rpath) else ""
+check("16c B2 --window dev writes the development review", "xd" in body,
+      "exit %d: %s" % (code, out[-400:]))
+check("16d B2 --window dev omits the held-out review",
+      body and "xh" not in body,
+      "no reviews.csv written at all" if not body
+      else "held-out review reached reviews.csv: %s" % body[:400])
+
+# -- B3/B4 score_reviews.py: one positional `ticker` -> --tickers (many)
+out = parses("16e B3 accepts --calibrate --tickers T [T ...] --window dev",
+             "score_reviews.py", "--calibrate", "--tickers", "HELE", "YETI",
+             "--window", "dev", "--outdir", workdir("b3parse"))
+check("16f B3 resolves the dev window", "window dev" in out, out[:300])
+
+d = workdir("b4")
+os.makedirs(os.path.join(d, "HELE"))
+with open(os.path.join(d, "HELE", "reviews.csv"), "w") as f:
+    f.write("review_id,parent_asin,timestamp,review_date,fiscal_quarter,rating,"
+            "title,text,verified_purchase,helpful_vote\n")
+    for rid, q in (("rdev", DEV_Q), ("rheld", HELDOUT_Q)):
+        f.write("%s,B001,0,2019-05-15,%s,4,t,%s body text,true,1\n" % (rid, q, rid))
+code, out = real("score_reviews.py", "--tickers", "HELE", "--window", "dev",
+                 "--outdir", d, "--backend", "stub")
+spath = os.path.join(d, "HELE", "scores.csv")
+sbody = open(spath).read() if os.path.exists(spath) else ""
+check("16g B4 accepts --tickers T --window dev and scores",
+      "rdev" in sbody, "exit %d: %s" % (code, out[-400:]))
+check("16h B4 --window dev never scores a held-out review", "rheld" not in sbody,
+      "held-out review was scored: %s" % sbody[:400])
+
+# -- B5 aggregate.py: --ticker (singular) -> --tickers, and no --window.
+#    This is the one the contamination check watches: it reads quarters.csv.
+out = parses("16i B5 accepts --tickers T [T ...] --window dev",
+             "aggregate.py", "--tickers", "HELE", "--window", "dev",
+             "--datadir", workdir("b5parse"))
+check("16j B5 resolves the dev window", "window dev" in out, out[:300])
+
+d = workdir("b5")
+os.makedirs(os.path.join(d, "HELE"))
+with open(os.path.join(d, "HELE", "reviews.csv"), "w") as f:
+    f.write("review_id,parent_asin,timestamp,review_date,fiscal_quarter,rating,"
+            "title,text,verified_purchase,helpful_vote\n")
+    for i in range(40):
+        f.write("d%d,B001,0,2019-05-15,%s,4,t,body,true,1\n" % (i, DEV_Q))
+    for i in range(40):
+        f.write("h%d,B001,0,2022-02-15,%s,4,t,body,true,1\n" % (i, HELDOUT_Q))
+with open(os.path.join(d, "HELE", "scores.csv"), "w") as f:
+    f.write("review_id,tone,seller_or_shipping_only,defect,price_complaint,"
+            "scoring_failed,rubric_version,scorer_model_id,scored_at\n")
+    for pre in ("d", "h"):
+        for i in range(40):
+            f.write("%s%d,1,false,false,false,v1,m,2026-01-01T00:00:00Z\n" % (pre, i))
+code, out = real("aggregate.py", "--tickers", "HELE", "--window", "dev",
+                 "--datadir", d)
+qpath = os.path.join(d, "HELE", "quarters.csv")
+qbody = open(qpath).read() if os.path.exists(qpath) else ""
+check("16k B5 --window dev aggregates the development quarter", DEV_Q in qbody,
+      "exit %d: %s" % (code, out[-400:]))
+check("16l B5 --window dev keeps held-out quarters out of quarters.csv",
+      HELDOUT_Q not in qbody,
+      "quarters.csv carries a held-out quarter, which is the exit-2 "
+      "contamination abort: %s" % qbody[:400])
+
+# -- --window full is refused before the freeze. This is what makes the flag
+#    binding: there is no argv that gets held-out output out of a pre-freeze
+#    stage while prereg/ holds only TEMPLATE.md.
+for nm, script, extra in (("16m B2", "extract_reviews.py", ["--outdir"]),
+                          ("16n B3/B4", "score_reviews.py", ["--outdir"]),
+                          ("16o B5", "aggregate.py", ["--datadir"])):
+    code, out = real(script, "--tickers", "HELE", "--window", "full",
+                     extra[0], workdir("full" + nm[:3]))
+    check("%s refuses --window full while the prereg is not frozen" % nm,
+          code != 0 and "not frozen" in out, "exit %d: %s" % (code, out[-300:]))
+
+# -- the dashboard: the orchestrator loops it per company, so it must pass the
+#    positional ticker build_dashboard.py requires.
+DASH = os.path.join(os.path.dirname(os.path.dirname(HERE)),
+                    "review-tone-dashboard", "scripts", "build_dashboard.py")
+check("16p build_dashboard.py exists where the orchestrator looks",
+      os.path.exists(DASH), DASH)
+code, out = real(DASH, "--help")
+check("16q build_dashboard.py takes a positional ticker",
+      "ticker" in out.lower() and "usage:" in out.lower(), out[-300:])
+
+root = fresh("t16")
+F.eligibility(root); F.coverage(root); F.all_b_stubs(root); F.calibration(root)
+code, out = orch(root, "--dry-run")
+check("16r orchestrator renders the dashboard per company",
+      "once per company" in out, out[-800:])
 
 # ---------------------------------------------------------------- summary
 print("\n" + "=" * 70)

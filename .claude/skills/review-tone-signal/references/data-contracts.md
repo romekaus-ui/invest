@@ -80,6 +80,43 @@ Scorecard output. One row per universe member, including failures.
 | `scorer_model_id` | str | exact model ID |
 | `scored_at` | datetime | |
 
+## `data/{TICKER}/scoring_report.json`
+Written by `score_reviews.py` beside `scores.csv`. Counts, not scores — nothing
+downstream reads tone from here.
+
+Required keys: `scored_at`, `rubric_version`, `rubric_sha256`, `scorer_model_id`,
+`backend`, `n_attempted`, `n_scored`, `n_failed`, `failure_rate`,
+`n_failed_malformed`, `n_failed_transport`, `n_ok_after_retry`,
+`tone_distribution`, `n_seller_or_shipping_only`, `n_defect`,
+`n_price_complaint`, `n_in_tone_aggregate`, `tone_star_pearson`, `per_quarter`.
+
+`per_quarter[q]` carries `n`, `failed`, `seller_only`, `failure_rate` and
+`flagged_over_10pct` — F13's per-quarter rule applied where it bites.
+`tone_star_pearson` is F8's check: the scorer never saw the star, so a value near
+0.95 means the text added nothing over the star average.
+
+## `data/{TICKER}/calibration.json`
+The B3 gate record. **Downstream stages must read this and refuse to produce a
+result unless `gate == "pass"` and both `rubric_version` and `scorer_model_id`
+match the scores they are aggregating** (`score_reviews.require_calibration`).
+
+| key | notes |
+|---|---|
+| `gate` | `pass` / `blocked` / `pending_human_labels` |
+| `n_required`, `n_labelled` | gate is defined on 100; a short sample is `blocked` |
+| `exact_agreement` | reported, not gated |
+| `adjacent_agreement` + `_ci` | gate: >= 0.85 |
+| `quadratic_weighted_kappa` + `_ci` | gate: >= 0.60; `null` when undefined, which is `blocked` |
+| `rubric_version`, `rubric_sha256`, `scorer_model_id` | calibration is re-run when any of these changes |
+| `confusion_human_rows_model_cols` | 5x5 over `categories` |
+| `bootstrap_reps`, `bootstrap_seed` | CIs are reproducible |
+
+`calibration_sample.csv` is the blind labelling sheet: `review_id`, `title`,
+`text`, `human_tone`, `human_seller_or_shipping_only`. It carries **no model
+score and no star rating** — a human who sees either is no longer an independent
+rater, and the agreement becomes circular on the human side (F8).
+`calibration_key.csv` holds the model answers and is not opened before labelling.
+
 ## `data/{TICKER}/quarters.csv`
 
 | column | type | notes |
@@ -128,12 +165,34 @@ Provenance. Written by every stage, never overwritten wholesale.
 One object per run. Append-only.
 
 Required keys: `run_id`, `run_at`, `phase`, `prereg_hash`, `universe_hash`,
-`rubric_version`, `scorer_model_id`, `companies`, `window`, `n_quarters`,
+`rubric_version`, `scorer_model_id`, `numeric_env`, `companies`, `window`, `n_quarters`,
 `point_estimate`, `ci_low`, `ci_high`, `baseline_value`, `base_rate`, `null_run_result`,
 `specifications_tested`, `verdict` ∈ {`signal`, `no_signal`, `insufficient_data`}.
 
 `specifications_tested` is a count, not a list of the good ones. Reporting only the
 surviving specification is F6.
+
+`numeric_env` is the object produced by `scripts/env_stamp.py`, and it is what makes
+the row's arithmetic recoverable. The pipeline is stdlib only, so the commit pins the
+statistics the way a pinned library version would otherwise have to
+(`references/numeric-stack.md` §4).
+
+| key | type | notes |
+|---|---|---|
+| `stack` | str | `stdlib`. Any other value means the §2 trip-wire was hit. |
+| `python_version` | str | e.g. `3.9.6` — the arithmetic is stdlib, so this is load-bearing |
+| `python_implementation` | str | `CPython` |
+| `platform` | str | e.g. `Darwin-25.5.0-arm64` |
+| `code_commit` | str | git SHA at run time; **this is the version pin** |
+| `code_dirty` | bool | true → produced from uncommitted code, verdict not citable |
+| `rng` | str | `stdlib-mt19937` |
+| `seed` | int | base seed, fixed in the prereg |
+| `stage_seeds` | object | derived per stage, e.g. `{"bootstrap": ..., "null": ...}` |
+| `bootstrap_reps` | int | required whenever a CI is reported |
+| `null_permutations` | int | required whenever `null_run_result` is populated |
+
+Row validation must reject a row with no `numeric_env`, and must reject
+`verdict: "signal"` on a row with `code_dirty: true`.
 
 ---
 
@@ -144,9 +203,23 @@ are the interfaces the orchestrator reads and writes; the stages above are
 unchanged.
 
 ## `data/calibration.json`
-Written by `score_reviews.py --calibrate`. The calibration gate in
-`tone-rubric-v1.md` is read from this file, so a missing or incomplete one blocks
-the pipeline rather than being treated as a pass.
+Written by `score_reviews.py --calibrate --labels <sheet>`. The calibration gate
+in `tone-rubric-v1.md` is read from this file, so a missing or incomplete one
+blocks the pipeline rather than being treated as a pass.
+
+**This file and `data/{TICKER}/calibration.json` above are the same record at two
+paths, and that was a real break until 2026-10-11.** `score_reviews.py` computed
+the result per company and wrote only the per-company copy, while
+`pipeline_state.detect_calibration` reads this path and nowhere else — so
+`B3.calibration` could never be met however good the agreement was. The scorer now
+promotes the result here once labels are in (`promote_calibration`), adding
+`calibrated_on` (the list of tickers the labelled sample came from).
+
+Calibration is a property of the **scorer**, not of a company, so there is one
+file at this path. When several companies are calibrated in one run it is written
+only if they agree on `gate`, `rubric_version` and `scorer_model_id`; a
+disagreement is reported and the gate stays unmet, because picking one would
+silently decide whether the pipeline is blocked.
 
 | key | type | notes |
 |---|---|---|
@@ -158,6 +231,24 @@ the pipeline rather than being treated as a pass.
 | `scorer_model_id` | str | must match the prereg; a change forces re-calibration (F10) |
 | `labelled_by` | str | who labelled, blind to model output |
 | `scored_at` | datetime | |
+
+## `data/{TICKER}/manifest.json` — window provenance
+
+Every stage that honours `--window` records which window produced its output, so
+a short series can be told from a restricted one after the fact. Written by
+`extract_reviews.py` (B2) and `aggregate.py` (B5):
+
+| key | type | notes |
+|---|---|---|
+| `window` | str | `dev` or `full` |
+| `window_bounds` | str/null | e.g. `2016Q1-2021Q2`; null when the prereg carries no window table |
+| `window_source` | str | the file the bound was read from, e.g. `prereg/TEMPLATE.md (NOT frozen)` |
+| `out_of_window_dropped` | int | B2 only: reviews refused by the window |
+
+The bound itself is never written down twice. `scripts/window.py` resolves it
+through `pipeline_state.parse_window`, the same function
+`heldout_contamination` uses, so the filter and the check cannot disagree about
+where held-out starts.
 
 ## The measurement JSON (`backtest.py`, `degrade.py`)
 Written to the `--out` path. The orchestrator reads it and builds the result row

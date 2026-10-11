@@ -173,6 +173,28 @@ it. A stage that exists must accept:
 `--window dev` is binding, not advisory: a stage that ignores it and writes
 held-out quarters triggers the contamination abort.
 
+B2, B3/B4 and B5 are built and were reconciled to this table on 2026-10-11; they
+had each been written to their own signature (a positional ticker list, a single
+positional ticker, and repeatable `--ticker`), and none of them took `--window`
+at all. All three now resolve it through `scripts/window.py`, which reads the
+development bound from the active prereg — or from `prereg/TEMPLATE.md` §3 when
+none is frozen — so the filter and the contamination check cannot disagree about
+where held-out starts. Two consequences worth knowing before invoking a stage by
+hand:
+
+- **The default is `--window dev`, not `full`.** The two mistakes are not
+  symmetric: defaulting to `dev` costs a re-run, defaulting to `full` before the
+  freeze spends the held-out window permanently.
+- **`--window full` is refused outright while the prereg is not frozen.** That
+  is what makes the flag binding rather than advisory — before the freeze there
+  is no argument that gets held-out output out of a pre-freeze stage, so the rule
+  cannot be worked around per run. B7 and C sit behind `B1.prereg_frozen` and are
+  allowed `full` once it is met.
+
+Each script also records the window it ran under in its `manifest.json`, because
+a short series and a restricted one are otherwise indistinguishable after the
+fact, and the restriction is the whole of the guarantee.
+
 The measurement JSON written by B7 and C must contain `verdict`,
 `heldout_evaluated`, `point_estimate`, `ci_low`, `ci_high`, `baseline_value`,
 `base_rate`, `null_run_result`, `n_quarters`, `n_per_quarter` and
@@ -186,6 +208,18 @@ The dashboard is regenerated from the first of these that exists:
 `.claude/skills/review-tone-signal/scripts/dashboard.py`,
 `scripts/build_dashboard.py`. If none exists the run says so and carries on; the
 result row is already written, and a missing dashboard does not invalidate it.
+
+**It is invoked once per company, with the ticker as a positional argument.**
+This is the one stage interface settled in the script's favour rather than the
+orchestrator's. `build_dashboard.py` renders one company's payload and is
+deliberately forbidden from computing a tone mean, an interval or a base rate
+(CORE-PROMPT §1.3); a whole-set mode would have to combine companies, which is
+arithmetic of precisely the kind it exists to refuse. The loop therefore lives in
+`regenerate_dashboard()`, where the company set is already known. A failure for
+one company is reported and the rest still render, since the result row is
+already written. The dashboard takes no `--window`: it is not a pipeline stage,
+it only reads what the stages wrote, and under `--window dev` those files hold no
+held-out quarter to leak.
 
 ## One reconciliation you should know about
 

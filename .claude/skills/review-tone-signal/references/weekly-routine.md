@@ -49,6 +49,23 @@ this one is not among them (https://github.com/settings/installations).
 The routine clones the **default branch**, so work has to be on `main` before a
 run can use it.
 
+## Verified by the first fire, 2026-10-11
+
+Run `cse_01LdT3qXLUTp8b2fSQvae9pW`, fired manually before the first scheduled
+run rather than letting a Monday morning be the first test. Clone, orchestrator,
+row, report, branch, PR (#1) all worked. Phase A, `insufficient_data`, stopped at
+`A2.eligibility`.
+
+Two things it established that a dry run could not:
+
+- `gh pr create` returns HTTP 403 in this sandbox — the GraphQL API is blocked.
+  The run recovered via `gh api`, but recovery is not a plan, so the prompt now
+  names the REST route directly.
+- Change detection works across machines. The run's report read
+  `universe: 622c774f7a84 -> 28db9bdb5609`, correctly diffing its own state
+  against the fingerprint in the previous row, which a different machine wrote
+  before the rolling panel landed.
+
 ## What the cloud run can and cannot do
 
 A cloud sandbox gets a fresh checkout and nothing else. It can evaluate every
@@ -94,7 +111,15 @@ STEP 4 - commit and open a pull request. Never push to main.
     git commit -m "review-tone weekly run: <phase>, verdict <verdict>"
     git push -u origin HEAD
 
-Then open a PR with `gh pr create` if gh is available in this environment. If it is not, push the branch anyway and say so. Do not force-push. Do not merge.
+Then open the PR with the REST route. Do NOT use `gh pr create`: it goes through the GitHub GraphQL API, which is blocked in this environment and returns HTTP 403. This is known, not worth retrying:
+
+    gh api repos/romekaus-ui/invest/pulls \
+      -f title="review-tone weekly run: phase <phase>, <verdict>" \
+      -f head="review-tone-run/$(date -u +%Y-%m-%d)" \
+      -f base=main \
+      -f body="<run id, where it stopped, verdict, path to the report>"
+
+If the REST call fails too, the branch is already pushed - say so and move on. Do not force-push. Do not merge.
 
 STEP 5 - report, briefly. Read results/reports/<run_id>.md and relay: what changed since the last run, which gates are met, which companies are blocked and why, and the current verdict. Four short sections. Do not paste the stage log.
 
