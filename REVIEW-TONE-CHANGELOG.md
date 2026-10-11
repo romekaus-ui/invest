@@ -1248,3 +1248,14 @@ eligible of 3 scored (PARTIAL, not a scored formation)" rather than
 **Still unbuilt, deliberately:** `backtest.py`, `degrade.py`. **Still human:** the
 B1 freeze, the B3 calibration labels, and scoring the 2016 shortlist — 81 of 83
 company-years to go.
+
+## 2026-10-11 · orchestrated run 20261011T193229Z-6f162d
+
+Phase A, verdict `insufficient_data`. stage A2 (Score structural eligibility from filings) is a human step, not a script. Missing: data/eligibility.csv. A scheduled run reports it and stops; it does not invent the output.
+
+- Gates met: A1.universe, A1b.shortlist
+- Gates unmet: A2.eligibility, A3.coverage, B1.prereg_frozen, B3.calibration, B7.heldout, C.degradation
+- Stages run: none
+- Changed since last run: universe: 622c774f7a84 -> 28db9bdb5609; eligibility scorecard: none -> 9ecf14ae2536; shortlist added for: 2016, 2017, 2018, 2019, 2020, 2021, 2022
+- Held-out: not read (prereg unfrozen, development open)
+- Report: `results/reports/20261011T193229Z-6f162d.md`
