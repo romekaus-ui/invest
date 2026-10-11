@@ -1,87 +1,58 @@
-# review-tone-signal
+# review tone monitor
 
-Does the tone of Amazon customer reviews carry information about a company's later
-SEC-reported revenue, beyond what a naive expectation already implies?
+Tracks the tone of **fresh Amazon customer reviews** for peer groups of consumer-facing
+companies worldwide, and shows each company against the competitors it actually faces.
 
-This is a falsification harness, not a trading system. It produces measured effects
-with confidence intervals and an explicit verdict in {`signal`, `no_signal`,
-`insufficient_data`}. It never produces a buy, sell, target or position size.
+It is a measuring instrument. It reports tone, its change, the peers, and the volume and
+coverage behind every number. It does not produce a buy, sell, target or position size.
 
-## Quick start
+**Read [`CORE-PROMPT.md`](CORE-PROMPT.md) first.** It governs everything here.
 
-No setup. No venv, no install, no dependency resolution — any CPython 3.9 or newer
-runs the whole pipeline.
+## How it fits together
 
-```bash
-export SEC_USER_AGENT="Your Name your@email.example"   # SEC requires a contact
-python3 .claude/skills/review-tone-signal/scripts/screen_universe.py --formation 2016-01-01
+```
+peer group          who competes with whom, declared before anything is collected
+    ↓
+collection          fresh reviews from Amazon — logged-in session (sort by recent)
+                    or a commercial provider
+    ↓
+tone scoring        versioned rubric, calibrated against human labels first
+    ↓
+aggregation         tone over time, per company and relative to its peer group
+    ↓
+dashboard           the chart, with coverage and volume shown beside every number
 ```
 
-That writes `data/universe.csv` and its hash. Score every in-band company with the
-scorecard in `references/company-selection.md`, then — and only then — run coverage.
+## State
 
-That is a deliberate guarantee rather than a happy accident, and it holds for the
-statistical stages too: **the pipeline is standard library only, including the
-bootstrap intervals, the rank correlation and the shuffled-date null.** A row in
-`results/results.jsonl` must stay reproducible years from now, and arithmetic that
-lives in `scripts/` is pinned by the commit SHA — which cannot stop being
-installable the way a wheel can. Decision and the measurements behind it:
-[`references/numeric-stack.md`](.claude/skills/review-tone-signal/references/numeric-stack.md).
-
-### Development setup (optional, not needed to run anything)
-
-numpy and scipy are **development-only**: they are the oracle that the in-repo
-statistics are cross-checked against, never the engine that computes a result.
-
-```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements-dev.txt   # numpy 2.0.2, scipy 1.13.1
-```
-
-Exact pins, never ranges. Needed only to run the cross-check tests; skip it if you
-are collecting data or reproducing a published row.
-
-### Seeds
-
-Any stage that resamples uses one convention, fixed in
-[`references/numeric-stack.md`](.claude/skills/review-tone-signal/references/numeric-stack.md)
-§3 so that two sessions cannot each invent one: `random.Random(seed)` per stage,
-seeds derived from `20261011` by a per-stage offset, drawing only through
-`.random()` / `.getrandbits()` / `.randrange()`. The seed is recorded in every
-result row. `scripts/env_stamp.py` supplies both the generator and that metadata —
-call it rather than re-deriving the convention.
-
-## Layout
-
-| Path | What |
+| Component | Status |
 |---|---|
-| `REVIEW-TONE-CORE-PROMPT.md` | Locked rules. Read first. |
-| `.claude/skills/review-tone-signal/` | The skill: router, references, scripts |
-| `prereg/` | Frozen, hashed hypotheses |
-| `data/` | Universe, eligibility, coverage, per-company folders |
-| `results/results.jsonl` | Append-only run log |
-| `MISSES.md` | Append-only failure log |
-| `requirements-dev.txt` | Pinned dev-only numerics. Not a pipeline dependency. |
+| Peer-group finder | being built |
+| Fresh review collector | being built |
+| Tone scorer (`score_reviews.py`) | built, carried over |
+| Aggregation (`aggregate.py`) | built, carried over — needs rework for live cadence |
+| US revenue (`fetch_sec.py`) | built, carried over |
+| Dashboard skill | built, carried over |
 
-## Data
+No reviews collected yet, so there is nothing to chart. The series starts the day
+collection starts.
 
-- **Reviews:** `McAuley-Lab/Amazon-Reviews-2023` — 571.5M reviews, 1996–Sep 2023,
-  streamed, never stored. 41 GB metadata + 120 GB reviews across the relevant
-  categories. Free.
-- **Fundamentals:** EDGAR `companyfacts`, with filing dates. Free.
-- **Prices:** Yahoo chart API, split-corrected. Free.
+## The two things worth knowing before trusting a number
 
-Phase A and B cost nothing but bandwidth. Nothing is purchased before Phase C passes.
+**Coverage.** Amazon moved reviews behind a login wall in November 2024 and caps
+pagination. What is collectable is a fraction of what exists, so every tone number is
+reported with the ratio of reviews collected to reviews the product claims. A tone mean
+over 2% of a product's reviews is not that product's tone.
 
-## Why the backtest uses a 2023 corpus rather than live data
+**The series is forward-only.** Fresh collection cannot reconstruct what reviews looked
+like last year. A claim that tone *predicts* revenue needs the test declared in advance
+and then several reporting periods to run. Until then the honest answer is *not yet
+known* — see `CORE-PROMPT.md` §8.
 
-Amazon closed review access through late 2024: roughly five pages visible per
-product, the recency sort behind login, logged-out review pages blocked. Live
-collection today returns a helpfulness-sorted slice of ~50 reviews — biased toward
-old, heavily-upvoted text. That is not a time series, and a tone chart built on it
-measures Amazon's ranking algorithm rather than consumer sentiment.
+## Archive
 
-So the historical corpus carries the backtest, and Phase C degrades that corpus to
-the sample you could actually buy today and re-runs the identical test. If the
-signal dies under the degraded regime, the live product is dead — established for
-free, before any money is spent.
+[`archive/historical-harness/`](archive/historical-harness/) holds the previous design: a
+falsification harness testing the same idea against `McAuley-Lab/Amazon-Reviews-2023`, a
+frozen research corpus ending September 2023. Archived rather than deleted — it is the
+only cheap way to ask whether review tone has *ever* led revenue, which the live system
+cannot answer for several quarters.
