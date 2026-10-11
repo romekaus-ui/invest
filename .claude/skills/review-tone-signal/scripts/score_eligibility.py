@@ -310,25 +310,32 @@ def evidence_filings(cik):
     return out, (data.get("name") or "")
 
 
-def in_force_filing(cik, formation):
-    """The filing in force at formation: the last ANNUAL report filed on or
-    before that date, or failing that the last registration statement.
+def choose_in_force(filings, formation):
+    """THE point-in-time boundary, as a pure function of a filing index.
 
-    This function is the point-in-time boundary. It is the only place in A2
-    that chooses a filing, and it cannot return a later one. Annual reports
-    always win; the fallback is reached only when none exists yet.
+    The last ANNUAL report filed on or before formation, or failing that the
+    last registration statement. Annual reports always win; the fallback is
+    reached only when none exists yet. It cannot return a later filing.
+
+    Separated from the fetch so that A1b's pre-filter, which resolves the same
+    question for up to seven formations per company from one cached index, can
+    apply this rule rather than a second copy of it. One definition of "in
+    force" in the project, in one place.
     """
-    filings, name = evidence_filings(cik)
     at_or_before = [f for f in filings if f["filing_date"] <= formation]
     annual = [f for f in at_or_before if f["form"] in ANNUAL_FORMS_AMENDED]
     if annual:
-        f = dict(annual[-1], source="annual")
-        return f, name, len(filings)
+        return dict(annual[-1], source="annual")
     fallback = [f for f in at_or_before if f["form"] in FALLBACK_FORMS]
     if fallback:
-        f = dict(fallback[-1], source="prospectus")
-        return f, name, len(filings)
-    return None, name, len(filings)
+        return dict(fallback[-1], source="prospectus")
+    return None
+
+
+def in_force_filing(cik, formation):
+    """choose_in_force() against a freshly fetched filing index."""
+    filings, name = evidence_filings(cik)
+    return choose_in_force(filings, formation), name, len(filings)
 
 
 def archive_url(cik, accn, doc):

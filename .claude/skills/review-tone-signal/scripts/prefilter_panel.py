@@ -97,8 +97,8 @@ from collections import Counter
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 from screen_universe import fetch, ua  # noqa: E402
-from score_eligibility import (in_force_filing, flatten_filing,  # noqa: E402
-                               archive_url, _Flatten)
+from score_eligibility import (in_force_filing, choose_in_force,  # noqa: E402
+                               flatten_filing, archive_url, _Flatten)
 import sic_consumer  # noqa: E402
 
 PROBE_VERSION = "prefilter-v1"
@@ -382,19 +382,14 @@ def filings_cached(cache, cik):
 
 
 def resolve_in_force(filings, formation):
-    """A2's rule, replayed against the cached index. Kept identical to
-    score_eligibility.in_force_filing: annual reports win, the registration
-    statement is the fallback, and nothing filed after formation is eligible.
+    """A2's point-in-time rule, applied to the cached index.
+
+    This is score_eligibility.choose_in_force itself, not a copy of it: the
+    boundary that keeps a later filing out of a formation's evidence is the
+    single most important invariant in Phase A, and two implementations of it
+    would be two things to keep in step.
     """
-    from score_eligibility import ANNUAL_FORMS_AMENDED, FALLBACK_FORMS
-    at_or_before = [f for f in filings if f["filing_date"] <= formation]
-    annual = [f for f in at_or_before if f["form"] in ANNUAL_FORMS_AMENDED]
-    if annual:
-        return dict(annual[-1], source="annual")
-    fallback = [f for f in at_or_before if f["form"] in FALLBACK_FORMS]
-    if fallback:
-        return dict(fallback[-1], source="prospectus")
-    return None
+    return choose_in_force(filings, formation)
 
 
 def measurement_path(cache, cik, accn):
