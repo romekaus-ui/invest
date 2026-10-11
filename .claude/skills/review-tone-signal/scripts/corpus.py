@@ -24,7 +24,9 @@ Relevant category sizes (GB), measured 2026-10-11:
     Home_and_Kitchen               11.79     31.41
     TOTAL                          40.92    120.13
 
-Standard library only.
+Standard library only. That is a binding policy for every pipeline stage,
+not an accident of this script: see references/numeric-stack.md. numpy and
+scipy are development-only, and no stage may import them.
 """
 
 import gzip

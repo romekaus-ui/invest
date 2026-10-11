@@ -20,7 +20,9 @@ screens cost roughly what one used to.
 Output: data/universe_panel.csv, data/universe_panel.hash
 Cache:  .cache/  (safe to delete; only costs refetch time)
 
-Standard library only. Needs SEC_USER_AGENT.
+Standard library only. That is a binding policy for every pipeline stage,
+not an accident of this script: see references/numeric-stack.md. numpy and
+scipy are development-only, and no stage may import them. Needs SEC_USER_AGENT.
 """
 
 import argparse

@@ -60,7 +60,10 @@ Load these as needed; do not load them all up front.
 - `references/data-contracts.md` — exact schemas for every CSV and JSONL in the pipeline.
 - `references/weekly-routine.md` — the scheduled weekly run: cron, config and its
   verbatim prompt. Read before changing the schedule.
-
+- `references/numeric-stack.md` — the pipeline is **stdlib only**, including the
+  statistics. Binding. Read before writing any stage that resamples, correlates or
+  computes an interval, and before adding any dependency. Fixes the seeding
+  convention and the `numeric_env` run metadata.
 ## Running the pipeline
 
 Do not retype the phase map as a prompt. `/review-tone-run` runs it:
