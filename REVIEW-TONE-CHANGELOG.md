@@ -126,3 +126,14 @@ Not yet verified by a real fire — the repo had no commits pushed when the rout
 was created, and this machine has no git credentials, so the first run is the
 first test. If it fails, `list_runs` then `get_run_log` on the routine will say
 why.
+
+## 2026-10-11 · orchestrated run 20261011T123829Z-f48370
+
+Phase A, verdict `insufficient_data`. stage A2 (Score structural eligibility from filings) is a human step, not a script. Missing: data/eligibility.csv. A scheduled run reports it and stops; it does not invent the output.
+
+- Gates met: A1.universe
+- Gates unmet: A2.eligibility, A3.coverage, B1.prereg_frozen, B3.calibration, B7.heldout, C.degradation
+- Stages run: none
+- Changed since last run: universe: 622c774f7a84 -> 28db9bdb5609
+- Held-out: not read (prereg unfrozen, development open)
+- Report: `results/reports/20261011T123829Z-f48370.md`
