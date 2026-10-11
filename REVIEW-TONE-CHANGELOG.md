@@ -118,3 +118,55 @@ formation year is one session's work.
 instrument. `data/eligibility_2016.csv` is marked `partial=True` and 37 of 40
 companies at the 2016 formation remain unscored, so the A2 gate (>= 8 eligible)
 is not met and A3 coverage must not begin.
+
+## 2026-10-11 · A2 rescoped to a shortlist of company-years
+
+Narrowed the A2 component after a correction from the session building the
+mechanical pre-filter. Two facts behind it, both verified here:
+
+- The committed `data/universe_2016.csv` / `universe_2019.csv` are output of the
+  **superseded** 27-code screen in `screen_universe.py` — their hash files carry
+  that script's format, and commit 8ca42b2's own message describes the 40-company
+  band they produced as the problem it was fixing. `sic_consumer.py` now defines
+  126 codes and `screen_rolling.py` re-forms annually to
+  `data/universe_panel.csv`, **which has not been run**. The 40/51 in-band counts
+  in the previous entry are accurate for the committed files and stale as a
+  description of the universe; expected scale after the new screen runs is
+  800–1,000 company-years.
+- A mechanical eligibility pre-filter, cutting that panel to roughly 60–80 using
+  only point-in-time filing data, is a separate component built elsewhere. Not
+  built here, not duplicated here.
+
+**Changes:**
+- `load_universe` reads `data/universe_panel.csv` when present and slices it by
+  formation year, falling back to the per-year files. The unit is now explicitly
+  a company-year: a company in four formation years is scored four times, each
+  against that year's filing, each in that year's output file.
+- `--shortlist` (queue, build) takes the pre-filter's ticker list — one per line
+  or a CSV with a `ticker` column — and makes it the scope. Completeness is
+  measured against the shortlist, not the panel. A shortlist naming a ticker that
+  is not an in-band company-year at that formation is refused, as is a judgement
+  for a ticker outside the shortlist: scoring beyond the handed-down set is
+  selection, which is not A2's to do.
+- Provenance is recorded rather than assumed. The hash file and evidence JSON now
+  carry the universe file and its sha256, the shortlist and its sha256, the scope
+  size, and `not_in_scope` — every in-band company-year the pre-filter cut.
+
+**Methodological caveat, raised and not resolved here.** `company-selection.md` §2
+requires the ineligible list to be part of the result. With a shortlist, the
+company-years the pre-filter cut carry no scores in `eligibility_<YEAR>.csv`, so
+that file no longer bounds the population on its own — and the pre-filter cuts on
+segment count and e-commerce disclosure, which are the same evidence as criteria
+3 and 1, so the two stages are correlated rather than independent. The requirement
+is satisfied only if the pre-filter publishes its own cut list with per-company
+reasons. `build` now prints the upstream cut count and records the tickers, so the
+gap is visible in the output instead of silent.
+
+Guards tested after the change: stray shortlist ticker refused, off-shortlist
+judgement refused, panel precedence over per-year files confirmed, and the
+2016 verification CSV byte-identical (sha256 e15547c1…) — the scope change is
+recorded in the hash file and evidence JSON, never in the contract CSV.
+
+**Still not run:** the new 126-code rolling screen, the pre-filter, and therefore
+A2 at real scale. The 2016 verification file covers 3 company-years from the stale
+universe and does not meet the A2 gate.

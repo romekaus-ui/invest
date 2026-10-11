@@ -1,8 +1,17 @@
 #!/usr/bin/env python3
 """Stage A2 - structural eligibility scorecard.
 
-Scores every `in_band` company in a point-in-time universe on the seven
-criteria in references/company-selection.md s2, weighted to 100, pass bar 60.
+Scores companies in a point-in-time universe on the seven criteria in
+references/company-selection.md s2, weighted to 100, pass bar 60.
+
+Input is a formation year's slice of the company-year panel, optionally
+narrowed to a SHORTLIST produced upstream by the mechanical pre-filter. The
+pre-filter is a separate component and is not built here. A2 scores the set it
+is handed; it never decides which companies reach it.
+
+The unit is a COMPANY-YEAR. The panel re-forms every January 1, so a company
+appearing in four formation years is scored four times, each against the filing
+in force on that year's formation date. One output file per formation year.
 
 This script owns three things the model must never do itself:
 
@@ -37,7 +46,9 @@ Modes
 Output: data/eligibility_<FORMATION_YEAR>.csv       (data-contracts.md)
         data/eligibility_<FORMATION_YEAR>.hash
         data/eligibility_<FORMATION_YEAR>.evidence.json
-Input:  data/eligibility_<FORMATION_YEAR>.judgements.jsonl   (append-only)
+Input:  data/universe_panel.csv  (preferred) or data/universe_<YEAR>.csv
+        --shortlist <path>       tickers from the pre-filter, optional
+        data/eligibility_<FORMATION_YEAR>.judgements.jsonl   (append-only)
 
 Standard library only. Needs SEC_USER_AGENT (see screen_universe.py).
 """
@@ -152,27 +163,83 @@ def die(msg):
 
 
 def universe_path(year, datadir):
+    """The panel is the real universe (company-selection.md s1). The per-year
+    files are the superseded narrow screen's output and are a fallback only.
+    """
+    panel = os.path.join(datadir, "universe_panel.csv")
+    if os.path.exists(panel):
+        return panel
     return os.path.join(datadir, "universe_%s.csv" % year)
 
 
 def load_universe(year, datadir):
-    """in_band rows of the universe formed on <year>-01-01, by ticker."""
+    """in_band rows for the formation on <year>-01-01, by ticker.
+
+    Reads the company-year panel and takes that year's slice. A company
+    appearing in several formation years is a separate company-year in each,
+    scored separately against each year's filing.
+    """
     path = universe_path(year, datadir)
     if not os.path.exists(path):
-        die("no universe at %s. Run screen_universe.py / screen_rolling.py first."
-            % path)
+        die("no universe at %s. Run screen_rolling.py first (it writes "
+            "data/universe_panel.csv)." % path)
     rows = {}
     with open(path, newline="", encoding="utf-8") as f:
         for r in csv.DictReader(f):
             if str(r.get("in_band", "")).strip().lower() != "true":
                 continue
-            formation = r["formation_date"]
-            if not formation.startswith(str(year)):
+            if not r["formation_date"].startswith(str(year)):
                 continue
             rows[r["ticker"]] = r
     if not rows:
-        die("%s holds no in_band rows for formation %s-01-01." % (path, year))
+        die("%s holds no in_band rows for formation %s-01-01. The panel covers "
+            "the years screen_rolling.py was run for." % (path, year))
     return rows
+
+
+def sha256_file(path):
+    with open(path, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+
+def load_shortlist(path, uni, year):
+    """Tickers handed down by the mechanical pre-filter.
+
+    Accepts one ticker per line, or a CSV with a `ticker` column. A2 does not
+    produce this list and does not second-guess it; it only refuses tickers
+    that are not in_band company-years at this formation, because scoring one
+    would be adding to the universe rather than scoring it.
+    """
+    if not os.path.exists(path):
+        die("no shortlist at %s" % path)
+    tickers = []
+    with open(path, newline="", encoding="utf-8") as f:
+        head = f.readline()
+        f.seek(0)
+        if "," in head or head.strip().lower().startswith("ticker"):
+            for r in csv.DictReader(f):
+                t = (r.get("ticker") or "").strip()
+                if t:
+                    tickers.append(t)
+        else:
+            for line in f:
+                line = line.split("#")[0].strip()
+                if line:
+                    tickers.append(line)
+    seen, ordered = set(), []
+    for t in tickers:
+        if t not in seen:
+            seen.add(t)
+            ordered.append(t)
+    stray = [t for t in ordered if t not in uni]
+    if stray:
+        die("shortlist names %d ticker(s) that are not in_band company-years at "
+            "%s-01-01: %s\nA2 scores the universe, it never adds to it. Either "
+            "the shortlist was built against a different panel or a different "
+            "formation year." % (len(stray), year, ", ".join(stray)))
+    if not ordered:
+        die("shortlist %s is empty" % path)
+    return ordered, sha256_file(path)
 
 
 def judgements_path(year, datadir):
@@ -448,22 +515,37 @@ def validate(rec, uni_row, year):
     return bad, scores, scored_asof
 
 
-def build(year, datadir, partial, out_path):
+def build(year, datadir, partial, out_path, shortlist_path=None):
     uni = load_universe(year, datadir)
     judg = load_judgements(year, datadir)
     formation = next(iter(uni.values()))["formation_date"]
+
+    # The scope A2 is accountable for: the shortlist if one was handed down,
+    # the whole in_band set otherwise.
+    sl_hash = ""
+    if shortlist_path:
+        scope, sl_hash = load_shortlist(shortlist_path, uni, year)
+        scope = set(scope)
+    else:
+        scope = set(uni)
 
     stray = sorted(set(judg) - set(uni))
     if stray:
         die("judgements for tickers that are not in_band at %s: %s. A2 scores "
             "the universe, it does not add to it." % (formation, ", ".join(stray)))
+    off_scope = sorted(set(judg) - scope)
+    if off_scope and shortlist_path:
+        die("judgements for %d ticker(s) outside the shortlist: %s\nScoring "
+            "beyond the set you were handed is selection, which is not A2's to "
+            "do. Ask for a revised shortlist instead."
+            % (len(off_scope), ", ".join(off_scope)))
 
-    missing = sorted(set(uni) - set(judg))
+    missing = sorted(scope - set(judg))
     if missing and not partial:
-        die("%d of %d in_band companies are unscored: %s\n"
-            "The universe is scored whole. Re-run with --partial only for a "
-            "verification sample; a partial file is not a universe."
-            % (len(missing), len(uni), ", ".join(missing)))
+        die("%d of %d companies in scope are unscored: %s\n"
+            "The scope is scored whole. Re-run with --partial only for a "
+            "verification sample; a partial file is not a result."
+            % (len(missing), len(scope), ", ".join(missing)))
 
     problems = []
     rows, evidence = [], {}
@@ -511,22 +593,45 @@ def build(year, datadir, partial, out_path):
 
     with open(out, "rb") as f:
         digest = hashlib.sha256(f.read()).hexdigest()
+    uni_path = universe_path(year, datadir)
+    scope_note = ("shortlist=%s:%s  of_in_band=%d/%d"
+                  % (os.path.basename(shortlist_path), sl_hash[:12],
+                     len(scope), len(uni))) if shortlist_path else \
+                 ("scope=all_in_band=%d" % len(uni))
     with open(out.replace(".csv", ".hash"), "w") as f:
-        f.write("%s  %s  formation=%s  scored=%d/%d  partial=%s\n"
+        f.write("%s  %s  formation=%s  scored=%d/%d  %s  universe=%s:%s  "
+                "partial=%s\n"
                 % (digest, os.path.basename(out), formation, len(rows),
-                   len(uni), bool(missing)))
+                   len(scope), scope_note, os.path.basename(uni_path),
+                   sha256_file(uni_path)[:12], bool(missing)))
 
     ev_path = out.replace(".csv", ".evidence.json")
     with open(ev_path, "w", encoding="utf-8") as f:
         json.dump({"formation_date": formation,
-                   "universe": os.path.basename(universe_path(year, datadir)),
+                   "universe": os.path.basename(uni_path),
+                   "universe_sha256": sha256_file(uni_path),
+                   "in_band_company_years": len(uni),
+                   "shortlist": os.path.basename(shortlist_path)
+                               if shortlist_path else None,
+                   "shortlist_sha256": sl_hash or None,
+                   "scope_size": len(scope),
+                   "not_in_scope": sorted(set(uni) - scope),
                    "criteria_weights": {k: w for k, w, _l in CRITERIA},
                    "pass_bar": PASS_BAR,
                    "companies": evidence}, f, indent=2, sort_keys=True)
 
     passed = [r for r in rows if r["eligible"]]
     est = [r for r in rows if r["c1_estimated"]]
-    print("formation %s · %d in_band · %d scored" % (formation, len(uni), len(rows)))
+    print("formation %s · %d in_band company-years · %d in scope · %d scored"
+          % (formation, len(uni), len(scope), len(rows)))
+    if shortlist_path:
+        print("  scope: shortlist %s (sha256 %s), %d of %d in_band"
+              % (os.path.basename(shortlist_path), sl_hash[:12], len(scope),
+                 len(uni)))
+        print("  %d in_band company-years were cut upstream and carry NO scores"
+              % (len(uni) - len(scope)))
+        print("  in this file. The pre-filter's own cut list, with reasons, is")
+        print("  what bounds the population - this file does not.")
     print("  eligible (>= %.0f):   %d" % (PASS_BAR, len(passed)))
     print("  ineligible, kept:    %d" % (len(rows) - len(passed)))
     print("  c1 estimated:        %d" % len(est))
@@ -610,19 +715,34 @@ def main():
     p.add_argument("--out", help="build mode: override output path")
     p.add_argument("--criterion", nargs="*",
                    help="probe mode: restrict to these criterion keys")
+    p.add_argument("--shortlist",
+                   help="queue/build modes: the pre-filter's ticker list; "
+                        "scope becomes that list instead of every in_band "
+                        "company-year. A2 never produces this file.")
     p.add_argument("--csv", help="verify mode: path to the eligibility CSV")
     args = p.parse_args()
 
     if args.mode == "queue":
         uni = load_universe(args.year, args.datadir)
         judg = load_judgements(args.year, args.datadir)
-        todo = sorted(set(uni) - set(judg))
-        done = sorted(set(uni) & set(judg))
+        if args.shortlist:
+            order, sl_hash = load_shortlist(args.shortlist, uni, args.year)
+            scope = list(order)
+        else:
+            scope, sl_hash = sorted(uni), ""
+        todo = [t for t in scope if t not in judg]
+        done = [t for t in scope if t in judg]
         formation = next(iter(uni.values()))["formation_date"]
-        print("formation %s · %d in_band · %d scored · %d to go"
-              % (formation, len(uni), len(done), len(todo)))
+        print("formation %s · %d in_band company-years · %d in scope · "
+              "%d scored · %d to go"
+              % (formation, len(uni), len(scope), len(done), len(todo)))
+        if args.shortlist:
+            print("scope: shortlist %s (sha256 %s)"
+                  % (os.path.basename(args.shortlist), sl_hash[:12]))
+        else:
+            print("scope: every in_band company-year (no shortlist given)")
         if done:
-            print("\nscored:   %s" % " ".join(done))
+            print("\nscored:   %s" % " ".join(sorted(done)))
         print("\nto score:")
         for t in todo:
             r = uni[t]
@@ -732,7 +852,7 @@ def main():
         return
 
     if args.mode == "build":
-        build(args.year, args.datadir, args.partial, args.out)
+        build(args.year, args.datadir, args.partial, args.out, args.shortlist)
         return
 
     if args.mode == "verify":
