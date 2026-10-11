@@ -660,6 +660,23 @@ check("17i corpus snapshot agrees with extract_reviews.py",
       _ps.CORPUS_SNAPSHOT == (_y, (_m - 1) // 3 + 1),
       "%s vs %s" % (_ps.CORPUS_SNAPSHOT, _snap))
 
+# -- A2 is a stage that a human finishes, and a gate that counts what passed.
+#    A finished scorecard with too few eligible companies is a FINDING - the
+#    universe does not hold eight measurable companies at that formation - and
+#    must not be reported as work still to do.
+root = fresh("t17j")
+F.eligibility_year(root, 2016, n_eligible=3)
+code, out = orch(root, "--dry-run")
+check("17j a complete but short scorecard stops at the GATE, not the stage",
+      "requires gate A2.eligibility" in out
+      and "is a human step" not in out, out[-900:])
+root = fresh("t17k")
+F.eligibility_year(root, 2016, n_eligible=9, partial=True)
+code, out = orch(root, "--dry-run")
+check("17k an only-partial scorecard stops at the STAGE, as work to finish",
+      "is a human step" in out and "only partial so far: 2016" in out,
+      out[-900:])
+
 # ---------------------------------------------------------------- summary
 print("\n" + "=" * 70)
 bad = [r for r in RESULTS if not r[1]]

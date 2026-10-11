@@ -93,8 +93,11 @@ STAGES = [
     Stage("A1", "A", "Screen US-listed registrants by SIC and point-in-time "
           "market cap", "frozen", [], ["universe"],
           script="screen_rolling.py", reform_flag="--reform-universe"),
+    Stage("A1b", "A", "Cut the panel to a shortlist A2 can score", "script",
+          ["A1.universe"], ["shortlist"], script="prefilter_panel.py",
+          reform_flag="--reform-universe"),
     Stage("A2", "A", "Score structural eligibility from filings", "manual",
-          ["A1.universe"], ["data/eligibility.csv"]),
+          ["A1.universe", "A1b.shortlist"], ["eligibility"]),
     Stage("A3", "A", "Check Amazon review coverage and record the gap",
           "script", ["A2.eligibility"], ["data/coverage.csv"],
           script="coverage.py", reform_flag="--refresh-coverage"),
@@ -158,6 +161,27 @@ def outputs_present(stage, root, tickers):
     if stage.outputs == ["universe"]:
         u = ps.detect_universe(root)
         return (bool(u["files"]) and not u["problems"]), "data/universe*.csv"
+    if stage.outputs == ["shortlist"]:
+        sl = ps.detect_shortlist(root)
+        return (sl["present"] and not sl["problems"]), \
+            "data/shortlist_<YEAR>.csv and data/prefilter_panel.csv"
+    if stage.outputs == ["eligibility"]:
+        # A2 is DONE when a formation has been scored through - complete, not
+        # partial - whatever the verdict was. How many passed is the A2 gate's
+        # question, not this one.
+        #
+        # The distinction matters: a finished scorecard in which fewer than
+        # MIN_ELIGIBLE companies passed is a finding, not an unfinished step.
+        # The universe simply does not hold eight measurable companies at that
+        # formation, and telling the user to go and score more would be wrong.
+        # So completeness stops the stage; the count stops the gate.
+        e = ps.detect_eligibility(root, ps.detect_universe(root))
+        complete = sorted(y for y, v in e["by_year"].items() if not v["partial"])
+        partial = sorted(str(y) for y, v in e["by_year"].items() if v["partial"])
+        return bool(complete), (
+            "a completely scored formation in data/eligibility_<YEAR>.csv"
+            + (" (only partial so far: %s)" % ", ".join(partial)
+               if partial else ""))
     if stage.outputs == ["prereg_frozen"]:
         p = ps.detect_prereg(root)
         return p["frozen"], "a frozen, committed prereg"

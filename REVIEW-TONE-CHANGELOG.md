@@ -1259,3 +1259,36 @@ Phase A, verdict `insufficient_data`. stage A2 (Score structural eligibility fro
 - Changed since last run: universe: 622c774f7a84 -> 28db9bdb5609; eligibility scorecard: none -> 9ecf14ae2536; shortlist added for: 2016, 2017, 2018, 2019, 2020, 2021, 2022
 - Held-out: not read (prereg unfrozen, development open)
 - Report: `results/reports/20261011T193229Z-6f162d.md`
+
+## 2026-10-11 · orchestrated run 20261011T193543Z-6f162d
+
+Phase A, verdict `insufficient_data`. stage A2 (Score structural eligibility from filings) is a human step, not a script. Missing: a completely scored formation in data/eligibility_<YEAR>.csv (only partial so far: 2016). A scheduled run reports it and stops; it does not invent the output.
+
+- Gates met: A1.universe, A1b.shortlist
+- Gates unmet: A2.eligibility, A3.coverage, B1.prereg_frozen, B3.calibration, B7.heldout, C.degradation
+- Stages run: none
+- Changed since last run: no change in any tracked artefact since the last run
+- Held-out: not read (prereg unfrozen, development open)
+- Report: `results/reports/20261011T193543Z-6f162d.md`
+
+## 2026-10-11 · A1b wired as a stage; A2 split into a stage and a gate
+
+The run report contradicted its own gate table: "Missing: data/eligibility.csv"
+above a gate line that named the per-formation files. The stage definitions still
+described the old shape.
+
+- `A1b` is now a stage in the orchestrator's walk, not only a gate, so a run with
+  no shortlist names `prefilter_panel.py` as what it is waiting on.
+- `A2` requires `A1b.shortlist` as well as `A1.universe`, and its output is read
+  through `pipeline_state` rather than by looking for one hardcoded path.
+
+**A2 is a stage a human finishes and a gate that counts what passed, and the two
+are not the same question.** The first version of this change made the stage's
+completion depend on the count, which reported a *finished* scorecard with seven
+eligible companies as work still to do. It is not: it is a finding — that
+formation does not hold eight measurable companies — and telling the user to go
+and score more would be wrong. Completeness now stops the stage; the count stops
+the gate. Checks 17j and 17k pin the two apart.
+
+**Verified:** 118 checks, 118 passed. A real run stops at A2 with "a completely
+scored formation in data/eligibility_<YEAR>.csv (only partial so far: 2016)".
