@@ -1,0 +1,12 @@
+{
+  "groups": {
+    "premium-everyday-carry": {
+      "cadence": "weekly",
+      "cadence_days": 7,
+      "collector_version": "d1-collect-v1",
+      "declared_at": "2026-10-12T19:32:33Z",
+      "group_id": "premium-everyday-carry",
+      "last_changed_at": "2026-10-12T19:32:33Z"
+    }
+  }
+}

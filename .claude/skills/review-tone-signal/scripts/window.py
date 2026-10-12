@@ -39,7 +39,31 @@ Standard library only (`references/numeric-stack.md`).
 import os
 import sys
 
-import pipeline_state as ps
+# `pipeline_state` moved to archive/historical-harness/ with the rest of the
+# falsification harness, and this unconditional import took every live stage
+# down with it: score_reviews.py, which imports this module, could not be
+# loaded at all.
+#
+# It is NOT restored here, because the window machinery belongs to the
+# historical backtest. The live monitor's series starts the day collection
+# starts (CORE-PROMPT §0), so there is no history to hold out and no prereg to
+# read a boundary from - until §8's predictive test is written down, at which
+# point this needs a decision rather than a shim.
+#
+# So the absence is handled explicitly, in the conservative direction:
+#   - `--window full` is still refused, exactly as before;
+#   - `--window dev` does not restrict, and says so loudly on every run,
+#     because there is no prereg and therefore no boundary to restrict to;
+#   - if a prereg directory DOES exist while this module is missing, that is a
+#     broken install rather than a live monitor, and it is a hard failure. A
+#     window silently not enforced against a prereg that exists is precisely
+#     the "flag that parses and does nothing" this module was written against.
+try:
+    import pipeline_state as ps
+    HAVE_PIPELINE_STATE = True
+except ImportError:
+    ps = None
+    HAVE_PIPELINE_STATE = False
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_ROOT = os.path.abspath(os.path.join(HERE, "..", "..", "..", ".."))
@@ -109,6 +133,8 @@ def add_argument(parser):
 def resolve(args, stage="this stage"):
     """Resolve `--window` into a Window, or exit if the request is not allowed."""
     root = os.path.abspath(getattr(args, "root", None) or DEFAULT_ROOT)
+    if not HAVE_PIPELINE_STATE:
+        return _resolve_without_prereg(args, stage, root)
     pr = ps.detect_prereg(root)
     win = pr.get("window") or {}
     frozen = bool(pr.get("frozen"))
@@ -143,6 +169,40 @@ def resolve(args, stage="this stage"):
             % (source, stage))
 
     return Window(mode, bounds, source, frozen, heldout_start)
+
+
+def _resolve_without_prereg(args, stage, root):
+    """No prereg machinery on disk. Refuse `full`; do not pretend `dev` binds."""
+    mode = getattr(args, "window", "dev")
+    prereg_dir = os.path.join(root, "prereg")
+    if os.path.isdir(prereg_dir) and os.listdir(prereg_dir):
+        sys.exit(
+            "%s exists but pipeline_state.py is not importable, so the window\n"
+            "boundary cannot be read and --window cannot be enforced.\n"
+            "Refusing to run: a window that parses and does not bind is worse\n"
+            "than no window, because it turns a guarantee into a late crash\n"
+            "after the held-out quarters are already on disk.\n"
+            "Restore pipeline_state.py beside this module, or remove the\n"
+            "prereg if this install is the live monitor rather than the\n"
+            "historical harness." % prereg_dir)
+    if mode == "full":
+        sys.exit(
+            "refusing --window full: there is no frozen prereg (no prereg\n"
+            "machinery on disk at all).\n"
+            "%s is a pre-freeze stage, and the freeze is the deliberate human\n"
+            "act that opens the full window (CORE-PROMPT §8). Run it with\n"
+            "--window dev." % stage)
+    print("!! no prereg machinery on disk, so --window dev does NOT restrict "
+          "anything.")
+    print("!! Nothing is being held out, because the live monitor's series "
+          "starts the day")
+    print("!! collection starts and there is no history to hold out "
+          "(CORE-PROMPT §0, §8).")
+    print("!! Before any predictive claim, §8 requires the test, horizon, "
+          "endpoint and")
+    print("!! threshold written down first - and that is what restores a real "
+          "window here.")
+    return Window(mode, None, "no prereg machinery (live monitor)", False, None)
 
 
 def add_tickers_argument(parser, help_text):

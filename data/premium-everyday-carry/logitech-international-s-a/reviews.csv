@@ -1,0 +1,94 @@
+review_id,asin,marketplace,review_date,rating,title,text,verified_purchase,helpful_vote,batch_id,collection_route,collected_at,review_country,review_id_scheme,review_date_precision,vine_voice,sort_requested,sort_verified
+RHBCYOKA8617N,B09HM94VDS,amazon.com,2022-12-20,5.0,Finally decent scrolling on Windows,"Pros:
+
+Scrolling 5/5
+-Scrolling on Windows has always be light years behind Mac - even when using a track pad on Windows vs a stepped scroll wheel, the scroll feels jerky and inconsistent while Macs always feel buttery smooth and fluid no matter what device you use. This mouse with the scroll wheel in free spin ""MagSpeed"" mode is the closest I've ever felt a Windows machine scroll like a Mac. It really is super nice. I almost never put it into the stepped mode. I see a lot of comments talking about inconsistent scrolling on this mouse and I cannot say I have experienced that. For context I am using the Lightspeed connector and not Bluetooth, which I'm sure plays a large factor with the free spin. Let's look at the math behind that. Logitech claims Lightspeed has a 1ms response time, while bluetooth can be as low as 34ms but is often times more around 100-300ms. In ""MagSpeed"" mode at full spin speed, this mouse will do 1000 lines per second. So yes, for your computer to ingest those line signals it's going to need a 1ms response rate. I am also using Logitech's Options+ software which may also play a role in scrolling stability.
+
+Ergonomics 4/5
+-Ergonomics feel really nice to me, but borderline too small. My glove size is between M and L (or 8 and 9), so if you are an L or larger hand maybe this won't work for you, but everyone's comfort is different. The thumb and palm sculpting is really nice and fills the hand nicely (depending on your size). The matte finish texturing also feels nice, I just hope it doesn't deteriorate over time.
+
+Logitech Options+ Software 5/5
+-Being able to program the button map per application is a game changer (for me) and has really improved my work flow. DPI can also be adjusted here.
+
+Gesture Button 5/5
+-The lower thumb ""gesture"" button gives back Mac like gestures to mouse users, something I sorta forgot I was missing but use it all the time now.
+
+DPI 5/5
+-I found out 8k DPI is too high for my monitor, which was one of the deciding factors for me between this and the MX 3. I have a 49inch ultrawide 32:9 ratio monitor at 5120X1440 resolution, and I could feel the lower DPI of my old mouse on this monitor. However this one set to 8k is crazy fast - way too fast - so I currently have it set to 55% speed. Again lets look at the math - if you have a 8k monitor, this mouse set to max DPI is going to get from the left most side of the screen to the right most side in just 1inch of mouse travel. That's fast - you may find that 8K is overkill for your needs. That said, this is all easily adjustable in the Options+ software and it does feel WAY smoother than any mouse or trackpad I've used. I've yet to use this on glass - I'm sure the DPI helps in that regard.
+
+Click 4/5
+-I honestly thought I wouldn't like having a silent click feel, and I like clicky keyboards as well, but it's growing on me. Enough so to make me rethink the type of keyboard I'm using. Click feel and sound ultimately comes down to preference, so all I can say is you feel the click, but it's barely audible. Search youtube or even Amazon reviews, I've seen sound comparisons with this mouse so judge for yourself.
+
+Cons:
+Ergonomics:
+-The lost point above is due to size - my fourth finger does rest on the desk, which was true of my previous mouse as well so I'm used to it but the experience would be better if there was a rest point or wing on the right side of this mouse. I don't know, this is again preference and hold style but for me I think I would have given a higher score for ergonomics if my pinky didn't touch the desk.
+
+Click:
+-Still on the fence on how silent the click is. Feel is good, sound is... well not there. So if you're used to a satisfying click sound this is going to be jarring.
+
+Update 4/13/2023
+Custom Button Functions by App Glitch:
+When you use the Logi Options+ software to customize how the buttons function by app, sometimes there are glitches. It's not often, may happen once or twice a week, but it seems to forget how to behave from one app to another, and use the incorrect customized settings for the buttons. While mildly annoying, when I open up the Logi Options+ app, it seems to remember again immediately, or if I'm patient enough it will resolve itself after a few minutes without opening the Logi app. Probably a bug that occurs somewhere along the lines of app switching and having many windows open.",True,90,b-e819d6a45a,session,2026-10-11T20:09:23.025Z,the United States,amazon_review_id,day,False,recent,False
+R1MOKJ2TOR3D0S,B09HM94VDS,amazon.com,2023-06-27,5.0,Love this mouse. So many features.,"I have been a fan of the MX Performance mouse for quite a few years, and was bummed when I found out it was no longer available. I am one that wants more than a 3-button mouse and loves having the option of setting up various buttons to simplify various tasks.
+
+I decided to try the Logitech MX Master 3S mouse, and have been using it over 2 months. I love it even more than the MX Performance mouse. This mouse connects with the supplied Logi Bolt Receiver and configured using the Logi Options app which shows Logitech products connected to both the Bolt receiver and the Bluetooth receiver. I have the Logitech MX keys keyboard that is connected to the Bluetooth receiver that is internal on my computer but can still be configured using the Logi Options software. So, why do I love this mouse and prefer it over the MX Performance mouse?
+
+1) The MX Master 3S mouse is covered with a soft rubberized covering that does not show fingerprints or collect oils from fingers. The MX Performance mouse is plastic and eventually collects oils that look grubby which needs cleaning.
+2) After installing the Logi Options software, the Logi Bolt receiver was instantly seen on my computer and the MX Master 3S mouse was easy to install on my computer.
+3) Using the Logi Options app, this mouse is so much easier to configure for different programs that may use the buttons differently. For the MX performance mouse, I had to configure it for different programs by entering a combination of keys. This is all supplied in the Logi Options app. You need only to select the apps you want the mouse to be compatible for. Some of the pictures are some of the Logi Option app screens.
+4) The Logi Options app can also be used to configure Logitech products connected to the Logitech Bluetooth receiver.
+5) There is no need for a mouse pad. This mouse works equally well on any surface.
+6) The battery charge lasts for much longer than the MX Performance mouse. I have had this mouse over 2 months and use it for at least 5 hours or more every day. I have charged it once in that time.
+
+The only downside I can think of comparing this mouse to the MX Performance mouse is that the rechargeable battery is not replaceable. When the battery goes, you have to buy a new mouse. Other than that, this model is far superior to prior models for both performance and battery longevity between charges. If you need a new mouse and like to have options, I highly recommend this mouse.
+
+If my opinion changes, I will update this review. I hope this review was helpful for you.",True,22,b-e819d6a45a,session,2026-10-11T20:09:23.025Z,the United States,amazon_review_id,day,False,recent,False
+R2QPE14A85A6BF,B09HM94VDS,amazon.com,2023-08-08,5.0,"Love this mouse!  Get it, you won't be sorry.","I work all day, every day on a computer. I've had a gaming mouse, an ergonomic mouse, and a vertical mouse. When my latest mouse started to show signs that it was on its way out, I spent a lot of time selecting my next mouse. This one had really good reviews and I'm so glad I gave it a shot. I LOVE it and highly recommend it. If you are in the market for a new mouse, gaming, ergonomic, or otherwise, you will not regret this purchase.
+Pros:
++The shape feels very natural in my hand. I've had intermittent issues with wrist and shoulder, that's why I did the vertical mouse, but so far this one has been very easy on my joints.
++It's made with a soft coating to improve grip. I find this very comfortable as long as I come to the desk with a clean hand (Otherwise, it can feel a little sticky. This happens to me with all coated devices, so it might just be me and my personal makeup.).
++The controls are smooth and easy to use. I particularly like the scroll wheel when the haptic disengages and allows fast, smooth scrolling. This is essential in my work and I'm glad to have this option.
++It holds a charge for at least a week with heavy use. I use it 10-12 hours/day and charge it on Sundays. It has never even gotten close to a low charge.
++The weight is perfect. I've had a rather lightweight mouse in the past and kept knocking it off my desk. This one is solidly built with a little extra weight into it.
++I haven't taken the time to customize the settings, but the customization option is very attractive. I might program the thumb scroll soon.
+Cons: None. I cannot say enough positive things about it. It's a little more pricy than other devices, but IMHO it's totally worth it.",True,19,b-e819d6a45a,session,2026-10-11T20:09:23.025Z,the United States,amazon_review_id,day,False,recent,False
+R1B1TCXR2QGWPW,B09HM94VDS,amazon.com,2024-09-08,5.0,Great Mouse,"I overall love this mouse. I started off with the M705 and loved them, but after about 6-12 months, I would need to replace the mouse as it would start double-clicking. After buying 5 of those, I tried out the MX Master 3. It was good, until I learned there was this revision, the MX Master 3S. It has all of what I loved about the original M705, plus I could map the buttons in software.
+
+Pros:
+- It still has the hyper-fast scroll that is enabled and disabled by a button press.
+- It is a great shape and size for my hand.
+- The software (Logi Options+) allows you to program the side buttons. I use them for push-to-talk in games.
+- It has a SILENT click. You still feel the click, but it makes no noise at all. I absolutely love it.
+- The battery lasts for at least a month per charge, and I don't turn it off.
+
+Cons:
+- After a few months (about 3-4), the rubber coating started to come off the mouse. It was barely noticeable at first, but coming up on a year of use, the points where my hand contacts the mouse have eaten through most of the rubber. The thumb is the worst, as there is divot in the side of the mouse where my thumb rests. It's also worn on the right side where my ring finger goes, but not as bad as the thumb. There are visible markings where my pointer and middle finger lay, just before and on the left and right click. It is also visibly worn where the arch between my thumb and pointer finger rest on the left side.
+- The scrolling doesn't feel great. It's not as satisfying to scroll as on the M705. You can tell you've scrolled, but the ratcheting isn't great since it's electronic.
+- SmartShift is enabled on the mouse by default, and you need the software to disable it. SmartShift is where if you roll the scroll bar, it automatically switches from free spin to the ratchet spin. It gets very annoying, and since there's absolutely NO official support for Linux, you're stuck with it if you don't use Mac or Windows.
+- Somehow, the horizontal scrollbar is even less useful than I expected. I can't scroll left or right in browsers or Excel for some reason. It seems like sometimes it can scroll, and sometimes it can't. That's more of a software thing and not a mouse thing, but I feel like it's important to add.
+
+Quite honestly, I love the mouse, but I don't know if I'll pick it again when I decide to get another one. I might just get another M705, or if I want to give up the hyper-fast scroll, I'll go with another brand. The whole thing about needing software to disable SmartShift is horrid. I've connected it to at least four different devices--two running Windows 10, and two running some sort of Linux distribution, and it has been enabled by default each time. I can live with all the other quirks, but not that one.",True,1,b-e819d6a45a,session,2026-10-11T20:09:23.025Z,the United States,amazon_review_id,day,False,recent,False
+R2MVS6L62JTGKW,B09HM94VDS,amazon.com,2025-10-24,5.0,Fantastic so far!  Way too expensive.  My new favorite mouse.,"OK, I'm a major nerd and I have a ton of PC hardware at any given time. I run Linux for my daily use and boot into W11 for gaming, so my hardware has to perform well under both conditions.
+
+A good keyboard and mouse are some of the most important hardware. After all, they are the only part of a PC that we touch consistently. I've been using a Corsair Dark Core Pro (one of my all time favorites) and an older Logitech G602 (also amazing). I was ready for a change but did not want to feel like I downgraded.
+
+I strongly prefer a mouse of a more substantial size and the MX Master 3S fits my hand perfectly. Once I tried a mouse with a thumb rest, I could never go without it again. This one is also about perfect. I love the rubbery feel. The scroll wheel is the best I've used. It can be switched from notched to smooth. The notched is very quiet and smooth. Also, you can flick the wheel quickly and it will shift into smooth, fast scroll mode briefly and then switch back automatically. Genius!
+
+I also really like the aesthetics of this mouse. I NEEDED a gray tone to match my keyboard/mouse pad. This thing looks so good with the gray and chrome. I love it!
+
+For Linux, you need the Solaar application and you probably need to modify or add a udev rule so that the app will run without root privileges. If you are a Linux nerd, no big deal. For newer users, it's a little tedious just to make a mouse work. But, once it's running, the app allows all of the tuning you need for this mouse under Linux.
+
+I'm using it for gaming, too and I don't feel like I'm missing anything compared to my ""gaming"" mouse. It's kind of nice to ditch the cord.
+
+Over $100 is crazy for any mouse but if you are going to spend that much, this might be one of the very best choices.",True,2,b-e819d6a45a,session,2026-10-11T20:09:23.025Z,the United States,amazon_review_id,day,False,recent,False
+R23XXE3SG0YJGD,B09HM94VDS,amazon.com,2026-05-11,5.0,A truly great mouse.,"It's frustrating that I didn't find this mouse sooner. The ability to change how the scroll wheel works is mandatory for me. Having a second scroll wheel on the side for a different function is just amazing. If you've used other Logitech mice then you know what this is and will love it. The ability to just recharge it instead of changing batteries all the time is a huge improvement. It's extremely comfortable because it fits my hand so well. It's a bit heavier than some mice I've used and that does help with the control just a bit. It is pretty responsive. It's a bit expensive for a mouse, but after using it a while I would say that the price is fully justified.",True,1,b-e819d6a45a,session,2026-10-11T20:09:23.025Z,the United States,amazon_review_id,day,False,recent,False
+R2A523XDOIBDCP,B09HM94VDS,amazon.com,2026-06-06,5.0,This is the goat mouse for a reason,"I’ve been using the Logitech MX Master 3S daily for well over a year, and it has been one of the best peripherals I’ve ever purchased. The ergonomics are excellent, making it comfortable even during long work sessions, and the tracking is precise on virtually any surface.
+
+The standout features are the MagSpeed scroll wheel and multi-device connectivity. Scrolling through large spreadsheets, documents, and code is incredibly smooth, and switching between devices is effortless.
+
+Battery life is outstanding, build quality feels premium, and the mouse remains as reliable today as it was when I first bought it. For professionals, developers, and power users, the MX Master 3S is worth every penny.
+
+It has so many features it exceeds expectations. You can travel everywhere with it, perfect size and weight, and crazy fast is you need it. It has no RGB Lightning and it doesn’t need it!.
+
+Pair it with MX Keys and there’s no better combo.",True,1,b-e819d6a45a,session,2026-10-11T20:09:23.025Z,the United States,amazon_review_id,day,False,recent,False
+R3D7YXZD85LOV,B09HM94VDS,amazon.com,2026-08-26,4.0,"Solid, if the price doesn't throw you off, I say get it","I don't know if this was worth it. It's just a mouse. But if the price didn't throw you off, I suppose it's a decent mouse. Love the wheel, and the ergonomics. Tracking is solid. Battery is insanely good. It's not a gaming mouse, and occasionally, I did have bluetooth issues which caused lots of confusion and problems at times.",True,0,b-e819d6a45a,session,2026-10-11T20:09:23.025Z,the United States,amazon_review_id,day,False,recent,False

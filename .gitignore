@@ -1,8 +1,16 @@
-# Streamed review data is large and reproducible from the corpus; the
-# derived, hashed artefacts are what belong in version control.
-data/*/reviews.csv
+# The archived harness streamed reviews out of a 750 GB public corpus, so its
+# reviews.csv was large and reproducible and did not belong in git.
+#
+# LIVE collection inverts that. A batch read from Amazon on a given day CANNOT
+# be re-collected: the page has already changed, the sort was never stable, and
+# pagination is dead on that surface. The collected reviews are the only copy
+# there will ever be, so they are committed.
+#
+# scores.csv stays ignored - it IS reproducible, by re-running the scorer over
+# the committed reviews.
 data/*/reviews_raw.jsonl
 data/*/scores.csv
+data/*/*/scores.csv
 *.pyc
 __pycache__/
 

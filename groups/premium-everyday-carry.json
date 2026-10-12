@@ -1,0 +1,39 @@
+{
+  "group_id": "premium-everyday-carry",
+  "declared_at": "2026-10-12",
+  "seed": "hand-written fixture for collector testing — NOT a declared peer group",
+  "hash": "UNVERIFIED-fixture",
+  "_note": "Written by the collector session to exercise CONTRACTS.md §1 against real ASINs. Stage G owns this file and must replace it: the concentration evidence below is a placeholder, so this does not satisfy stage G's gate and no peer-relative reading may be taken from it.",
+  "members": [
+    {
+      "company": "Logitech International S.A.",
+      "venue": "NASDAQ:LOGI",
+      "brands": ["Logitech", "Logitech MX"],
+      "concentration": {
+        "dominant_line": "computer peripherals",
+        "share_of_revenue": null,
+        "evidence": "PLACEHOLDER — not yet evidenced from a filing",
+        "source_url": null
+      },
+      "products": [
+        {"asin": "B09HM94VDS", "marketplace": "amazon.com", "name": "MX Master 3S Wireless Mouse"}
+      ],
+      "reporting": {"calendar": "quarterly", "currency": "USD", "source": "SEC"}
+    },
+    {
+      "company": "Helen of Troy Limited",
+      "venue": "NASDAQ:HELE",
+      "brands": ["Hydro Flask", "OXO", "Osprey"],
+      "concentration": {
+        "dominant_line": "housewares and outdoor",
+        "share_of_revenue": null,
+        "evidence": "PLACEHOLDER — not yet evidenced from a filing",
+        "source_url": null
+      },
+      "products": [
+        {"asin": "B07YXM6XTF", "marketplace": "amazon.com", "name": "Hydro Flask 32oz Wide Mouth"}
+      ],
+      "reporting": {"calendar": "quarterly", "currency": "USD", "source": "SEC"}
+    }
+  ]
+}
