@@ -83,7 +83,6 @@ company's calendar into another's data.
   "batch_id": "...",
   "collected_at": "2026-10-12T08:00:00Z",
   "route": "session",                    // "session" (logged in) | "<provider name>"
-  "sort": "recent",                      // "recent" | "helpful" | "<as returned>"
   "filters": {"star": 5},                // whatever narrowed the request
   "asin": "B0...", "marketplace": "amazon.com",
   "requested": 100, "returned": 87,
