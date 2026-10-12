@@ -6,6 +6,274 @@ here.
 
 ---
 
+## 2026-10-12 — peer groups: the contract, the concentration filter, and six groups
+
+Adopted `CONTRACTS.md` §1 as the declaration's own shape, added PLAN.md's concentration
+filter with evidence fetched from filings, and declared **six groups covering 15
+companies**. 134 tests, all six hash-clean, stage G satisfied for each.
+
+### Built to the contract rather than translated into it
+
+`CONTRACTS.md` §1 field names are now the declaration's field names — `venue`,
+`products[].name`, `reporting.{calendar,currency,source}`, a string `seed`, a date
+`declared_at`. One schema, no translation layer. Two paths:
+
+- `data/peer_groups/<id>.v<N>.json` — the **declaration of record**: append-only,
+  hash-chained, never rewritten.
+- `groups/<id>.json` — the **§1 view** the workflow reads, generated from the current
+  version with its own in-file `hash` (sha256 of the file minus the hash field). A view
+  that fails its own hash is rebuilt from the record with `reemit`, never patched.
+
+Stage G is invoked as `declare_group.py --group <group_id>`, exactly as §4 requires, and
+reads a group id and nothing else. Exit codes are §4's: `0` satisfied, `2` integrity
+violation, `3` not built.
+
+Also added `schema_version`. `verify` hash-checks every frozen version but
+contract-validates only those at the current schema, reporting an older one as *not
+revalidated* rather than broken — otherwise one schema change makes every past
+declaration look like an integrity violation and the real ones are lost in the noise.
+
+### Four proposed amendments to CONTRACTS.md §1 and §2
+
+Raised because the peer who settled the contract asked for them, and because each one
+cost something real to work around. The component conforms to §1 as written in every
+case; these are additive.
+
+**A1 — a private member cannot satisfy "no evidence, no member".** §1 holds two rules
+that collide: every member needs concentration evidence from its own filing, *and*
+`venue: "private"` is valid and useful. Bose, Stanley/PMI, Trove, Red Bull and Weber
+publish no periodic report, so the first rule deletes the members the second asks for —
+and those are five of the best category controls available. Resolved by asking what the
+evidence is *for*: concentration exists so a tone series can be joined to a revenue
+series, and a private member has no revenue series to join. A private member may set
+`no_public_report: true`, which still requires saying what it sells and where that was
+established, forces `share_of_revenue: null`, and sets `revenue_readable: false`. A
+listed member is never exempt. **Suggested §1 change:** make the evidence requirement
+read "every member whose revenue will be read".
+
+**A2 — §2 should carry `parent_asin` beside `asin`, and this is the one most likely to
+bite.** Amazon serves reviews at the *parent* ASIN, pooled across every variant. Of the
+15 products declared, **14 are variant children**: the Premier Protein chocolate 12-pack
+`B07MJL8NXR` resolves to parent `B0BLGMF97X`, which pools every Premier Protein shake
+flavour and pack size. So §2's `reviews.csv` keyed on `asin` alone will contain the
+parent's reviews under a child's id, and dedup by `review_id` will not notice. Three
+consequences worth writing into the contract: product-level tone is really
+variation-family-level tone and should be described that way; choosing a product for
+continuity does not buy continuity of the review pool, because Amazon re-parents; and two
+members tracking children of one parent would be scored on identical reviews. The
+declaration records `parent_asin` and refuses a group where two members share a parent.
+
+**A3 — `reporting.source`'s four values cannot express a global group.** §1 allows `SEC |
+companies-house | EDINET | none`. Sonova files to SIX, Samsung to the Korean DART system,
+Sony to TDnet, Red Bull is an Austrian GmbH. Extended to add `TDnet`, `SIX`, `DART` and
+`other-national`, keeping §1's four spelled exactly as §1 spells them.
+
+**A4 — §1's `reporting` has no `fy_end`, and CORE-PROMPT §5 needs one.** Of the members
+declared, the fiscal year ends are `1231`, `0102` (YETI), `1003` (Sonos), `0930`
+(BellRing), `0826` (Simply Good) and `0331` (Logitech). Five of six are not 31 December,
+and two are 52/53-week years that move annually. §5 forbids aligning two companies'
+figures as if their calendars matched; without `fy_end` a downstream stage cannot tell
+that they do not. Recorded as an additive field.
+
+### The concentration filter
+
+**A company belongs in a group only if one main product line dominates its revenue, and
+that line is what sells on Amazon.** Added as required validation: `dominant_line`,
+`share_of_revenue` (a fraction in (0, 1] **or null**), `evidence`, `source_url`.
+
+Evidence is fetched, never asserted. `scripts/screen_pool.py` and
+`declare_group.py concentration` pull each US registrant's latest annual report and
+capture verbatim windows around a fixed probe set — reportable segments, revenue
+disaggregation, revenue by product category — lifted from the archived scorecard's c3 and
+c6 probes, which were solving this same question and were right about where to look. The
+agent reads the share off that text; the URL recorded is the filing the script fetched.
+
+| Judgement rule | Value | Why |
+|---|---|---|
+| Concentration floor | **0.60** | PLAN.md states the filter with no number, so one is chosen and recorded. Permissive on purpose: admits a clear dominant line plus a real secondary business, excludes the four-segment conglomerate. The most arguable constant in the component, and it is one constant |
+| `share_of_revenue` nullable | yes | A single-segment filer discloses that management runs one business, not that one product is 100% of revenue. **7 of 15 members carry null** with real evidence; inventing 1.00 would have been the dishonest alternative |
+| Level of `dominant_line` | the level the **tracked products** sit at | YETI's drinkware alone is 58% and fails; its drinkware and coolers together are 98% and pass, and both are what it sells on Amazon. Traeger's grills alone are 53%; grills + pellets + accessories are 100%. Widening is legitimate only if the tracked products span the wider line |
+| `evidence` lexicon | full performance lexicon, brands exempt only | A citation never needs the word "margin". One that reaches for one has stopped citing and started arguing |
+
+### The finding that reframes the component
+
+**The concentration filter, not substitutability, decides most memberships — and it rules
+out the household names.**
+
+The substitutability test admits Coca-Cola, PepsiCo, Sony, Apple, Samsung and Sonova. The
+concentration filter rejects every one except Coca-Cola: PepsiCo is roughly 55% snacks,
+headphones are a rounding error in Sony and Apple, JBL is a rounding error in Samsung,
+and Sennheiser consumer audio is small inside Sonova's hearing-aid business.
+
+So **the two groups declared on 2026-10-11 as the component's smoke test — carbonated soft
+drinks and over-ear headphones — are the wrong shape for this project**, and both were
+retired to `data/peer_groups/pre-contract/` rather than rewritten. They are kept because
+they are the evidence that the component was tested against live data, and the two
+defects that run exposed are below.
+
+What the filter wants instead is focused mid-caps and private companies: Celsius, YETI,
+Traeger, Sonos, Turtle Beach, BellRing, Crocs, e.l.f., GoPro, Purple. PLAN.md's own
+archetype list was right and the Pepsi/Coca-Cola framing is an illustration of pairing,
+not a quality bar.
+
+### Six groups declared
+
+Every ASIN resolved live against amazon.com; every share quoted from the filing linked in
+the declaration.
+
+| Group | Members | Concentration |
+|---|---|---|
+| `energy-drinks` | Celsius `NASDAQ:CELH`, Monster `NASDAQ:MNST`, Red Bull `private` | Monster **0.924** ("our Monster Energy Drinks segment represented 92.4% … of our net sales"); Celsius null (single operating segment) |
+| `insulated-drinkware` | YETI `NYSE:YETI`, Stanley/PMI `private`, Trove/Owala `private` | YETI **0.98** (drinkware 58% + coolers 40%) |
+| `wireless-speakers` | Sonos `NASDAQ:SONO`, Bose `private` | Sonos **0.777** (speakers $1,121,808k of $1,443,276k) |
+| `barbecue-grills` | Traeger `NYSE:COOK`, Weber `private` | Traeger **1.00** (grills $298,026k + consumables $127,474k + accessories $134,020k = all of $559,520k; grills alone 53.3%) |
+| `protein-shakes-and-bars` | BellRing `NYSE:BRBR`, Simply Good `NASDAQ:SMPL` | BellRing **0.817** (shakes $1,892.9m of $2,316.6m); Simply Good null (three brands aggregated into one reportable segment) |
+| `gaming-headsets` | Turtle Beach `NASDAQ:TBCH`, Corsair `NASDAQ:CRSR`, Logitech `NASDAQ:LOGI` | all null — single or all-gaming segments, no product-line split disclosed |
+
+`protein-shakes-and-bars` and `gaming-headsets` are the only two with **no comparability
+warnings at all**: one marketplace, one calendar, one currency, no private member. The
+other four each carry a private member and therefore mixed calendars, which is correct
+and recorded rather than smoothed over.
+
+### Scale: what 80 companies actually costs, and whether the pool runs out
+
+The target is ≥80 companies in however many groups fall out naturally, subordinate to the
+filter. Measured rather than estimated:
+
+**Cost per stage, measured.**
+
+| Stage | Cost | Scales? |
+|---|---|---|
+| Screen a pool against filings | **0.7s per company** — 31 filings in 24s | Yes. 80 companies is under a minute |
+| Resolve CIK + reporting calendar | within the same EDGAR pass | Yes |
+| Resolve and verify ASINs | ~3s per product, paced | Yes |
+| **Find a good ASIN per member** | **~1 marketplace search per member, and it needs reading** | **No. This is the bottleneck** |
+| Read a share off the evidence | ~1 filing window per member, needs reading | No |
+
+So the mechanical half scales to 80 and beyond; the judgement half costs roughly **one
+marketplace search and one filing window per company**, and that is what 80 companies
+costs. Six groups and 15 companies were declared in this pass. **At this rate 80
+companies is about five more passes of the same size** — not a different kind of problem,
+just more of the same one.
+
+**Does the method degrade as it goes?** Not observably across six groups, because the
+contract is mechanical: the 6th group was refused for the same reasons as the 1st and the
+checker does not get tired. What degrades is **category quality, not method quality** —
+and it degrades for a reason worth stating. The categories were worked in roughly
+descending order of how obviously focused their companies are, so later groups needed more
+hunting for a member that passes the filter. The failure mode to watch is not a sloppier
+50th group; it is a 50th group padded with a diversified member because nothing focused
+was left in that category. The floor is what stops that, and `share_of_revenue: null`
+without evidence is what it would look like if it were happening.
+
+**The pool.** `data/peer_groups/candidate_pool.json` holds 25 categories and 74 distinct
+companies, screened in `pool_evidence.json`:
+
+| | Count |
+|---|---|
+| Distinct candidate companies | 74 |
+| US registrants SEC knows | 32 |
+| …with a disclosed revenue split to read | **27** |
+| Listed outside the US (evidence by hand) | 13 |
+| Private (category controls, no revenue) | 26 |
+| **US tickers SEC no longer lists** | **6** |
+
+**The defining fact, and the user should hear it plainly: the pool of focused,
+Amazon-selling, publicly-reporting consumer companies is roughly 40–60, not 80+, and it is
+shrinking.** Six of 36 US candidates (17%) have left the public market recently — iRobot
+`IRBT`, Sleep Number `SNBR`, Skechers `SKX`, Vista Outdoor `VSTO`, Voxx `VOXX`, Solo
+Brands `DTC` all failed to resolve in SEC's ticker index. Focused consumer companies are
+exactly the take-private and delisting targets, so the public half of the pool erodes
+while the private half does not.
+
+The target is still reachable as **80 companies in total**, because private members count
+and there are 26 of them here. It is *not* reachable as 80 companies whose revenue can
+eventually be read. Planning should assume roughly **40–55 revenue-readable companies**
+across 20–30 groups, with private peers making up the rest as category controls. Padding
+to 80 public names would require admitting diversified companies, which is the one thing
+the filter exists to prevent.
+
+### Defects found
+
+1. **The availability check called every in-stock product unavailable.** Found on the
+   first live run: five flagship products, all in stock, all classified `unavailable`. An
+   Amazon product page embeds a localisation table carrying the literal string
+   `"Currently unavailable."` on *every* page, as the caption the variant selector would
+   show if a colour were out of stock. A whole-page substring scan matched everywhere.
+   Fixed by stripping `<script>` and `<style>` bodies before any marker is looked for, and
+   reading availability from the `#availability` buy box. Pinned by a regression test that
+   puts the string inside a `<script>` and asserts `resolved`. **The defect to remember:**
+   the check passed its own unit tests on synthetic HTML and was only shown to be inverted
+   by live data.
+
+2. **The performance lexicon refused a brand name.** `Momentum` is Sennheiser's headphone
+   line and `momentum` is a performance word, so a member was refused for naming the
+   product it sells. Fixed with a narrow exemption: a phrase that is one of *that
+   member's own declared brands* is not a hit. It cannot be used to smuggle a performance
+   word past the check, because declared brands are themselves checked against the titles
+   the marketplace served.
+
+3. **A group can be admissible and still be a bad instrument.** `energy-drinks-global`
+   (retired) passed the contract clean while mixing amazon.co.uk with amazon.com. Amazon's
+   reviewer populations are national, so a peer-relative tone gap across those is partly a
+   gap between British and American shoppers before any company difference. Added the
+   computed `comparability` block, printed at `check` and `declare` and stamped into the
+   frozen file. **Warned, not refused** — a global group is what §2 asks for. The
+   remaining weakness is that nobody is forced to act on the warning.
+
+4. **Reviews are not served at the ASIN you choose.** See amendment A2. 14 of 15 products
+   are variant children. This is the most consequential defect found and it is not fixed,
+   because it cannot be: the parent is Amazon's unit, not ours. It is recorded per product
+   so a re-parenting is detectable, and groups sharing a parent are refused.
+
+5. **Grocery ASIN continuity is worst exactly for the core SKU.** The flagship Coca-Cola
+   12-can pack is re-listed under fresh ASINs repeatedly; the ASINs that survive a decade
+   are odd formats and legacy variants. Choosing for continuity in fast-moving grocery
+   pulls *away* from the flagship pack. A property of the marketplace, not fixable here.
+
+6. **An electronics ASIN lives about three years.** Handled by preferring the current
+   generation early in its life — WH-1000XM6 over XM5, Tour One M3 over M2 — the clearest
+   case where continuity and accumulated review volume point in opposite directions.
+   Unfixable in general: those series end in roughly three years and are recorded as
+   ended, never swapped for a successor.
+
+7. **Accessory listings crowd out the first-party product.** Searching amazon.com for
+   `JBL Tour One M3 Black` returned fourteen results, every one a third-party ear pad,
+   case or headband; `Traeger Pro 575` and `Weber Spirit E-310` behaved the same way. The
+   brand check does not catch it, because the accessory's title carries the brand too.
+   What catches it is comparing `name` against the served title and reading it. **A future
+   automated product picker would need more than the brand check**, and this is the
+   clearest remaining obstacle to declaring groups without a human reading each title.
+
+8. **Both lexicons are gameable by an agent that knows they exist.** They catch the honest
+   slip, which is the common case, and they make the basis of a choice legible a year
+   later. They do not certify that a reason is sound. Mitigated only by refusing by name
+   and never rewriting, so a refusal is visible rather than silently smoothed over.
+
+9. **`post_collection` is a witness, not a lock.** Nothing prevents declaring a revised
+   group after seeing tone. The mark is permanent and travels in the sidecar, which makes
+   a late revision visible to anyone who looks and makes no difference to anyone who does
+   not.
+
+10. **The 0.60 floor is the weakest number here.** PLAN.md states the filter without one.
+    0.60 admits Sonos at 0.777 and would admit a company at 0.61 whose other 39% nobody
+    reviews. A stricter 0.75 would have excluded nothing declared here, which is itself
+    evidence the floor is not currently doing much work — the real screening came from
+    reading the filings.
+
+### Known-good baseline
+
+```bash
+python3 .claude/skills/review-tone-peer-group/tests/test_declare_group.py   # 134 checks
+python3 .claude/skills/review-tone-peer-group/scripts/declare_group.py verify
+for g in energy-drinks insulated-drinkware wireless-speakers barbecue-grills \
+         protein-shakes-and-bars gaming-headsets; do
+  python3 .claude/skills/review-tone-peer-group/scripts/declare_group.py --group $g
+done
+```
+
+---
+
 ## 2026-10-11 — peer groups: the `review-tone-peer-group` skill
 
 First component of the live monitor. Takes a seed — a company, a brand or a product

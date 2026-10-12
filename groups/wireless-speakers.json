@@ -1,0 +1,139 @@
+{
+  "comparability": {
+    "cross_marketplace": false,
+    "currencies": {
+      "USD": 2
+    },
+    "marketplaces": {
+      "amazon.com": 2
+    },
+    "members_without_public_reporting": [
+      "Bose Corporation"
+    ],
+    "mixed_currencies": false,
+    "mixed_reporting_calendars": true,
+    "reporting_calendars": {
+      "annual": 1,
+      "quarterly": 1
+    },
+    "revenue_comparable_without_stated_handling": false
+  },
+  "declared_at": "2026-10-12",
+  "declared_by": {
+    "code_commit": "2e283e86054612b87e2ebbe364e44b7385d0cf1c-dirty",
+    "tool": "declare_group.py"
+  },
+  "group_id": "wireless-speakers",
+  "hash": "8deba7a34281b631debf49cf625720505ccc0c597a76d6033bcdbf365859a459",
+  "members": [
+    {
+      "brands": [
+        "Sonos",
+        "Era"
+      ],
+      "cik": "0001314727",
+      "company": "Sonos, Inc.",
+      "concentration": {
+        "dominant_line": "wireless speakers",
+        "evidence": "FY2025 10-K, revenue by major product category: Sonos speakers $1,121,808 thousand of $1,443,276 thousand total revenue. The filing states '% of total revenue 77.7%'.",
+        "share_of_revenue": 0.777,
+        "source_url": "https://www.sec.gov/Archives/edgar/data/1314727/000131472725000090/sono-20250927.htm"
+      },
+      "country_of_domicile": "US",
+      "products": [
+        {
+          "asin": "B0BW34LCB8",
+          "continuity_reason": "The Era 100 is the entry speaker in the permanent Sonos range, on sale since 2023 and the successor to a line Sonos has carried continuously since the Play:1.",
+          "marketplace": "amazon.com",
+          "name": "Sonos Era 100 - Black - Wireless, Alexa Enabled Smart Speaker",
+          "parent_asin": "B0H72FST96",
+          "verification": {
+            "asin_on_page": true,
+            "availability_seen": "buy box not rendered in the static HTML (loaded by script); availability not established",
+            "checked_at": "2026-10-12T19:42:58Z",
+            "http_status": 200,
+            "is_variant_child": true,
+            "marketplace": "amazon.com",
+            "parent_asin_seen": "B0H72FST96",
+            "route": "http-direct",
+            "status": "resolved",
+            "title_seen": "Sonos Era 100 - Black - Wireless, Alexa Enabled Smart Speaker",
+            "url": "https://www.amazon.com/dp/B0BW34LCB8"
+          }
+        }
+      ],
+      "reason": "Sells wireless home speakers under Sonos as the Era line, which a shopper buying a wireless speaker considers instead of a Bose SoundLink at the same point of purchase.",
+      "reporting": {
+        "calendar": "quarterly",
+        "calendar_source": "SEC EDGAR submissions CIK0001314727, forms seen: 10-K, 10-Q",
+        "currency": "USD",
+        "fy_end": "1003",
+        "regime": "SEC 10-Q / 10-K",
+        "resolved_by": "edgar",
+        "source": "SEC"
+      },
+      "venue": "NASDAQ:SONO"
+    },
+    {
+      "brands": [
+        "Bose",
+        "SoundLink"
+      ],
+      "company": "Bose Corporation",
+      "concentration": {
+        "dominant_line": "consumer audio: speakers and headphones",
+        "evidence": "Privately held; publishes no periodic financial report, so no filing establishes a split. Its consumer range is audio equipment - speakers, headphones and soundbars - established from the product range it sells.",
+        "no_public_report": true,
+        "revenue_readable": false,
+        "share_of_revenue": null,
+        "source_url": ""
+      },
+      "country_of_domicile": "US",
+      "products": [
+        {
+          "asin": "B0D6WD2QSQ",
+          "continuity_reason": "The SoundLink Flex 2nd Gen, released in 2024, is the current generation of a permanent Bose portable speaker line and is early in its model life.",
+          "marketplace": "amazon.com",
+          "name": "Bose SoundLink Flex Bluetooth Speaker (2nd Gen) - Portable Outdoor Speaker with Hi-Fi Audio, Waterproof and Dustproof, USB-C, Up to 12 Hours Battery Life, Black",
+          "parent_asin": "B0DHZP45LK",
+          "verification": {
+            "asin_on_page": true,
+            "availability_seen": "buy box not rendered in the static HTML (loaded by script); availability not established",
+            "checked_at": "2026-10-12T19:43:01Z",
+            "http_status": 200,
+            "is_variant_child": true,
+            "marketplace": "amazon.com",
+            "parent_asin_seen": "B0DHZP45LK",
+            "route": "http-direct",
+            "status": "resolved",
+            "title_seen": "Bose SoundLink Flex Bluetooth Speaker (2nd Gen) - Portable Outdoor Speaker with Hi-Fi Audio, Waterproof and Dustproof, USB-C, Up to 12 Hours Battery Life, Black",
+            "url": "https://www.amazon.com/dp/B0D6WD2QSQ"
+          }
+        }
+      ],
+      "reason": "Sells portable wireless speakers under Bose as the SoundLink Flex, the direct alternative a shopper picks up instead of a Sonos speaker in the same price tier.",
+      "reporting": {
+        "calendar": "annual",
+        "calendar_source": "company is private; no periodic report is published",
+        "currency": "USD",
+        "fy_end": "",
+        "regime": "privately held; no public periodic reporting",
+        "resolved_by": "agent",
+        "source": "none"
+      },
+      "venue": "private"
+    }
+  ],
+  "peer_relative_reading": true,
+  "post_collection": false,
+  "readings_at_declare": 0,
+  "record_of_declaration": "data/peer_groups/wireless-speakers.v1.json",
+  "revision_reason": null,
+  "seed": "Sonos",
+  "seed_kind": "company",
+  "solo": false,
+  "solo_reason": null,
+  "substitutability_test": "Would a consumer shopping for this seed's product consider this company's product instead of it, as a direct alternative for the same need, at the same point of purchase? If yes, it is a peer. Size, country, listing venue and currency are irrelevant to the answer.",
+  "supersedes": null,
+  "version": 1
+}

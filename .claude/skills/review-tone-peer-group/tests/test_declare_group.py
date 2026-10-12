@@ -35,20 +35,26 @@ def member(**over):
     m = {
         "company": "The Coca-Cola Company",
         "country_of_domicile": "US",
-        "listing": {"status": "listed", "ticker": "KO", "exchange": "NYSE",
-                    "cik": "0000021344"},
+        "venue": "NYSE:KO",
+        "cik": "0000021344",
+        "concentration": {
+            "dominant_line": "nonalcoholic beverages",
+            "share_of_revenue": 0.98,
+            "evidence": "FY2025 10-K, revenue by operating segment",
+            "source_url": "https://www.sec.gov/Archives/edgar/data/21344/x.htm",
+        },
         "brands": ["Coca-Cola", "Sprite"],
         "reason": ("Sells carbonated cola and lemon-lime soft drinks under "
                    "Coca-Cola and Sprite, which a shopper buys instead of a "
                    "cola from another maker."),
-        "reporting": {"calendar": "quarterly", "regime": "SEC 10-Q / 10-K",
-                      "currency": "USD", "fy_end": "1231",
-                      "source": "SEC EDGAR submissions CIK0000021344",
+        "reporting": {"calendar": "quarterly", "currency": "USD", "source": "SEC",
+                      "regime": "SEC 10-Q / 10-K", "fy_end": "1231",
+                      "calendar_source": "SEC EDGAR submissions CIK0000021344",
                       "resolved_by": "edgar"},
         "products": [{
             "asin": "B000TNY0AM", "marketplace": "amazon.com",
             "brand": "Coca-Cola",
-            "title_at_declare": "Coca-Cola Classic, 12 fl oz, 12 Pack",
+            "name": "Coca-Cola Classic, 12 fl oz, 12 Pack",
             "continuity_reason": ("The standard 12-can pack of the core cola "
                                   "line, listed continuously since 2012."),
             "verification": {"status": "resolved", "checked_at": "2026-10-11T00:00:00Z",
@@ -60,24 +66,40 @@ def member(**over):
     return m
 
 
+def other(**over):
+    """A valid, distinct second member - its own company, ASIN and brand."""
+    m = member(
+        company="PepsiCo, Inc.", venue="NASDAQ:PEP", cik="0000077476",
+        brands=["Pepsi"],
+        reason="Sells cola under Pepsi, the direct alternative a shopper reaches "
+               "for instead of a Coca-Cola can at the same shelf.",
+        products=[dict(member()["products"][0], asin="B00N4OTQKM", brand="Pepsi",
+                       name="Pepsi Cola, 12 oz Cans, 12 Pack",
+                       verification={"status": "resolved", "checked_at": "x",
+                                     "route": "http-direct",
+                                     "title_seen": "Pepsi Cola, 12 oz Cans, 12 Pack"})])
+    m.update(over)
+    return m
+
+
 def group(members=None, **over):
     g = {
         "group_id": "soft-drinks-global",
-        "seed": {"kind": "category", "value": "carbonated soft drinks"},
+        "seed": "carbonated soft drinks",
+        "seed_kind": "category",
         "substitutability_test": dg.SUBSTITUTABILITY_TEST,
         "solo": False,
         "peer_relative_reading": True,
         "members": members if members is not None else [member(), member(
             company="PepsiCo, Inc.",
-            listing={"status": "listed", "ticker": "PEP", "exchange": "NASDAQ",
-                     "cik": "0000077476"},
+            venue="NASDAQ:PEP", cik="0000077476",
             brands=["Pepsi"],
             reason=("Sells cola under Pepsi, the direct alternative a shopper "
                     "reaches for instead of a Coca-Cola can at the same "
                     "shelf."),
             products=[{
                 "asin": "B00N4OTQKM", "marketplace": "amazon.com",
-                "brand": "Pepsi", "title_at_declare": "Pepsi Cola, 12 oz Cans, 12 Pack",
+                "brand": "Pepsi", "name": "Pepsi Cola, 12 oz Cans, 12 Pack",
                 "continuity_reason": ("The standard 12-can pack of the flagship "
                                       "cola, in the permanent range."),
                 "verification": {"status": "resolved", "checked_at": "2026-10-11T00:00:00Z",
@@ -151,15 +173,16 @@ check("a full group with a Momentum member validates",
       problems(group(members=[
           member(),
           member(company="Sonova Holding AG", brands=["Sennheiser", "Momentum"],
-                 listing={"status": "listed", "ticker": "SOON", "exchange": "SIX"},
+                 venue="SIX:SOON",
                  reason=SENN,
-                 reporting={"calendar": "half-yearly", "regime": "SIX half-yearly",
-                            "currency": "CHF", "fy_end": "0331",
-                            "source": "Sonova financial calendar",
+                 reporting={"calendar": "half-yearly", "currency": "CHF",
+                            "source": "SIX", "regime": "SIX half-yearly",
+                            "fy_end": "0331",
+                            "calendar_source": "Sonova financial calendar",
                             "resolved_by": "agent"},
                  products=[{"asin": "B0B6GHW1SX", "marketplace": "amazon.com",
                             "brand": "Sennheiser",
-                            "title_at_declare": "Sennheiser Momentum 4 Wireless "
+                            "name": "Sennheiser Momentum 4 Wireless "
                                                 "Headphones, ANC, 60 Hr Battery, Black",
                             "continuity_reason": "On sale since 2022 and still the "
                                                  "current generation of the long-running "
@@ -262,14 +285,12 @@ check("the same unresolved product passes WITH --allow-unverified",
                                                     verification={"status": "not_found",
                                                                   "checked_at": "x",
                                                                   "route": "http-direct"})]),
-                              member(company="PepsiCo",
-                                     listing={"status": "listed", "ticker": "PEP",
-                                              "exchange": "NASDAQ"},
+                              member(company="PepsiCo", venue="NASDAQ:PEP",
                                      brands=["Pepsi"],
                                      reason="Sells cola under Pepsi, the alternative a "
                                             "shopper reaches for instead of a Coke.",
                                      products=[dict(member()["products"][0], asin="B00N4OTQKM", brand="Pepsi",
-                 title_at_declare="Pepsi Cola, 12 oz Cans, 12 Pack",
+                 name="Pepsi Cola, 12 oz Cans, 12 Pack",
                  verification={"status": "resolved", "checked_at": "x",
                                "route": "http-direct",
                                "title_seen": "Pepsi Cola, 12 oz Cans, 12 Pack"})])],
@@ -284,38 +305,54 @@ refuses("one ASIN claimed by two companies",
                                         products=[dict(member()["products"][0],
                                                        brand="Pepsi")])]),
         "cannot be two companies'")
+refuses("two members tracking children of the same parent ASIN",
+        group(members=[
+            member(products=[dict(member()["products"][0], verification=dict(
+                member()["products"][0]["verification"], parent_asin_seen="B0PARENT01"))]),
+            other(products=[dict(other()["products"][0], verification=dict(
+                other()["products"][0]["verification"], parent_asin_seen="B0PARENT01"))])]),
+        "is already tracked by members[0]")
+check("distinct parents are fine",
+      problems(group(members=[
+          member(products=[dict(member()["products"][0], verification=dict(
+              member()["products"][0]["verification"], parent_asin_seen="B0PARENT01"))]),
+          other(products=[dict(other()["products"][0], verification=dict(
+              other()["products"][0]["verification"], parent_asin_seen="B0PARENT02"))])])) == [])
 refuses("duplicate company", group(members=[member(), member()]), "duplicate of")
 refuses("altered substitutability test",
         group(substitutability_test="Does it look like a competitor?"),
         "frozen wording")
-refuses("private member with no exchange is fine but a listed one is not",
-        group(members=[member(listing={"status": "listed", "ticker": "KO",
-                                       "exchange": ""}),
-                       member(company="PepsiCo")]),
-        "listing.exchange: empty")
+refuses("a venue that is not EXCHANGE:TICKER and not 'private'",
+        group(members=[member(venue="NYSE"), member(company="PepsiCo")]),
+        'must be "EXCHANGE:TICKER"')
+refuses("an empty venue", group(members=[member(venue=""),
+                                         member(company="PepsiCo")]),
+        "venue: empty")
 check("a private member validates",
       problems(group(members=[
-          member(listing={"status": "private"},
-                 reporting={"calendar": "annual", "regime": "unlisted, no public "
-                            "interim reporting", "currency": "EUR", "fy_end": "1231",
-                            "source": "company website, no filings", "resolved_by": "agent"}),
+          member(venue="private",
+                 reporting={"calendar": "annual", "currency": "EUR", "source": "none",
+                            "regime": "unlisted, no public interim reporting",
+                            "fy_end": "1231",
+                            "calendar_source": "company website, no filings",
+                            "resolved_by": "agent"}),
           member(company="PepsiCo, Inc.", brands=["Pepsi"],
-                 listing={"status": "listed", "ticker": "PEP", "exchange": "NASDAQ"},
+                 venue="NASDAQ:PEP",
                  reason="Sells cola under Pepsi, the direct alternative a shopper "
                         "reaches for at the same shelf.",
                  products=[dict(member()["products"][0], asin="B00N4OTQKM", brand="Pepsi",
-                 title_at_declare="Pepsi Cola, 12 oz Cans, 12 Pack",
+                 name="Pepsi Cola, 12 oz Cans, 12 Pack",
                  verification={"status": "resolved", "checked_at": "x",
                                "route": "http-direct",
                                "title_seen": "Pepsi Cola, 12 oz Cans, 12 Pack"})])])) == [],
-      problems(group(members=[member(listing={"status": "private"})])))
+      problems(group(members=[member(venue="private")])))
 
 # The transposed-identifier check. Prose and ASIN are written in different
 # moments, so this is the only thing that notices they disagree.
 refuses("an ASIN whose served title does not carry the declared brand",
         group(members=[member(products=[dict(
             member()["products"][0], brand="Coca-Cola",
-            title_at_declare="Pepsi Cola, 12 oz Cans, 12 Pack",
+            name="Pepsi Cola, 12 oz Cans, 12 Pack",
             verification={"status": "resolved", "checked_at": "x",
                           "route": "http-direct",
                           "title_seen": "Pepsi Cola, 12 oz Cans, 12 Pack"})]),
@@ -324,7 +361,7 @@ refuses("an ASIN whose served title does not carry the declared brand",
 refuses("a declared title that does not match the served one",
         group(members=[member(products=[dict(
             member()["products"][0],
-            title_at_declare="Coca-Cola Classic, 12 fl oz, 24 Pack",
+            name="Coca-Cola Classic, 12 fl oz, 24 Pack",
             verification={"status": "resolved", "checked_at": "x",
                           "route": "http-direct",
                           "title_seen": "Coca-Cola Classic, 12 fl oz, 12 Pack"})]),
@@ -332,7 +369,7 @@ refuses("a declared title that does not match the served one",
         "does not match the served title")
 refuses("a resolved product that recorded no title at all",
         group(members=[member(products=[dict(
-            member()["products"][0], title_at_declare="Coca-Cola Classic, 12 fl oz, 12 Pack",
+            member()["products"][0], name="Coca-Cola Classic, 12 fl oz, 12 Pack",
             verification={"status": "resolved", "checked_at": "x",
                           "route": "http-direct"})]),
                        member(company="PepsiCo")]),
@@ -356,6 +393,61 @@ refuses("two members with peer_relative_reading false",
         group(peer_relative_reading=False), "must be true")
 
 
+# ------------------------------------------- the concentration filter (PLAN)
+print("\nthe concentration filter")
+
+
+def conc(**over):
+    c = dict(member()["concentration"])
+    c.update(over)
+    return c
+
+
+refuses("no concentration block",
+        group(members=[member(concentration=None), member(company="PepsiCo")]),
+        "concentration: missing")
+refuses("no dominant line",
+        group(members=[member(concentration=conc(dominant_line="")),
+                       member(company="PepsiCo")]),
+        "dominant_line: empty")
+refuses("no evidence",
+        group(members=[member(concentration=conc(evidence="")),
+                       member(company="PepsiCo")]),
+        "evidence: empty")
+refuses("no source url",
+        group(members=[member(concentration=conc(source_url="")),
+                       member(company="PepsiCo")]),
+        "source_url: empty")
+refuses("a source url that is not https",
+        group(members=[member(concentration=conc(source_url="ko.com/10k")),
+                       member(company="PepsiCo")]),
+        "must be an https URL")
+refuses("a share given as a percentage instead of a fraction",
+        group(members=[member(concentration=conc(share_of_revenue=98)),
+                       member(company="PepsiCo")]),
+        "a FRACTION in (0, 1]")
+refuses("a share below the floor",
+        group(members=[member(concentration=conc(share_of_revenue=0.45)),
+                       member(company="PepsiCo")]),
+        "below the 0.60 floor")
+check("the floor message says the line can be widened, not only dropped",
+      any("widen it rather than drop" in pr for pr in
+          problems(group(members=[member(concentration=conc(share_of_revenue=0.45)),
+                                  member(company="PepsiCo")]))))
+_null = group(members=[member(concentration=conc(share_of_revenue=None)), other()])
+check("a null share with real evidence is admissible",
+      problems(_null) == [], problems(_null))
+_floor = group(members=[member(concentration=conc(share_of_revenue=0.60)), other()])
+check("a share exactly at the floor passes", problems(_floor) == [], problems(_floor))
+refuses("evidence that argues instead of citing",
+        group(members=[member(concentration=conc(
+            evidence="the drinkware line drives revenue growth and a high gross margin")),
+                       member(company="PepsiCo")]),
+        "reads as a performance claim")
+check("a plain filing citation does not trip the lexicon",
+      dg.lexicon_hits("FY2025 10-K, net sales by product category: Drinkware 58%, "
+                      "Coolers & Equipment 40%", dg.PERFORMANCE_LEXICON) == [])
+
 # ------------------------------------------------------------ comparability
 print("\nthe comparability block")
 c = dg.comparability(group())
@@ -370,15 +462,15 @@ check("the clean group is revenue-comparable without stated handling",
 mixed = group(members=[
     member(products=[dict(member()["products"][0], marketplace="amazon.co.uk")]),
     member(company="Suntory Beverage & Food Limited", brands=["Lucozade"],
-           listing={"status": "private"},
+           venue="private",
            reason="Sells caffeinated glucose energy drinks under Lucozade, taken "
                   "instead of a cola by the same shopper at the same shelf.",
-           reporting={"calendar": "half-yearly", "regime": "no interim reporting",
-                      "currency": "JPY", "fy_end": "1231",
-                      "source": "company reports", "resolved_by": "agent"},
+           reporting={"calendar": "half-yearly", "currency": "JPY", "source": "none",
+                      "regime": "no interim reporting", "fy_end": "1231",
+                      "calendar_source": "company reports", "resolved_by": "agent"},
            products=[dict(member()["products"][0], asin="B001LION9E",
                           brand="Lucozade",
-                          title_at_declare="Lucozade Energy Original 380 ml",
+                          name="Lucozade Energy Original 380 ml",
                           verification={"status": "resolved", "checked_at": "x",
                                         "route": "http-direct",
                                         "title_seen": "Lucozade Energy Original 380 ml"})])])
@@ -396,6 +488,35 @@ check("the cross-marketplace note is first and names both marketplaces",
       "amazon.co.uk" in notes[0] and "amazon.com" in notes[0], notes[0])
 # Comparability is a warning, never a refusal: a global group is what §2 asks for.
 check("a cross-marketplace group still validates", problems(mixed) == [], problems(mixed))
+
+# ------------------------------------------------- the CONTRACTS.md §1 view
+print("\nthe contract view")
+v = dg.contract_view(dict(group(), version=1, declared_at="2026-10-12",
+                          readings_at_declare=0, post_collection=False,
+                          comparability=dg.comparability(group())))
+check("the view carries every field CONTRACTS.md §1 names",
+      all(k in v for k in ("group_id", "declared_at", "seed", "hash", "members")), v.keys())
+m0 = v["members"][0]
+check("a member carries §1's keys",
+      all(k in m0 for k in ("company", "venue", "brands", "concentration",
+                            "products", "reporting")), sorted(m0))
+check("venue is the contract's string form", m0["venue"] == "NYSE:KO", m0["venue"])
+check("a product carries asin, marketplace and name",
+      all(k in m0["products"][0] for k in ("asin", "marketplace", "name")),
+      sorted(m0["products"][0]))
+check("reporting carries calendar, currency and source",
+      all(k in m0["reporting"] for k in ("calendar", "currency", "source")),
+      sorted(m0["reporting"]))
+check("the reason survives into the view, which §1 has no slot for",
+      m0["reason"].startswith("Sells carbonated"), m0.get("reason"))
+check("the continuity reason survives into the view",
+      "continuity_reason" in m0["products"][0], sorted(m0["products"][0]))
+check("the hash is over the file minus the hash field",
+      v["hash"] == dg.content_hash(v))
+check("changing any field changes the hash",
+      dg.content_hash(dict(v, seed="something else")) != v["hash"])
+check("re-adding the same hash field is idempotent",
+      dg.content_hash(dict(v, hash="deadbeef")) == v["hash"])
 
 # -------------------------------------------- freeze, chain, edit detection
 print("\nthe freeze and the version chain")
@@ -429,14 +550,14 @@ try:
 
     # revise: add Keurig Dr Pepper
     kdp = member(company="Keurig Dr Pepper Inc.",
-                 listing={"status": "listed", "ticker": "KDP", "exchange": "NASDAQ"},
+                 venue="NASDAQ:KDP",
                  brands=["Dr Pepper", "7UP"],
                  reason=("Sells carbonated soft drinks under Dr Pepper and 7UP, "
                          "bought instead of a cola or a lemon-lime can at the "
                          "same shelf."),
                  products=[{"asin": "B01N0XCS0Y", "marketplace": "amazon.com",
                             "brand": "Dr Pepper",
-                            "title_at_declare": "Dr Pepper Soda, 12 fl oz, 12 Pack",
+                            "name": "Dr Pepper Soda, 12 fl oz, 12 Pack",
                             "continuity_reason": "The standard 12-can pack of the "
                                                  "core line, sold since 2014.",
                             "verification": {"status": "resolved",
@@ -492,6 +613,28 @@ try:
     check("the diff records the removal",
           v3obj["member_diff_from_previous"]["members_removed"] == ["Keurig Dr Pepper Inc."],
           v3obj.get("member_diff_from_previous"))
+
+    # Stage G, CONTRACTS.md §4: invoked as `--group <group_id>`, exit 0/2/3.
+    check("stage G exits 3 for a group that was never declared",
+          dg.main(["--group", "no-such-group"]) == 3)
+    check("stage G exits 0 for a declared group", dg.main(["--group",
+          "soft-drinks-global"]) == 0)
+    check("declare wrote the contract view",
+          os.path.exists(os.path.join(dg.GROUPS_VIEW_DIR, "soft-drinks-global.json")))
+    vp = os.path.join(dg.GROUPS_VIEW_DIR, "soft-drinks-global.json")
+    ok_, rec, act = dg.verify_contract_view(vp)
+    check("the written view verifies its own hash", ok_, (rec, act))
+    tampered = dg.read_json(vp)
+    tampered["members"][0]["brands"].append("Fanta")
+    with open(vp, "w") as f:
+        f.write(dg.dumps(tampered))
+    ok_, rec, act = dg.verify_contract_view(vp)
+    check("a tampered view fails its own hash", not ok_)
+    check("stage G exits 2 on an integrity violation",
+          dg.main(["--group", "soft-drinks-global"]) == 2)
+    dg.main(["reemit", "soft-drinks-global"])
+    check("reemit rebuilds the view from the record of declaration",
+          dg.verify_contract_view(vp)[0])
 
     # the edit-in-place detector
     edited = dg.read_json(v1)

@@ -1,0 +1,183 @@
+{
+  "comparability": {
+    "cross_marketplace": false,
+    "currencies": {
+      "EUR": 1,
+      "USD": 2
+    },
+    "marketplaces": {
+      "amazon.com": 3
+    },
+    "members_without_public_reporting": [
+      "Red Bull GmbH"
+    ],
+    "mixed_currencies": true,
+    "mixed_reporting_calendars": true,
+    "reporting_calendars": {
+      "annual": 1,
+      "quarterly": 2
+    },
+    "revenue_comparable_without_stated_handling": false
+  },
+  "declared_at": "2026-10-12",
+  "declared_at_utc": "2026-10-12T19:43:36Z",
+  "declared_by": {
+    "code_commit": "2e283e86054612b87e2ebbe364e44b7385d0cf1c-dirty",
+    "tool": "declare_group.py"
+  },
+  "group_id": "energy-drinks",
+  "members": [
+    {
+      "brands": [
+        "CELSIUS"
+      ],
+      "cik": "0001341766",
+      "company": "Celsius Holdings, Inc.",
+      "concentration": {
+        "dominant_line": "sugar-free energy drinks",
+        "evidence": "FY2025 10-K: the company 'functions as a single operating segment' and discloses revenue by geography only, with no product-line split. Its range is energy drinks and energy drink powders.",
+        "share_of_revenue": null,
+        "source_url": "https://www.sec.gov/Archives/edgar/data/1341766/000134176626000024/celh-20251231.htm"
+      },
+      "country_of_domicile": "US",
+      "products": [
+        {
+          "asin": "B007R8XGJA",
+          "brand": "CELSIUS",
+          "continuity_reason": "The 12-can pack of the Sparkling Orange flavour is in the permanent CELSIUS range rather than a limited edition, and the listing has carried the same pack format since 2012.",
+          "marketplace": "amazon.com",
+          "name": "CELSIUS Sparkling Orange, Sugar Free Energy Drink, 12 Fl Oz (Pack of 12)",
+          "verification": {
+            "asin_on_page": true,
+            "availability_seen": "buy box not rendered in the static HTML (loaded by script); availability not established",
+            "checked_at": "2026-10-12T19:42:41Z",
+            "http_status": 200,
+            "is_variant_child": true,
+            "marketplace": "amazon.com",
+            "parent_asin_seen": "B0H5F1SG6J",
+            "route": "http-direct",
+            "status": "resolved",
+            "title_seen": "CELSIUS Sparkling Orange, Sugar Free Energy Drink, 12 Fl Oz (Pack of 12)",
+            "url": "https://www.amazon.com/dp/B007R8XGJA"
+          }
+        }
+      ],
+      "reason": "Sells canned sugar-free energy drinks under CELSIUS, which a shopper buying a case of energy drinks takes instead of a case of Monster or Red Bull from the same shelf.",
+      "reporting": {
+        "calendar": "quarterly",
+        "calendar_source": "SEC EDGAR submissions CIK0001341766, forms seen: 10-K, 10-Q",
+        "currency": "USD",
+        "fy_end": "1231",
+        "regime": "SEC 10-Q / 10-K",
+        "resolved_by": "edgar",
+        "source": "SEC"
+      },
+      "venue": "NASDAQ:CELH"
+    },
+    {
+      "brands": [
+        "Monster Energy",
+        "Reign"
+      ],
+      "cik": "0000865752",
+      "company": "Monster Beverage Corporation",
+      "concentration": {
+        "dominant_line": "energy drinks",
+        "evidence": "FY2025 10-K: 'Our Monster Energy Drinks segment represented 92.4% and 91.6% of our net sales for the years ended December 31, 2025 and 2024, respectively.'",
+        "share_of_revenue": 0.924,
+        "source_url": "https://www.sec.gov/Archives/edgar/data/865752/000110465926020831/mnst-20251231x10k.htm"
+      },
+      "country_of_domicile": "US",
+      "products": [
+        {
+          "asin": "B01MQX4P7V",
+          "brand": "Monster Energy",
+          "continuity_reason": "Ultra Blue is part of the permanent Monster Energy Ultra range, carried year-round since 2016 rather than as a seasonal flavour.",
+          "marketplace": "amazon.com",
+          "name": "Monster Energy, Ultra Blue, 16 fl oz, 4 Pack",
+          "verification": {
+            "asin_on_page": true,
+            "availability_seen": "buy box not rendered in the static HTML (loaded by script); availability not established",
+            "checked_at": "2026-10-12T19:42:44Z",
+            "http_status": 200,
+            "is_variant_child": false,
+            "marketplace": "amazon.com",
+            "parent_asin_seen": "B01MQX4P7V",
+            "route": "http-direct",
+            "status": "resolved",
+            "title_seen": "Monster Energy, Ultra Blue, 16 fl oz, 4 Pack",
+            "url": "https://www.amazon.com/dp/B01MQX4P7V"
+          }
+        }
+      ],
+      "reason": "Sells canned energy drinks under Monster Energy and Reign, the direct alternative a shopper reaches for instead of a CELSIUS or Red Bull multipack at the same point of purchase.",
+      "reporting": {
+        "calendar": "quarterly",
+        "calendar_source": "SEC EDGAR submissions CIK0000865752, forms seen: 10-K, 10-Q",
+        "currency": "USD",
+        "fy_end": "1231",
+        "regime": "SEC 10-Q / 10-K",
+        "resolved_by": "edgar",
+        "source": "SEC"
+      },
+      "venue": "NASDAQ:MNST"
+    },
+    {
+      "brands": [
+        "Red Bull"
+      ],
+      "company": "Red Bull GmbH",
+      "concentration": {
+        "dominant_line": "energy drinks",
+        "evidence": "Privately held Austrian GmbH that publishes no periodic financial report, so no filing establishes a split. Its consumer range is energy drinks only, established from the product range it sells rather than from a disclosure.",
+        "no_public_report": true,
+        "revenue_readable": false,
+        "share_of_revenue": null,
+        "source_url": ""
+      },
+      "country_of_domicile": "AT",
+      "products": [
+        {
+          "asin": "B006O3ASKE",
+          "brand": "Red Bull",
+          "continuity_reason": "The 8.4 fl oz can is Red Bull's single core format, unchanged since the brand's launch, so the listing is as continuous as any in the category.",
+          "marketplace": "amazon.com",
+          "name": "Red Bull Energy Drink",
+          "verification": {
+            "asin_on_page": true,
+            "availability_seen": "In Stock",
+            "checked_at": "2026-10-12T19:42:47Z",
+            "http_status": 200,
+            "is_variant_child": true,
+            "marketplace": "amazon.com",
+            "parent_asin_seen": "B0GWS3MQR6",
+            "route": "http-direct",
+            "status": "resolved",
+            "title_seen": "Red Bull Energy Drink",
+            "url": "https://www.amazon.com/dp/B006O3ASKE"
+          }
+        }
+      ],
+      "reason": "Sells canned energy drinks under Red Bull, the item a shopper is choosing between when they pick up a CELSIUS or a Monster instead.",
+      "reporting": {
+        "calendar": "annual",
+        "calendar_source": "company is private; no periodic report is published",
+        "currency": "EUR",
+        "fy_end": "",
+        "regime": "privately held Austrian GmbH; annual statutory accounts only, no public interim reporting",
+        "resolved_by": "agent",
+        "source": "none"
+      },
+      "venue": "private"
+    }
+  ],
+  "peer_relative_reading": true,
+  "post_collection": false,
+  "readings_at_declare": 0,
+  "schema_version": 1,
+  "seed": "canned energy drinks",
+  "seed_kind": "category",
+  "solo": false,
+  "substitutability_test": "Would a consumer shopping for this seed's product consider this company's product instead of it, as a direct alternative for the same need, at the same point of purchase? If yes, it is a peer. Size, country, listing venue and currency are irrelevant to the answer.",
+  "version": 1
+}

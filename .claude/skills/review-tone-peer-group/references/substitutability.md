@@ -115,6 +115,59 @@ in the accessory's title too, so the brand check does not catch it — reading t
 title is what catches it, which is why `title_at_declare` is compared against what the
 page actually returned rather than trusted.
 
+## 4b. Concentration: the filter that actually binds
+
+**A company belongs in a group only if one main product line dominates its revenue, and
+that line is what sells and gets reviewed on Amazon** (PLAN.md).
+
+This is a *separate and stricter* test than substitutability, and it is the one that
+decides most memberships. Measured on the first real pass: the substitutability test
+admits Coca-Cola, PepsiCo, Sony, Apple and Samsung; the concentration filter rejects
+every one of them except Coca-Cola. **Pepsi/Coca-Cola is the illustration of pairing, not
+the quality bar** — PepsiCo is roughly 55% snacks, and a souring review on a Pepsi
+multipack says nothing about Frito-Lay.
+
+The practical consequence: the groups this component should produce are built from
+**focused mid-cap and private companies**, not household-name giants. Celsius, YETI,
+Traeger, Sonos, Turtle Beach, BellRing, Crocs, e.l.f., GoPro — companies where one line
+is most of the revenue and that line is on Amazon.
+
+### How it is established
+
+Never asserted. `screen_pool.py` fetches each US registrant's latest annual report and
+captures verbatim windows around a fixed set of probes — reportable segments, revenue
+disaggregation, revenue by product category — lifted from the archived scorecard's c3 and
+c6 probes, which were solving this same question. The agent reads the share off that
+text; the URL recorded is the filing the script actually fetched. For a non-US or private
+member the evidence is recorded by hand against the company's own report.
+
+The floor is **0.60**, chosen here because PLAN.md states the filter without a number. It
+is permissive on purpose: it admits a company with a clear dominant line plus a real
+secondary business, and excludes the four-segment conglomerate the filter exists to keep
+out. It is the single most arguable constant in the component and it is one constant, so
+it can be argued with.
+
+### The level question, and it is not a technicality
+
+`dominant_line` is defined at the level the **tracked products** sit at.
+
+- YETI: Drinkware alone is 58% and *fails* the floor. Insulated drinkware and coolers
+  together are 98% and pass — and both are what YETI sells on Amazon, so the wider line
+  is the honest one.
+- Traeger: Grills alone are 53% and fail. Grills, pellets and accessories are 100% of
+  revenue, and a grill and a bag of pellets are both tracked.
+
+Widening is legitimate **only if the tracked products span the wider line.** Otherwise it
+is a way around the floor, and the floor is the filter.
+
+### Null is a real answer
+
+A single-segment filer discloses that management runs one business, not that one product
+is 100% of revenue. Turtle Beach's "single reportable segment, referred to as gaming
+accessories" is strong evidence and gives no number. Record `share_of_revenue: null` with
+the quotation. Seven of the fifteen members declared carry null, and inventing a 1.00 for
+them would have been the dishonest alternative.
+
 ## 5. Group shape
 
 - **At least two members.** A group of one is declared with `--solo` and a reason naming
@@ -122,6 +175,12 @@ page actually returned rather than trusted.
   number from it must say it has no peer comparison.
 - **Global by design.** US, Europe, Asia. Listing venue is irrelevant to tone and is
   recorded only to identify the company.
+- **Private peers count, and are often the best ones.** A private competitor is a
+  perfect category control: it tells a category-wide tone move from a company-specific
+  one. Only the company whose revenue is eventually wanted has to be public. Several of
+  the most focused competitors in consumer goods are private — Bose, Stanley/PMI, Trove,
+  Red Bull, Weber, Dyson — and dropping a group because one member is private would throw
+  away the control.
 - **One marketplace if you can.** Members may sit on different Amazon marketplaces, and
   the group is still admissible — but the reviewer populations are national, so a pooled
   peer-relative tone gap across marketplaces is partly a difference between countries of

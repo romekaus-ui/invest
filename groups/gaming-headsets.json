@@ -1,0 +1,183 @@
+{
+  "comparability": {
+    "cross_marketplace": false,
+    "currencies": {
+      "USD": 3
+    },
+    "marketplaces": {
+      "amazon.com": 3
+    },
+    "members_without_public_reporting": [],
+    "mixed_currencies": false,
+    "mixed_reporting_calendars": false,
+    "reporting_calendars": {
+      "quarterly": 3
+    },
+    "revenue_comparable_without_stated_handling": true
+  },
+  "declared_at": "2026-10-12",
+  "declared_by": {
+    "code_commit": "2e283e86054612b87e2ebbe364e44b7385d0cf1c-dirty",
+    "tool": "declare_group.py"
+  },
+  "group_id": "gaming-headsets",
+  "hash": "b5b406d0f4a0b7b627f27fec0c0f84f6b030784e1d38f9a3cd38970303b3a18e",
+  "members": [
+    {
+      "brands": [
+        "Turtle Beach",
+        "Stealth"
+      ],
+      "cik": "0001493761",
+      "company": "Turtle Beach Corporation",
+      "concentration": {
+        "dominant_line": "gaming accessories",
+        "evidence": "FY2025 10-K: 'The company operates in a single reportable segment, referred to as gaming accessories.' No product-line split is disclosed, so no share is recorded.",
+        "share_of_revenue": null,
+        "source_url": "https://www.sec.gov/Archives/edgar/data/1493761/000119312526104436/tbch-20251231.htm"
+      },
+      "country_of_domicile": "US",
+      "products": [
+        {
+          "asin": "B0CZX7MB48",
+          "continuity_reason": "The Stealth 600 is the core model of Turtle Beach's permanent wireless headset line, which the company has carried across successive generations since 2014.",
+          "marketplace": "amazon.com",
+          "name": "Turtle Beach Stealth 600 Wireless Multiplatform Gaming Headset for PC, PS5",
+          "parent_asin": "B0HM86K4RC",
+          "verification": {
+            "asin_on_page": true,
+            "availability_seen": "In Stock",
+            "checked_at": "2026-10-12T19:43:13Z",
+            "http_status": 200,
+            "is_variant_child": true,
+            "marketplace": "amazon.com",
+            "parent_asin_seen": "B0HM86K4RC",
+            "route": "http-direct",
+            "status": "resolved",
+            "title_seen": "Turtle Beach Stealth 600 Wireless Multiplatform Gaming Headset for PC, PS5",
+            "url": "https://www.amazon.com/dp/B0CZX7MB48"
+          }
+        }
+      ],
+      "reason": "Sells wireless gaming headsets under Turtle Beach as the Stealth line, which a shopper buying a console headset considers instead of a Corsair HS80 or a Logitech G PRO X.",
+      "reporting": {
+        "calendar": "quarterly",
+        "calendar_source": "SEC EDGAR submissions CIK0001493761, forms seen: 10-K, 10-Q",
+        "currency": "USD",
+        "fy_end": "1231",
+        "regime": "SEC 10-Q / 10-K",
+        "resolved_by": "edgar",
+        "source": "SEC"
+      },
+      "venue": "NASDAQ:TBCH"
+    },
+    {
+      "brands": [
+        "Corsair",
+        "HS80"
+      ],
+      "cik": "0001743759",
+      "company": "Corsair Gaming, Inc.",
+      "concentration": {
+        "dominant_line": "gaming and creator hardware",
+        "evidence": "FY2025 10-K segment net revenue: Gamer and Creator Peripherals $492,137 thousand, 33.4% of net revenue; the Gaming Components and Systems segment is the remainder. Both segments are gaming hardware and no non-gaming line is disclosed, so no single-line share is recorded.",
+        "share_of_revenue": null,
+        "source_url": "https://www.sec.gov/Archives/edgar/data/1743759/000119312526067833/crsr-20251231.htm"
+      },
+      "country_of_domicile": "US",
+      "products": [
+        {
+          "asin": "B0B3SBL2Z7",
+          "continuity_reason": "The HS80 RGB Wireless is the core model of Corsair's permanent headset range, on sale since 2022 with the MAX variant extending rather than replacing the line.",
+          "marketplace": "amazon.com",
+          "name": "Corsair HS80 RGB Wireless Multiplatform Gaming Headset - Dolby Atmos - Lightweight Comfort Design - Broadcast Quality Microphone - iCUE Compatible - PC, Mac, PS5, PS4 - White",
+          "parent_asin": "B0HL1R5S8K",
+          "verification": {
+            "asin_on_page": true,
+            "availability_seen": "buy box not rendered in the static HTML (loaded by script); availability not established",
+            "checked_at": "2026-10-12T19:43:16Z",
+            "http_status": 200,
+            "is_variant_child": true,
+            "marketplace": "amazon.com",
+            "parent_asin_seen": "B0HL1R5S8K",
+            "route": "http-direct",
+            "status": "resolved",
+            "title_seen": "Corsair HS80 RGB Wireless Multiplatform Gaming Headset - Dolby Atmos - Lightweight Comfort Design - Broadcast Quality Microphone - iCUE Compatible - PC, Mac, PS5, PS4 - White",
+            "url": "https://www.amazon.com/dp/B0B3SBL2Z7"
+          }
+        }
+      ],
+      "reason": "Sells wireless gaming headsets under Corsair as the HS80, the direct alternative a shopper weighs against a Turtle Beach Stealth at the same price tier.",
+      "reporting": {
+        "calendar": "quarterly",
+        "calendar_source": "SEC EDGAR submissions CIK0001743759, forms seen: 10-K, 10-Q",
+        "currency": "USD",
+        "fy_end": "1231",
+        "regime": "SEC 10-Q / 10-K",
+        "resolved_by": "edgar",
+        "source": "SEC"
+      },
+      "venue": "NASDAQ:CRSR"
+    },
+    {
+      "brands": [
+        "Logitech G",
+        "PRO X"
+      ],
+      "cik": "0001032975",
+      "company": "Logitech International S.A.",
+      "concentration": {
+        "dominant_line": "computer and gaming peripherals",
+        "evidence": "FY2026 10-K: Logitech reports as a single operating segment and discloses revenue by product category; every category it lists is a computer or gaming peripheral. No non-peripheral line is disclosed, so no single-line share is recorded.",
+        "share_of_revenue": null,
+        "source_url": "https://www.sec.gov/Archives/edgar/data/1032975/000103297526000021/logi-20260331.htm"
+      },
+      "country_of_domicile": "CH",
+      "products": [
+        {
+          "asin": "B0B3F8V4JG",
+          "continuity_reason": "The PRO X 2 Lightspeed is the current generation of Logitech G's flagship headset line, which the company has carried continuously since the original PRO X.",
+          "marketplace": "amazon.com",
+          "name": "Logitech G PRO X 2 Lightspeed Wireless Gaming Headset - Black",
+          "parent_asin": "B0DBB2YD49",
+          "verification": {
+            "asin_on_page": true,
+            "availability_seen": "buy box not rendered in the static HTML (loaded by script); availability not established",
+            "checked_at": "2026-10-12T19:43:19Z",
+            "http_status": 200,
+            "is_variant_child": true,
+            "marketplace": "amazon.com",
+            "parent_asin_seen": "B0DBB2YD49",
+            "route": "http-direct",
+            "status": "resolved",
+            "title_seen": "Logitech G PRO X 2 Lightspeed Wireless Gaming Headset - Black",
+            "url": "https://www.amazon.com/dp/B0B3F8V4JG"
+          }
+        }
+      ],
+      "reason": "Sells wireless gaming headsets under Logitech G as the PRO X, bought instead of a Corsair HS80 or a Turtle Beach Stealth by the same shopper for the same use.",
+      "reporting": {
+        "calendar": "quarterly",
+        "calendar_source": "SEC EDGAR submissions CIK0001032975, forms seen: 10-K, 10-Q",
+        "currency": "USD",
+        "fy_end": "0331",
+        "regime": "SEC 10-Q / 10-K",
+        "resolved_by": "edgar",
+        "source": "SEC"
+      },
+      "venue": "NASDAQ:LOGI"
+    }
+  ],
+  "peer_relative_reading": true,
+  "post_collection": false,
+  "readings_at_declare": 0,
+  "record_of_declaration": "data/peer_groups/gaming-headsets.v1.json",
+  "revision_reason": null,
+  "seed": "wireless gaming headsets",
+  "seed_kind": "category",
+  "solo": false,
+  "solo_reason": null,
+  "substitutability_test": "Would a consumer shopping for this seed's product consider this company's product instead of it, as a direct alternative for the same need, at the same point of purchase? If yes, it is a peer. Size, country, listing venue and currency are irrelevant to the answer.",
+  "supersedes": null,
+  "version": 1
+}

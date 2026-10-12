@@ -1,0 +1,137 @@
+{
+  "comparability": {
+    "cross_marketplace": false,
+    "currencies": {
+      "USD": 2
+    },
+    "marketplaces": {
+      "amazon.com": 2
+    },
+    "members_without_public_reporting": [
+      "Weber Inc."
+    ],
+    "mixed_currencies": false,
+    "mixed_reporting_calendars": true,
+    "reporting_calendars": {
+      "annual": 1,
+      "quarterly": 1
+    },
+    "revenue_comparable_without_stated_handling": false
+  },
+  "declared_at": "2026-10-12",
+  "declared_by": {
+    "code_commit": "2e283e86054612b87e2ebbe364e44b7385d0cf1c-dirty",
+    "tool": "declare_group.py"
+  },
+  "group_id": "barbecue-grills",
+  "hash": "f3861753e1cc0eb59f091409da0a6a78826e76cc3340635294bdcd2942e91926",
+  "members": [
+    {
+      "brands": [
+        "Traeger"
+      ],
+      "cik": "0001857853",
+      "company": "Traeger, Inc.",
+      "concentration": {
+        "dominant_line": "wood pellet grills, with the pellets and accessories used with them",
+        "evidence": "FY2025 10-K, revenue by product category: Grills $298,026, Consumables $127,474, Accessories $134,020 of total revenue $559,520 (thousands). Grills alone are 53.3%, below the filter's floor; all three lines are the barbecue business and together are the whole of revenue.",
+        "share_of_revenue": 1.0,
+        "source_url": "https://www.sec.gov/Archives/edgar/data/1857853/000162828026015450/tra-20251231.htm"
+      },
+      "country_of_domicile": "US",
+      "products": [
+        {
+          "asin": "B07CT4FPG6",
+          "continuity_reason": "The Ranger portable pellet grill is in Traeger's permanent range, listed since 2018, and a grill is replaced rather than reformulated so the listing does not turn over with seasons.",
+          "marketplace": "amazon.com",
+          "name": "Traeger Ranger Portable Wood Pellet Grill & Smoker, Cast Iron Griddle",
+          "parent_asin": "B0FQ2V3HRQ",
+          "verification": {
+            "asin_on_page": true,
+            "availability_seen": "buy box not rendered in the static HTML (loaded by script); availability not established",
+            "checked_at": "2026-10-12T19:43:03Z",
+            "http_status": 200,
+            "is_variant_child": true,
+            "marketplace": "amazon.com",
+            "parent_asin_seen": "B0FQ2V3HRQ",
+            "route": "http-direct",
+            "status": "resolved",
+            "title_seen": "Traeger Ranger Portable Wood Pellet Grill & Smoker, Cast Iron Griddle",
+            "url": "https://www.amazon.com/dp/B07CT4FPG6"
+          }
+        }
+      ],
+      "reason": "Sells wood pellet barbecue grills under Traeger, which a shopper buying an outdoor grill considers instead of a Weber at the same point of purchase.",
+      "reporting": {
+        "calendar": "quarterly",
+        "calendar_source": "SEC EDGAR submissions CIK0001857853, forms seen: 10-K, 10-Q",
+        "currency": "USD",
+        "fy_end": "1231",
+        "regime": "SEC 10-Q / 10-K",
+        "resolved_by": "edgar",
+        "source": "SEC"
+      },
+      "venue": "NYSE:COOK"
+    },
+    {
+      "brands": [
+        "Weber"
+      ],
+      "company": "Weber Inc.",
+      "concentration": {
+        "dominant_line": "outdoor barbecue grills and accessories",
+        "evidence": "Taken private in February 2023, so no current periodic report is published. Its last 10-K as a public company (FY2022, linked) reports the business as outdoor cooking products; the figure is not carried here because it is three years stale and the filter requires a current one.",
+        "no_public_report": true,
+        "revenue_readable": false,
+        "share_of_revenue": null,
+        "source_url": "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0001857951&type=10-K&dateb=&owner=include&count=40"
+      },
+      "country_of_domicile": "US",
+      "products": [
+        {
+          "asin": "B0H2YSB7JR",
+          "continuity_reason": "The Q 1200N portable propane grill is the current generation of Weber's long-running portable Q line, which the company has carried continuously for over fifteen years.",
+          "marketplace": "amazon.com",
+          "name": "Weber® Q 1200N Portable Propane Gas Grill, Sky Blue - 10,000 BTUs",
+          "parent_asin": "B0HM41NZD5",
+          "verification": {
+            "asin_on_page": true,
+            "availability_seen": "buy box not rendered in the static HTML (loaded by script); availability not established",
+            "checked_at": "2026-10-12T19:43:06Z",
+            "http_status": 200,
+            "is_variant_child": true,
+            "marketplace": "amazon.com",
+            "parent_asin_seen": "B0HM41NZD5",
+            "route": "http-direct",
+            "status": "resolved",
+            "title_seen": "Weber® Q 1200N Portable Propane Gas Grill, Sky Blue - 10,000 BTUs",
+            "url": "https://www.amazon.com/dp/B0H2YSB7JR"
+          }
+        }
+      ],
+      "reason": "Sells outdoor barbecue grills under Weber, the direct alternative a shopper weighs against a Traeger when buying a grill.",
+      "reporting": {
+        "calendar": "annual",
+        "calendar_source": "last 10-K was FY2022; no periodic report since",
+        "currency": "USD",
+        "fy_end": "",
+        "regime": "taken private February 2023; no current public periodic reporting",
+        "resolved_by": "agent",
+        "source": "none"
+      },
+      "venue": "private"
+    }
+  ],
+  "peer_relative_reading": true,
+  "post_collection": false,
+  "readings_at_declare": 0,
+  "record_of_declaration": "data/peer_groups/barbecue-grills.v1.json",
+  "revision_reason": null,
+  "seed": "outdoor barbecue grills",
+  "seed_kind": "category",
+  "solo": false,
+  "solo_reason": null,
+  "substitutability_test": "Would a consumer shopping for this seed's product consider this company's product instead of it, as a direct alternative for the same need, at the same point of purchase? If yes, it is a peer. Size, country, listing venue and currency are irrelevant to the answer.",
+  "supersedes": null,
+  "version": 1
+}

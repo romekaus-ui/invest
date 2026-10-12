@@ -15,6 +15,8 @@ You write a draft. You do not freeze it, and you do not collect anything.
 ## Read first
 
 1. `CORE-PROMPT.md` — §2 is your specification, §1 binds everything.
+1b. `CONTRACTS.md` §1 (the shape of what you produce) and `PLAN.md`'s **concentration
+   filter**, which is stricter than substitutability and usually decides membership.
 2. `.claude/skills/review-tone-peer-group/references/substitutability.md` — the frozen
    test and the ways this judgement goes wrong.
 3. `.claude/skills/review-tone-peer-group/references/peer-group-contract.md` — the schema
@@ -56,6 +58,22 @@ Ask it identically every time. A candidate is in or out on that answer alone.
    Harman; Sennheiser's consumer headphones report inside Sonova.
 3. **Record the brands** each member owns that are relevant to *this* group. Not its whole
    portfolio — the brands a shopper would be choosing between.
+3b. **Apply the concentration filter, with evidence.** One main product line must
+   dominate the member's revenue, and it must be the line that sells on Amazon. Run
+   `declare_group.py concentration <draft>` to fetch verbatim windows from each US
+   registrant's own annual report, and read the share off that text — never from memory.
+   Record `dominant_line`, `share_of_revenue` (a fraction, **or null** when no split is
+   disclosed), `evidence` as a citation, and `source_url`.
+
+   This is the test that rules out the household names: it admits Coca-Cola and rejects
+   PepsiCo, Sony, Apple and Samsung. Expect to build from focused mid-caps and private
+   companies. Define the line at the level the tracked products sit at — YETI's drinkware
+   alone is 58% and fails, its drinkware and coolers together are 98% and pass — but only
+   widen when the tracked products really span the wider line.
+
+   A private member may set `no_public_report: true` with `share_of_revenue: null` and
+   `revenue_readable: false`. It is in the group as a category control and has no revenue
+   to read. A listed member is never exempt.
 4. **Pick the products for continuity.** Read
    `references/substitutability.md` §4 first; the trade-off differs sharply by category.
    Prefer the current generation early in its life over the outgoing one. Verify each ASIN
@@ -81,8 +99,13 @@ Plus, in your report:
 
 - Which candidates you considered and **rejected, and on what substitutability ground.**
   The rejections are evidence about the group; a proposal with none was not a search.
+- Any candidate that belongs on substitutability but **fails the concentration filter**,
+  with the share you read and where. These rejections are the most informative thing you
+  produce.
 - Any candidate that belongs on substitutability but **has no trackable product** on the
   marketplace — that is a finding about the category, not a reason to quietly omit it.
+- Whether the category ran out of focused companies. If a category has only one, say so:
+  it becomes a solo group, and that is a fact about the category worth recording.
 - The comparability notes `check` printed.
 - Whether the group has fewer than two members, in which case say what you searched for
   and did not find, so it can be declared solo and labelled as having no peer-relative

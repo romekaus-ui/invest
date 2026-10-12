@@ -1,0 +1,156 @@
+{
+  "group_id": "insulated-drinkware",
+  "members": [
+    {
+      "brands": [
+        "YETI",
+        "Rambler"
+      ],
+      "cik": "0001670592",
+      "company": "YETI Holdings, Inc.",
+      "concentration": {
+        "dominant_line": "insulated drinkware and coolers",
+        "evidence": "FY2025 10-K: 'Coolers & Equipment, Drinkware, and Other represented 40%, 58%, and 2% of net sales, respectively.' Drinkware alone is 58%, below the filter's floor; the line is taken at the level the tracked product sits at - insulated drinkware and coolers together, 98%.",
+        "share_of_revenue": 0.98,
+        "source_url": "https://www.sec.gov/Archives/edgar/data/1670592/000167059226000013/yeti-20260103.htm"
+      },
+      "country_of_domicile": "US",
+      "products": [
+        {
+          "asin": "B07FM5HLMF",
+          "brand": "Rambler",
+          "continuity_reason": "The 20 oz Rambler tumbler with MagSlider lid is the core size of YETI's flagship drinkware line, in the permanent range since 2018 with no successor announced.",
+          "marketplace": "amazon.com",
+          "name": "YETI Rambler 20 oz Stainless Steel Vacuum Insulated Tumbler w/MagSlider Lid",
+          "verification": {
+            "asin_on_page": true,
+            "availability_seen": "In Stock",
+            "checked_at": "2026-10-12T19:42:49Z",
+            "http_status": 200,
+            "is_variant_child": true,
+            "marketplace": "amazon.com",
+            "parent_asin_seen": "B07SGPJBZ6",
+            "route": "http-direct",
+            "status": "resolved",
+            "title_seen": "YETI Rambler 20 oz Stainless Steel Vacuum Insulated Tumbler w/MagSlider Lid",
+            "url": "https://www.amazon.com/dp/B07FM5HLMF"
+          }
+        }
+      ],
+      "reason": "Sells vacuum-insulated stainless steel tumblers and bottles under YETI Rambler, which a shopper buying an insulated tumbler takes instead of a Stanley Quencher or an Owala FreeSip.",
+      "reporting": {
+        "calendar": "quarterly",
+        "calendar_source": "SEC EDGAR submissions CIK0001670592, forms seen: 10-K, 10-Q",
+        "currency": "USD",
+        "fy_end": "0102",
+        "regime": "SEC 10-Q / 10-K",
+        "resolved_by": "edgar",
+        "source": "SEC"
+      },
+      "venue": "NYSE:YETI"
+    },
+    {
+      "brands": [
+        "Stanley",
+        "Quencher"
+      ],
+      "company": "Pacific Market International, LLC",
+      "concentration": {
+        "dominant_line": "insulated drinkware",
+        "evidence": "Privately held; publishes no periodic financial report, so no filing establishes a split. Its Stanley range is insulated drinkware and food containers, established from the product range it sells.",
+        "no_public_report": true,
+        "revenue_readable": false,
+        "share_of_revenue": null,
+        "source_url": ""
+      },
+      "country_of_domicile": "US",
+      "products": [
+        {
+          "asin": "B0CJZW65R3",
+          "brand": "Quencher",
+          "continuity_reason": "The 40 oz Quencher H2.0 in a core colourway is the standard size of Stanley's permanent drinkware line rather than a seasonal release.",
+          "marketplace": "amazon.com",
+          "name": "STANLEY Quencher H2.0 Flow State Tumbler, 40 oz, Ash",
+          "verification": {
+            "asin_on_page": true,
+            "availability_seen": "buy box not rendered in the static HTML (loaded by script); availability not established",
+            "checked_at": "2026-10-12T19:42:52Z",
+            "http_status": 200,
+            "is_variant_child": true,
+            "marketplace": "amazon.com",
+            "parent_asin_seen": "B0DG5KQ24H",
+            "route": "http-direct",
+            "status": "resolved",
+            "title_seen": "STANLEY Quencher H2.0 Flow State Tumbler, 40 oz, Ash",
+            "url": "https://www.amazon.com/dp/B0CJZW65R3"
+          }
+        }
+      ],
+      "reason": "Sells vacuum-insulated tumblers under Stanley as the Quencher, the item a shopper weighs against a YETI Rambler at the same shelf and price.",
+      "reporting": {
+        "calendar": "annual",
+        "calendar_source": "company is private; no periodic report is published",
+        "currency": "USD",
+        "fy_end": "",
+        "regime": "privately held; no public periodic reporting",
+        "resolved_by": "agent",
+        "source": "none"
+      },
+      "venue": "private"
+    },
+    {
+      "brands": [
+        "Owala",
+        "FreeSip"
+      ],
+      "company": "Trove Brands, LLC",
+      "concentration": {
+        "dominant_line": "reusable insulated water bottles",
+        "evidence": "Privately held; publishes no periodic financial report. Its consumer range under Owala is reusable drinkware, established from the product range it sells rather than from a disclosure.",
+        "no_public_report": true,
+        "revenue_readable": false,
+        "share_of_revenue": null,
+        "source_url": ""
+      },
+      "country_of_domicile": "US",
+      "products": [
+        {
+          "asin": "B085DTZQNZ",
+          "brand": "FreeSip",
+          "continuity_reason": "The 24 oz FreeSip is the core size of Owala's permanent bottle line, listed since 2020 in a standard colourway.",
+          "marketplace": "amazon.com",
+          "name": "Owala FreeSip Stainless Steel Water Bottle 24 oz Very, Very Dark",
+          "verification": {
+            "asin_on_page": true,
+            "availability_seen": "buy box not rendered in the static HTML (loaded by script); availability not established",
+            "checked_at": "2026-10-12T19:42:55Z",
+            "http_status": 200,
+            "is_variant_child": true,
+            "marketplace": "amazon.com",
+            "parent_asin_seen": "B0FLKGX4B7",
+            "route": "http-direct",
+            "status": "resolved",
+            "title_seen": "Owala FreeSip Stainless Steel Water Bottle 24 oz Very, Very Dark",
+            "url": "https://www.amazon.com/dp/B085DTZQNZ"
+          }
+        }
+      ],
+      "reason": "Sells insulated stainless steel water bottles under Owala as the FreeSip, bought instead of a YETI Rambler or a Stanley Quencher for the same everyday use.",
+      "reporting": {
+        "calendar": "annual",
+        "calendar_source": "company is private; no periodic report is published",
+        "currency": "USD",
+        "fy_end": "",
+        "regime": "privately held; no public periodic reporting",
+        "resolved_by": "agent",
+        "source": "none"
+      },
+      "venue": "private"
+    }
+  ],
+  "peer_relative_reading": true,
+  "seed": "insulated stainless steel drinkware",
+  "seed_kind": "category",
+  "solo": false,
+  "substitutability_test": "Would a consumer shopping for this seed's product consider this company's product instead of it, as a direct alternative for the same need, at the same point of purchase? If yes, it is a peer. Size, country, listing venue and currency are irrelevant to the answer."
+}

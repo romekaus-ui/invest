@@ -51,6 +51,7 @@ import argparse
 import datetime as dt
 import gzip
 import hashlib
+import html
 import json
 import os
 import re
@@ -59,8 +60,17 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from html.parser import HTMLParser
 
 GROUPS_DIR = os.path.join("data", "peer_groups")
+
+# Bumped when the shape of a declaration changes. `verify` hash-checks every
+# frozen file but only contract-validates files at the CURRENT schema: a group
+# frozen under an older shape is reported as not revalidated rather than as
+# broken. Without this, one schema change would make every past declaration
+# look like an integrity violation forever, and the real ones would be lost in
+# the noise. Schema 1 is the CONTRACTS.md §1 shape (2026-10-12).
+SCHEMA_VERSION = 1
 READINGS = os.path.join("results", "readings.jsonl")
 
 GROUP_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,48}$")
@@ -71,6 +81,25 @@ YEAR_RE = re.compile(r"\b(19[5-9][0-9]|20[0-4][0-9])\b")
 SEED_KINDS = ("company", "brand", "category")
 CALENDARS = ("quarterly", "half-yearly", "annual", "irregular")
 RESOLVED_BY = ("edgar", "agent")
+
+# CONTRACTS.md §1 `reporting.source`. The contract names four; a global group
+# needs more, because Sonova files to SIX, Samsung to the Korean DART system and
+# Red Bull is an Austrian GmbH with statutory accounts only. Extended rather
+# than bent: a value outside this set cannot be recorded, and the four the
+# contract names are kept spelled exactly as it spells them. Raised as
+# amendment A3 in CHANGELOG.md.
+REPORTING_SOURCES = ("SEC", "companies-house", "EDINET", "none",
+                     "TDnet", "SIX", "DART", "other-national")
+
+GROUPS_VIEW_DIR = "groups"
+VENUE_RE = re.compile(r"^[A-Z0-9.\-]{2,12}:[A-Z0-9.\-]{1,12}$")
+
+# PLAN.md's filter has no number in it, so one is chosen here and recorded.
+# 0.60 is deliberately permissive: it admits a company with a clear dominant
+# line plus a real secondary business, and excludes the four-segment
+# conglomerate the filter exists to keep out. It is the threshold most likely to
+# be wrong, and it is one constant so it can be argued with.
+CONCENTRATION_FLOOR = 0.60
 
 MIN_REASON_CHARS = 60
 MIN_CONTINUITY_CHARS = 30
@@ -166,6 +195,10 @@ CONTINUITY_ANCHORS = (
 
 def now_iso():
     return dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def today():
+    return dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d")
 
 
 def canon(text):
@@ -281,6 +314,8 @@ def versions_of(group_id, groups_dir=GROUPS_DIR):
     if not os.path.isdir(groups_dir):
         return found
     for name in sorted(os.listdir(groups_dir)):
+        if os.path.isdir(os.path.join(groups_dir, name)):
+            continue
         m = VERSION_RE.match(name)
         if m and m.group("gid") == group_id:
             found.append((int(m.group("n")), os.path.join(groups_dir, name)))
@@ -292,6 +327,8 @@ def all_group_ids(groups_dir=GROUPS_DIR):
     if not os.path.isdir(groups_dir):
         return []
     for name in os.listdir(groups_dir):
+        if os.path.isdir(os.path.join(groups_dir, name)):
+            continue
         m = VERSION_RE.match(name)
         if m:
             ids.add(m.group("gid"))
@@ -355,14 +392,16 @@ def validate(group, allow_unverified=False):
     if not GROUP_ID_RE.match(gid):
         p.append("group_id %r: must match %s" % (gid, GROUP_ID_RE.pattern))
 
-    seed = group.get("seed")
-    if not isinstance(seed, dict):
-        p.append("seed: missing; §2 requires the group to record what it came from")
-    else:
-        if seed.get("kind") not in SEED_KINDS:
-            p.append("seed.kind %r: must be one of %s" % (seed.get("kind"), ", ".join(SEED_KINDS)))
-        if not _s(seed, "value"):
-            p.append("seed.value: empty")
+    if not _s(group, "seed"):
+        p.append("seed: empty. CONTRACTS.md §1 - the group records what it was "
+                 "grown from, as a string")
+    if group.get("seed_kind") not in SEED_KINDS:
+        p.append("seed_kind %r: must be one of %s"
+                 % (group.get("seed_kind"), ", ".join(SEED_KINDS)))
+    declared = _s(group, "declared_at")
+    if declared and not re.match(r"^\d{4}-\d{2}-\d{2}$", declared):
+        p.append("declared_at %r: CONTRACTS.md §1 requires a DATE, never a "
+                 "wall-clock during collection" % declared)
 
     if _s(group, "substitutability_test") != SUBSTITUTABILITY_TEST:
         p.append("substitutability_test: must be the frozen wording verbatim; "
@@ -393,6 +432,7 @@ def validate(group, allow_unverified=False):
 
     seen_company = {}
     seen_asin = {}
+    seen_parent = {}
     for i, m in enumerate(members):
         tag = "members[%d]" % i
         if not isinstance(m, dict):
@@ -408,7 +448,7 @@ def validate(group, allow_unverified=False):
                 p.append("%s.company: duplicate of members[%d]" % (tag, seen_company[key]))
             seen_company[key] = i
 
-        p.extend(_validate_listing(m, tag))
+        p.extend(_validate_venue(m, tag))
         p.extend(_validate_reporting(m, tag))
 
         brands = m.get("brands")
@@ -418,34 +458,48 @@ def validate(group, allow_unverified=False):
             brands = []
         brands = [b.strip() for b in brands if isinstance(b, str) and b.strip()]
 
+        p.extend(_validate_concentration(m, tag))
         p.extend(_validate_reason(m, tag, brands))
-        p.extend(_validate_products(m, tag, brands, seen_asin, i, allow_unverified))
+        p.extend(_validate_products(m, tag, brands, seen_asin, seen_parent, i,
+                                    allow_unverified))
 
     return p
 
 
-def _validate_listing(m, tag):
+def _validate_venue(m, tag):
+    """CONTRACTS.md §1: `venue` is "EXCHANGE:TICKER", or the string "private".
+
+    A private company is a full member. §2 and PLAN.md both say so, and for the
+    tone comparison a private competitor is the category control - only the
+    company whose revenue is eventually wanted has to be public.
+    """
     p = []
-    listing = m.get("listing")
-    if not isinstance(listing, dict):
-        p.append("%s.listing: missing; record a ticker and exchange, or "
-                 '{"status": "private"}' % tag)
+    venue = _s(m, "venue")
+    if not venue:
+        p.append('%s.venue: empty. Record "EXCHANGE:TICKER", or "private"' % tag)
         return p
-    status = _s(listing, "status")
-    if status == "private":
+    if venue == "private":
         return p
-    if status and status != "listed":
-        p.append("%s.listing.status %r: must be 'listed' or 'private'" % (tag, status))
-    if not _s(listing, "ticker"):
-        p.append("%s.listing.ticker: empty (use status 'private' if it is "
-                 "not listed)" % tag)
-    if not _s(listing, "exchange"):
-        p.append("%s.listing.exchange: empty. Venue does not matter for tone "
-                 "but it is how the company is identified" % tag)
-    cik = _s(listing, "cik")
+    if not VENUE_RE.match(venue):
+        p.append('%s.venue %r: must be "EXCHANGE:TICKER" (e.g. "NASDAQ:IRBT") '
+                 'or exactly "private"' % (tag, venue))
+    cik = _s(m, "cik")
     if cik and not re.match(r"^\d{10}$", cik):
-        p.append("%s.listing.cik %r: must be 10 digits, zero-padded" % (tag, cik))
+        p.append("%s.cik %r: must be 10 digits, zero-padded" % (tag, cik))
     return p
+
+
+def venue_is_private(m):
+    return _s(m, "venue") == "private"
+
+
+def venue_parts(m):
+    """(exchange, ticker) or (None, None) for a private member."""
+    venue = _s(m, "venue")
+    if venue == "private" or ":" not in venue:
+        return None, None
+    ex, tk = venue.split(":", 1)
+    return ex, tk
 
 
 def _validate_reporting(m, tag):
@@ -464,20 +518,133 @@ def _validate_reporting(m, tag):
     if rep.get("calendar") not in CALENDARS:
         p.append("%s.reporting.calendar %r: must be one of %s"
                  % (tag, rep.get("calendar"), ", ".join(CALENDARS)))
+    if rep.get("source") not in REPORTING_SOURCES:
+        p.append("%s.reporting.source %r: CONTRACTS.md §1 - must be one of %s"
+                 % (tag, rep.get("source"), ", ".join(REPORTING_SOURCES)))
     if not _s(rep, "regime"):
-        p.append("%s.reporting.regime: empty (e.g. 'SEC 10-Q', 'FCA DTR 4 "
-                 "half-yearly', 'TDnet quarterly / EDINET')" % tag)
+        p.append("%s.reporting.regime: empty (e.g. 'SEC 10-Q', 'SIX half-year "
+                 "to 30 September', 'TDnet quarterly / EDINET'). The contract's "
+                 "`source` says which system; `regime` says what it files and "
+                 "how often, which is what §5 needs" % tag)
     cur = _s(rep, "currency")
     if not CURRENCY_RE.match(cur):
         p.append("%s.reporting.currency %r: must be a 3-letter ISO 4217 code. "
                  "§5 forbids silent conversion, so the native currency is "
                  "recorded even when it is awkward" % (tag, cur))
-    if not _s(rep, "source"):
-        p.append("%s.reporting.source: empty. Say where the calendar was read "
-                 "from, so a wrong one can be traced" % tag)
+    if not _s(rep, "calendar_source"):
+        p.append("%s.reporting.calendar_source: empty. Say where the calendar "
+                 "was read from, so a wrong one can be traced" % tag)
     if rep.get("resolved_by") not in RESOLVED_BY:
         p.append("%s.reporting.resolved_by %r: must be one of %s"
                  % (tag, rep.get("resolved_by"), ", ".join(RESOLVED_BY)))
+    return p
+
+
+def _validate_concentration(m, tag):
+    """PLAN.md's concentration filter. CONTRACTS.md §1: no evidence, no member.
+
+    Review tone on a handful of products can only say something about a
+    company's revenue if those products ARE most of the revenue. A company with
+    800 SKUs across four reportable segments can have its reviews sour while
+    revenue is driven by something nobody reviews.
+
+    The filter is about where the revenue comes from, which is a hair's breadth
+    from the performance language §2 forbids - so the distinction is held
+    mechanically. `dominant_line` and `share_of_revenue` are structured fields
+    about WHAT is sold, not free prose, and the performance lexicon is still
+    applied to `evidence`. A concentration note may say "92% of revenue is
+    robot vacuums"; it may not say the line is growing, profitable or
+    attractive.
+
+    `share_of_revenue` is nullable, because plenty of focused companies do not
+    disclose a split - a single-segment filer's "100%" is an inference, not a
+    disclosure. Null with real evidence is admissible and honest; a made-up
+    number is neither.
+    """
+    p = []
+    c = m.get("concentration")
+    if not isinstance(c, dict):
+        p.append("%s.concentration: missing. CONTRACTS.md §1 - a member with no "
+                 "concentration evidence is not a member" % tag)
+        return p
+    if not _s(c, "dominant_line"):
+        p.append("%s.concentration.dominant_line: empty. Name the product line "
+                 "that dominates revenue, in the words the filing uses" % tag)
+
+    # CONTRACTS.md §1 holds two rules that collide on a private company: every
+    # member needs concentration evidence from its own filing, AND a private
+    # member is valid and useful as a category control. Bose, Stanley/PMI and
+    # DJI publish no financial report at all, so the first rule would delete
+    # the members the second one asks for.
+    #
+    # Resolved by asking what the evidence is FOR. Concentration exists so that
+    # a tone series can be connected to a revenue series. A private member has
+    # no revenue series to connect to - it is in the group to tell a
+    # category-wide tone move from a company-specific one, and that job needs
+    # no filing. So a private member may declare `no_public_report: true`, which
+    # requires saying what it sells and where that was established, and marks
+    # the member as one whose revenue is never readable. A PUBLIC member is
+    # never exempt. Raised as amendment A1 in CHANGELOG.md.
+    no_report = bool(c.get("no_public_report"))
+    if no_report and not venue_is_private(m):
+        p.append("%s.concentration.no_public_report: set on a LISTED member. "
+                 "Only a private company may use it; a listed one files" % tag)
+        no_report = False
+
+    if not _s(c, "evidence"):
+        p.append("%s.concentration.evidence: empty. Cite the company's own "
+                 "filing - segment disclosure or revenue by product category. "
+                 "PLAN.md: never asserted" % tag)
+    url = _s(c, "source_url")
+    if not url and not no_report:
+        p.append("%s.concentration.source_url: empty" % tag)
+    elif url and not url.startswith("https://"):
+        p.append("%s.concentration.source_url %r: must be an https URL to the "
+                 "filing or report itself" % (tag, url[:60]))
+    if no_report:
+        if c.get("share_of_revenue") is not None:
+            p.append("%s.concentration.share_of_revenue: set alongside "
+                     "no_public_report. A company that publishes no report "
+                     "cannot have a disclosed share; null is the honest value"
+                     % tag)
+        if c.get("revenue_readable") is not False:
+            p.append('%s.concentration.revenue_readable: must be false when '
+                     "no_public_report is set. The member contributes tone and "
+                     "a category control, and no revenue series" % tag)
+
+    share = c.get("share_of_revenue")
+    if share is not None:
+        if not isinstance(share, (int, float)) or isinstance(share, bool):
+            p.append("%s.concentration.share_of_revenue %r: a fraction in "
+                     "(0, 1], or null when the company does not disclose a "
+                     "split" % (tag, share))
+        elif not 0 < share <= 1:
+            p.append("%s.concentration.share_of_revenue %r: a FRACTION in "
+                     "(0, 1], not a percentage" % (tag, share))
+        elif share < CONCENTRATION_FLOOR:
+            p.append("%s.concentration.share_of_revenue %.2f is below the %.2f "
+                     "floor. PLAN.md: a company whose dominant line is a "
+                     "minority of revenue cannot have its revenue read from "
+                     "that line's reviews.\n      The line is defined at the "
+                     "level the TRACKED PRODUCTS sit at, so the fix may be to "
+                     "widen it rather than drop the member: YETI's drinkware "
+                     "alone is 58%% of net sales and fails, while the "
+                     "insulated drinkware and coolers it actually sells on "
+                     "Amazon are 98%% and pass. Widening is legitimate only if "
+                     "the tracked products span the wider line."
+                     % (tag, share, CONCENTRATION_FLOOR))
+    # The evidence is a quotation from a filing, not a case for the company.
+    # `evidence` is a CITATION - which filing, which table - not a case for the
+    # company. The full performance lexicon applies, with no exemption beyond
+    # the member's brands: a citation never needs the word "margin" in it, and
+    # a concentration note that reaches for one has stopped citing and started
+    # arguing.
+    for hit in lexicon_hits(c.get("evidence"), PERFORMANCE_LEXICON,
+                            exempt=m.get("brands") or []):
+        p.append("%s.concentration.evidence: %r reads as a performance claim. "
+                 "The evidence cites which filing and which table said what is "
+                 "sold and in what proportion, not how the company is doing"
+                 % (tag, hit))
     return p
 
 
@@ -513,7 +680,7 @@ def _validate_reason(m, tag, brands):
     return p
 
 
-def _validate_products(m, tag, brands, seen_asin, idx, allow_unverified):
+def _validate_products(m, tag, brands, seen_asin, seen_parent, idx, allow_unverified):
     """§2: the specific product identifiers, chosen for continuity."""
     p = []
     products = m.get("products")
@@ -538,9 +705,9 @@ def _validate_products(m, tag, brands, seen_asin, idx, allow_unverified):
         if mk not in MARKETPLACES:
             p.append("%s.marketplace %r: unknown. Known: %s"
                      % (ptag, mk, ", ".join(sorted(MARKETPLACES))))
-        if not _s(pr, "title_at_declare"):
-            p.append("%s.title_at_declare: empty. The title at declaration is "
-                     "how a silently relisted ASIN is caught later" % ptag)
+        if not _s(pr, "name"):
+            p.append("%s.name: empty. The name at declaration is how a silently "
+                     "relisted ASIN is caught later" % ptag)
         brand = _s(pr, "brand")
         if not brand:
             p.append("%s.brand: empty" % ptag)
@@ -550,6 +717,20 @@ def _validate_products(m, tag, brands, seen_asin, idx, allow_unverified):
         p.extend(_validate_continuity(pr, ptag, brands))
         p.extend(_validate_verification(pr, ptag, allow_unverified))
         p.extend(_validate_title_agreement(pr, ptag, brand))
+
+        # Amazon serves reviews at the PARENT asin, pooled across variants, so
+        # two members tracking children of one parent would be handed the same
+        # reviews and their "peer-relative" tone would be a comparison of a
+        # series with itself. Caught here because nothing downstream could tell.
+        parent = _s((pr.get("verification") or {}), "parent_asin_seen")
+        if parent:
+            if parent in seen_parent and seen_parent[parent] != idx:
+                p.append("%s: parent ASIN %s is already tracked by members[%d]. "
+                         "Reviews are served at the parent, so both members "
+                         "would be scored on the same reviews"
+                         % (ptag, parent, seen_parent[parent]))
+            else:
+                seen_parent[parent] = idx
     return p
 
 
@@ -563,7 +744,7 @@ def _validate_title_agreement(pr, ptag, brand):
 
     It does NOT catch an accessory: "Earpads Replacement for JBL Tour One M3"
     carries the brand too. That one is on the reader of the title, and it is
-    why `title_at_declare` is compared to what was served rather than trusted.
+    why `name` is compared to what was served rather than trusted.
     """
     out = []
     v = pr.get("verification") or {}
@@ -578,12 +759,11 @@ def _validate_title_agreement(pr, ptag, brand):
                    "marketplace served (%r). Either the ASIN belongs to a "
                    "different product or the brand is mis-recorded"
                    % (ptag, brand, seen[:90]))
-    declared = _s(pr, "title_at_declare")
+    declared = _s(pr, "name")
     if declared and canon(declared) != canon(seen):
-        out.append("%s.title_at_declare %r does not match the served title "
-                   "%r. Record what the marketplace actually serves, so a "
-                   "silently relisted ASIN is visible later"
-                   % (ptag, declared[:60], seen[:60]))
+        out.append("%s.name %r does not match the served title %r. Record what "
+                   "the marketplace actually serves, so a silently relisted "
+                   "ASIN is visible later" % (ptag, declared[:60], seen[:60]))
     return out
 
 
@@ -791,10 +971,10 @@ def mode_resolve_us(args):
         sys.exit("could not fetch the SEC ticker index; nothing changed")
     touched, skipped = [], []
     for m in draft.get("members") or []:
-        listing = m.get("listing") or {}
-        tk = (listing.get("ticker") or "").strip().upper()
-        if not tk or listing.get("status") == "private":
-            skipped.append("%s: no ticker" % m.get("company"))
+        _, tk = venue_parts(m)
+        tk = (tk or "").strip().upper()
+        if not tk:
+            skipped.append("%s: private or no ticker" % m.get("company"))
             continue
         hit = idx.get(tk)
         if not hit:
@@ -802,19 +982,17 @@ def mode_resolve_us(args):
                            "registrant under that symbol" % (m.get("company"), tk))
             continue
         cik, exch = hit
-        listing["cik"] = cik
-        if exch and not listing.get("exchange"):
-            listing["exchange"] = exch
-        m["listing"] = listing
+        m["cik"] = cik
         rep = us_reporting(cik) or {}
         if rep.get("confident"):
             m["reporting"] = {
                 "calendar": rep["calendar"],
-                "regime": rep["regime"],
                 "currency": (m.get("reporting") or {}).get("currency") or "USD",
+                "source": "SEC",
+                "regime": rep["regime"],
                 "fy_end": rep.get("fy_end"),
-                "source": "SEC EDGAR submissions CIK%s, forms seen: %s"
-                          % (cik, ", ".join(rep.get("forms_seen") or [])),
+                "calendar_source": "SEC EDGAR submissions CIK%s, forms seen: %s"
+                                   % (cik, ", ".join(rep.get("forms_seen") or [])),
                 "resolved_by": "edgar",
             }
             touched.append("%s: %s, fy_end %s" % (m.get("company"),
@@ -1054,7 +1232,7 @@ def comparability(group):
             cal[rep["calendar"]] = cal.get(rep["calendar"], 0) + 1
         if _s(rep, "currency"):
             cur[rep["currency"]] = cur.get(rep["currency"], 0) + 1
-        if (m.get("listing") or {}).get("status") == "private":
+        if venue_is_private(m):
             no_public.append(m.get("company"))
     return {
         "marketplaces": mk,
@@ -1097,6 +1275,259 @@ def print_comparability(c):
     return out
 
 
+# ----------------------------------------------- concentration from filings
+
+ANNUAL_FORMS = ("10-K", "10-K/A", "20-F", "20-F/A", "40-F", "40-F/A")
+ARCHIVE_DOC = "https://www.sec.gov/Archives/edgar/data/{cik}/{accn}/{doc}"
+FILING_INDEX = "https://www.sec.gov/Archives/edgar/data/{cik}/{accn}/"
+
+# Where a revenue split is actually disclosed. Lifted from the archived
+# scorecard's c3/c6 probes (archive/historical-harness/scripts/
+# score_eligibility.py), which were solving this same question and were right
+# about where to look. Fixed deliberately: the same questions are asked of
+# every company in the same words, so the evidence gathered does not vary with
+# how interesting a company looks.
+CONCENTRATION_PROBES = (
+    ("segments", r"(?:one|two|three|four|five|six|seven|eight|nine|ten|[0-9]+) "
+                 r"(?:reportable|operating) segments?"),
+    ("single_segment", r"(?:one|a single) (?:reportable|operating) segment"),
+    ("disaggregation", r"disaggregat(?:ion|ed) of revenue"),
+    ("by_category", r"(?:net sales|revenues?) (?:revenue )?by "
+                    r"(?:product |major )?(?:segment|product|categor|line|"
+                    r"geograph)"),
+    ("table_intro", r"the following table (?:summarizes|presents|sets forth|"
+                    r"disaggregates)[^.]{0,90}(?:segment|net sales|revenue)"),
+    ("percent_of_revenue", r"(?:represented|accounted for|comprised|was|were) "
+                           r"(?:approximately )?[0-9]{1,3}(?:\.[0-9])?%[^.]{0,90}"
+                           r"(?:net sales|net revenue|revenues?|total)"),
+)
+
+
+class _Text(HTMLParser):
+    def __init__(self):
+        HTMLParser.__init__(self)
+        self.out = []
+        self._skip = 0
+
+    def handle_starttag(self, tag, attrs):
+        if tag in ("script", "style"):
+            self._skip += 1
+
+    def handle_endtag(self, tag):
+        if tag in ("script", "style") and self._skip:
+            self._skip -= 1
+
+    def handle_data(self, data):
+        if not self._skip:
+            self.out.append(data)
+
+    def text(self):
+        return re.sub(r"\s+", " ", html.unescape(" ".join(self.out)))
+
+
+def flatten_html(raw):
+    pr = _Text()
+    try:
+        pr.feed(raw.decode("utf-8", "replace"))
+    except Exception:
+        return ""
+    return pr.text()
+
+
+def latest_annual(cik):
+    """The most recent annual report. Not point-in-time: concentration is a
+    statement about the company NOW, so the newest filing is the right one.
+    (The archived harness needed the filing in force at a past formation date;
+    this component has no formation date, because nothing here is backtested.)
+    """
+    data = sec_json(SUBMISSIONS_URL.format(cik=cik))
+    if not data:
+        return None
+    r = (data.get("filings") or {}).get("recent") or {}
+    rows = list(zip(r.get("form") or [], r.get("filingDate") or [],
+                    r.get("accessionNumber") or [],
+                    r.get("primaryDocument") or []))
+    annual = [x for x in rows if x[0] in ANNUAL_FORMS]
+    if not annual:
+        return None
+    annual.sort(key=lambda x: x[1])
+    form, filed, accn, doc = annual[-1]
+    return {"form": form, "filed": filed, "accession": accn,
+            "primary_document": doc, "entity": data.get("name"),
+            "url": ARCHIVE_DOC.format(cik=str(int(cik)),
+                                      accn=accn.replace("-", ""), doc=doc)}
+
+
+def concentration_evidence(cik, window=320):
+    """Verbatim windows from the company's own latest annual report.
+
+    The point is that the share figure cannot be recalled from memory and
+    written down as if it were read. The script fetches the filing, captures
+    the sentences around each fixed probe verbatim, and records the URL it
+    actually fetched. The agent reads the number off that text.
+    """
+    f = latest_annual(cik)
+    if not f:
+        return {"ok": False, "why": "no annual report found for CIK%s" % cik}
+    status, raw = http_get(f["url"], {
+        "User-Agent": sec_ua(), "Accept-Encoding": "gzip, deflate",
+        "Accept": "*/*"}, rate=0.3)
+    if raw is None:
+        return {"ok": False, "why": "could not fetch %s (status %s)"
+                                    % (f["url"], status), "filing": f}
+    text = flatten_html(raw)
+    hits = {}
+    for name, pat in CONCENTRATION_PROBES:
+        found = []
+        for m in re.finditer(pat, text, re.I):
+            a = max(0, m.start() - window // 2)
+            found.append(text[a:m.end() + window].strip())
+            if len(found) >= 3:
+                break
+        if found:
+            hits[name] = found
+    return {"ok": True, "filing": f, "chars": len(text), "probes": hits,
+             "fetched_at": now_iso()}
+
+
+def mode_concentration(args):
+    """Fetch concentration evidence for every member SEC knows, and save it.
+
+    Writes data/peer_groups/<id>.concentration.json. The declaration's
+    `source_url` must appear in that file, which is what ties the recorded
+    share to a filing the script actually read.
+    """
+    draft = read_json(args.draft)
+    gid = _s(draft, "group_id")
+    out_path = os.path.join(GROUPS_DIR, "%s.concentration.json" % gid)
+    store = read_json(out_path) if os.path.exists(out_path) else {}
+    idx = ticker_index()
+    for m in draft.get("members") or []:
+        company = m.get("company")
+        cik = _s(m, "cik")
+        if not cik:
+            _, tk = venue_parts(m)
+            hit = idx.get((tk or "").upper())
+            cik = hit[0] if hit else ""
+        if not cik:
+            print("  %-34s no CIK - evidence must be recorded by hand with a "
+                  "source_url to the company's own report" % company)
+            continue
+        if args.only_missing and company in store and store[company].get("ok"):
+            print("  %-34s already have it" % company)
+            continue
+        ev = concentration_evidence(cik)
+        store[company] = ev
+        if ev.get("ok"):
+            f = ev["filing"]
+            print("  %-34s %s filed %s  probes: %s" % (
+                company, f["form"], f["filed"],
+                ", ".join("%s(%d)" % (k, len(v)) for k, v in sorted(ev["probes"].items()))
+                or "NONE"))
+            print("      %s" % f["url"])
+        else:
+            print("  %-34s FAILED: %s" % (company, ev.get("why")))
+    write_json(out_path, store)
+    print("\nevidence: %s" % out_path)
+    print("Read the probe windows, record dominant_line / share_of_revenue / "
+          "evidence / source_url per member, then `check`.")
+    return 0
+
+
+# ------------------------------------------------- the CONTRACTS.md §1 view
+
+# Exactly the keys CONTRACTS.md §1 names, in its order, per member.
+CONTRACT_MEMBER_KEYS = ("company", "venue", "brands", "concentration",
+                        "products", "reporting")
+CONTRACT_PRODUCT_KEYS = ("asin", "marketplace", "name")
+CONTRACT_REPORTING_KEYS = ("calendar", "currency", "source")
+
+
+def content_hash(view):
+    """sha256 of the file minus the hash field (CONTRACTS.md §1).
+
+    Computed over the same canonical serialisation the file is written with, so
+    a reader recomputes it by deleting `hash`, re-serialising and comparing.
+    """
+    bare = {k: v for k, v in view.items() if k != "hash"}
+    return sha256_bytes(dumps(bare).encode("utf-8"))
+
+
+def contract_view(group):
+    """The group as CONTRACTS.md §1 shapes it, for the workflow to read.
+
+    The versioned file under data/peer_groups/ stays the declaration of record:
+    append-only, hash-chained, never rewritten. This is the view of its current
+    version at the path the workflow was told to read. It is generated, never
+    hand-edited, and it carries `version` and `supersedes` so a reader of the
+    view alone can tell a first declaration from a third and go find the ones
+    it replaced.
+
+    The fields §1 names come first and are mandatory. The fields this component
+    adds - the reason, the continuity reason, the verification record, the
+    parent ASIN, the comparability block - are carried through beside them,
+    because each one encodes a CORE-PROMPT §2 rule that §1 has no slot for.
+    They are additive: a reader that knows only §1 is unaffected.
+    """
+    members = []
+    for m in group.get("members") or []:
+        out = {k: m.get(k) for k in CONTRACT_MEMBER_KEYS}
+        out["products"] = [
+            dict({k: pr.get(k) for k in CONTRACT_PRODUCT_KEYS},
+                 continuity_reason=pr.get("continuity_reason"),
+                 parent_asin=(pr.get("verification") or {}).get("parent_asin_seen"),
+                 verification=pr.get("verification"))
+            for pr in m.get("products") or []]
+        rep = m.get("reporting") or {}
+        out["reporting"] = dict({k: rep.get(k) for k in CONTRACT_REPORTING_KEYS},
+                                **{k: v for k, v in rep.items()
+                                   if k not in CONTRACT_REPORTING_KEYS})
+        out["reason"] = m.get("reason")
+        for extra in ("cik", "country_of_domicile", "secondary_listings"):
+            if m.get(extra):
+                out[extra] = m[extra]
+        members.append(out)
+
+    view = {
+        "group_id": group["group_id"],
+        "declared_at": group["declared_at"],
+        "seed": group["seed"],
+        "members": members,
+        # beyond §1, and load-bearing
+        "seed_kind": group.get("seed_kind"),
+        "version": group["version"],
+        "supersedes": group.get("supersedes"),
+        "revision_reason": group.get("revision_reason"),
+        "peer_relative_reading": group["peer_relative_reading"],
+        "solo": bool(group.get("solo")),
+        "solo_reason": group.get("solo_reason"),
+        "substitutability_test": group["substitutability_test"],
+        "comparability": group.get("comparability"),
+        "readings_at_declare": group.get("readings_at_declare"),
+        "post_collection": group.get("post_collection"),
+        "declared_by": group.get("declared_by"),
+        "record_of_declaration": "data/peer_groups/%s.v%d.json"
+                                 % (group["group_id"], group["version"]),
+    }
+    view["hash"] = content_hash(view)
+    return view
+
+
+def write_contract_view(group, groups_dir=GROUPS_VIEW_DIR):
+    view = contract_view(group)
+    path = os.path.join(groups_dir, "%s.json" % group["group_id"])
+    write_json(path, view)
+    return path, view["hash"]
+
+
+def verify_contract_view(path):
+    """Does the view's own `hash` still describe its contents?"""
+    view = read_json(path)
+    recorded = view.get("hash")
+    actual = content_hash(view)
+    return recorded == actual, recorded, actual
+
+
 # -------------------------------------------------------------------- modes
 
 def mode_draft(args):
@@ -1112,7 +1543,8 @@ def mode_draft(args):
               % (gid, ", ".join("v%d" % n for n, _ in versions_of(gid))))
     skeleton = {
         "group_id": gid,
-        "seed": {"kind": args.seed_kind, "value": args.seed},
+        "seed": args.seed,
+        "seed_kind": args.seed_kind,
         "substitutability_test": SUBSTITUTABILITY_TEST,
         "solo": False,
         "peer_relative_reading": True,
@@ -1127,14 +1559,17 @@ def mode_draft(args):
 def _member_skeleton():
     return {
         "company": "",
+        "venue": "",
+        "cik": "",
         "country_of_domicile": "",
-        "listing": {"status": "listed", "ticker": "", "exchange": "", "cik": ""},
         "brands": [],
+        "concentration": {"dominant_line": "", "share_of_revenue": None,
+                          "evidence": "", "source_url": ""},
         "reason": "",
-        "reporting": {"calendar": "", "regime": "", "currency": "",
-                      "fy_end": "", "source": "", "resolved_by": "agent"},
+        "reporting": {"calendar": "", "currency": "", "source": "",
+                      "regime": "", "fy_end": "", "resolved_by": "agent"},
         "products": [{"asin": "", "marketplace": "amazon.com", "brand": "",
-                      "title_at_declare": "", "continuity_reason": ""}],
+                      "name": "", "continuity_reason": ""}],
     }
 
 
@@ -1175,8 +1610,13 @@ def _freeze(draft, version, supersedes, revision_reason, allow_unverified):
 
     n_readings = readings_for(gid)
     group = dict(draft)
+    group["schema_version"] = SCHEMA_VERSION
     group["version"] = version
-    group["declared_at"] = now_iso()
+    # CONTRACTS.md §1: a DATE, never a wall-clock during collection. The exact
+    # instant is kept beside it, because the freeze is also a provenance event
+    # and losing the time would make two same-day versions indistinguishable.
+    group["declared_at"] = today()
+    group["declared_at_utc"] = now_iso()
     group["readings_at_declare"] = n_readings
     group["post_collection"] = n_readings > 0
     group["declared_by"] = {
@@ -1192,8 +1632,10 @@ def _freeze(draft, version, supersedes, revision_reason, allow_unverified):
 
     digest = write_json(path, group)
     line = write_hash_file(path, digest, group)
+    view_path, view_hash = write_contract_view(group)
     print("declared: %s" % path)
     print("hash:     %s" % hash_path(path))
+    print("contract: %s  (hash %s)" % (view_path, view_hash[:12]))
     print("  " + line.strip())
     notes = print_comparability(group["comparability"])
     if notes:
@@ -1286,8 +1728,8 @@ def mode_show(args):
     recorded = _recorded_hash(path)
     print("%s v%d  %s" % (gid, n, path))
     print("  declared_at          %s" % group.get("declared_at"))
-    print("  seed                 %s: %s" % ((group.get("seed") or {}).get("kind"),
-                                             (group.get("seed") or {}).get("value")))
+    print("  seed                 %s: %s" % (group.get("seed_kind"),
+                                             group.get("seed")))
     print("  sha256               %s" % digest)
     print("  sidecar              %s" % (recorded or "MISSING"))
     print("  hash matches         %s" % ("yes" if recorded == digest else "NO"))
@@ -1297,12 +1739,9 @@ def mode_show(args):
     print("  versions             %s" % ", ".join("v%d" % k for k, _ in existing))
     print("  members")
     for m in group.get("members") or []:
-        lst = m.get("listing") or {}
-        venue = ("private" if lst.get("status") == "private"
-                 else "%s:%s" % (lst.get("exchange"), lst.get("ticker")))
         rep = m.get("reporting") or {}
         print("    %-34s %-16s %-12s %s" % (
-            m.get("company"), venue,
+            m.get("company"), _s(m, "venue"),
             "%s/%s" % (rep.get("calendar"), rep.get("currency")),
             ", ".join(p.get("asin") for p in m.get("products") or [])))
     return 0 if recorded == digest else 1
@@ -1328,7 +1767,7 @@ def mode_verify(args):
     if not gids:
         print("no frozen peer groups in %s" % GROUPS_DIR)
         return 0
-    broken, chain_broken, ok = [], [], 0
+    broken, chain_broken, stale, ok = [], [], [], 0
     for gid in gids:
         prev_sha = None
         for n, path in versions_of(gid):
@@ -1353,15 +1792,107 @@ def mode_verify(args):
                 if not _s(group, "revision_reason"):
                     chain_broken.append("%s v%d: no revision_reason" % (gid, n))
             prev_sha = digest
-            problems = validate(group, allow_unverified=True)
-            for pr in problems:
+            if group.get("schema_version") != SCHEMA_VERSION:
+                stale.append("%s v%d: schema %s, current is %d - hash checked, "
+                             "contract not revalidated"
+                             % (gid, n, group.get("schema_version"), SCHEMA_VERSION))
+                continue
+            for pr in validate(group, allow_unverified=True):
                 broken.append("%s v%d: %s" % (gid, n, pr))
     print("%d version(s) hash-clean" % ok)
     for b in broken:
         print("  BREAK  " + b)
     for c in chain_broken:
         print("  CHAIN  " + c)
+    for t in stale:
+        print("  STALE  " + t)
     return 1 if (broken or chain_broken) else 0
+
+
+def mode_stage(args):
+    """CONTRACTS.md §4 stage G: `declare_group.py --group <group_id>`.
+
+    Reports whether stage G is satisfied for this group. Satisfied means: a
+    group file exists, its hash verifies, and every member has concentration
+    evidence. Exit codes are the contract's: 0 ran or reported a clean stop,
+    2 an integrity violation needing a human, 3 not built yet.
+
+    This mode reads a group id and nothing else. No stage reads a path it was
+    not given (§4), which is the line that broke the last integration.
+    """
+    gid = args.group.strip()
+    view_path = os.path.join(GROUPS_VIEW_DIR, "%s.json" % gid)
+    versions = versions_of(gid)
+
+    if not versions and not os.path.exists(view_path):
+        print("G %s: not declared yet" % gid)
+        print("  declare_group.py draft --group-id %s --seed-kind category "
+              "--seed '...'" % gid)
+        return 3
+
+    problems = []
+    if not versions:
+        problems.append("no declaration of record under %s; the contract view "
+                        "exists with nothing behind it" % GROUPS_DIR)
+    else:
+        n, path = versions[-1]
+        if _recorded_hash(path) != sha256_file(path):
+            problems.append("%s was edited in place after it was declared" % path)
+        group = read_json(path)
+        for pr in validate(group, allow_unverified=True):
+            problems.append(pr)
+        if not os.path.exists(view_path):
+            problems.append("no contract view at %s" % view_path)
+        else:
+            ok, recorded, actual = verify_contract_view(view_path)
+            if not ok:
+                problems.append("%s: hash field says %s, contents hash to %s"
+                                % (view_path, (recorded or "none")[:12], actual[:12]))
+            view = read_json(view_path)
+            if view.get("version") != n:
+                problems.append("%s is v%s but the record of declaration is v%d"
+                                % (view_path, view.get("version"), n))
+
+        missing = [m.get("company") for m in group.get("members") or []
+                   if not _s((m.get("concentration") or {}), "evidence")]
+        if missing:
+            problems.append("no concentration evidence: %s (CONTRACTS.md §1 - a "
+                            "member with no evidence is not a member)"
+                            % ", ".join(missing))
+
+    if problems:
+        print("G %s: NOT satisfied" % gid)
+        for pr in problems:
+            print("  - " + pr)
+        return 2
+    group = read_json(versions[-1][1])
+    print("G %s: satisfied  v%d  %d member(s)  %d product(s)"
+          % (gid, versions[-1][0], len(group["members"]),
+             sum(len(m["products"]) for m in group["members"])))
+    print("  record %s" % versions[-1][1])
+    print("  view   %s" % view_path)
+    for n in print_comparability(group.get("comparability") or {}):
+        print("  ! " + n)
+    return 0
+
+
+def mode_reemit(args):
+    """Regenerate the contract view from the declaration of record.
+
+    For a group frozen before the view existed, and as the repair for a view
+    that fails its own hash: the record is the source of truth and the view is
+    derived, so a bad view is rebuilt rather than patched.
+    """
+    gids = [args.group_id] if args.group_id else all_group_ids()
+    for gid in gids:
+        versions = versions_of(gid)
+        if not versions:
+            print("%s: no declaration of record" % gid)
+            continue
+        group = read_json(versions[-1][1])
+        path, h = write_contract_view(group)
+        print("%s -> %s  (v%d, hash %s)" % (gid, path, group["version"], h[:12]))
+    return 0
 
 
 def build_parser():
@@ -1369,7 +1900,10 @@ def build_parser():
         prog="declare_group.py",
         description="Declare a peer group of substitutable consumer products "
                     "(CORE-PROMPT §2). Collects nothing and scores nothing.")
-    sub = ap.add_subparsers(dest="mode", required=True)
+    # CONTRACTS.md §4: every stage is invoked as `script --group <group_id>`.
+    ap.add_argument("--group", help="CONTRACTS.md §4 stage G: report whether "
+                                    "this group's declaration is satisfied")
+    sub = ap.add_subparsers(dest="mode")
 
     d = sub.add_parser("draft", help="skeleton for a seed")
     d.add_argument("--group-id", required=True)
@@ -1415,11 +1949,26 @@ def build_parser():
     v = sub.add_parser("verify", help="re-hash every version; detect an edit")
     v.add_argument("group_id", nargs="?")
     v.set_defaults(fn=mode_verify)
+
+    cn = sub.add_parser("concentration",
+                        help="fetch revenue-concentration evidence from filings")
+    cn.add_argument("draft")
+    cn.add_argument("--only-missing", action="store_true")
+    cn.set_defaults(fn=mode_concentration)
+
+    re_ = sub.add_parser("reemit", help="regenerate the CONTRACTS.md §1 view")
+    re_.add_argument("group_id", nargs="?")
+    re_.set_defaults(fn=mode_reemit)
     return ap
 
 
 def main(argv=None):
-    args = build_parser().parse_args(argv)
+    ap = build_parser()
+    args = ap.parse_args(argv)
+    if getattr(args, "group", None) and not getattr(args, "mode", None):
+        return mode_stage(args)
+    if not getattr(args, "mode", None):
+        ap.error("give a subcommand, or --group <group_id> for the stage check")
     return args.fn(args)
 
 

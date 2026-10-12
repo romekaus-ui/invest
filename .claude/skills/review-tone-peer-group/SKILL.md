@@ -1,6 +1,6 @@
 ---
 name: review-tone-peer-group
-description: Declare a peer group of companies selling substitutable consumer products from a seed — a company, a brand or a product category — and freeze it before any review is collected. Use when asked to build, declare, revise, inspect or verify a peer group for the review-tone monitor, to find who competes with a company on the shelf, or to pick the product identifiers (Amazon ASINs) a company will be tracked by. Declares and verifies only; it never collects reviews and never scores tone.
+description: Declare a peer group of companies selling substitutable consumer products from a seed — a company, a brand or a product category — with revenue-concentration evidence from each member's own filing, frozen before any review is collected. Use when asked to build, declare, revise, inspect or verify a peer group for the review-tone monitor, to screen a candidate pool against the concentration filter, to find who competes with a company on the shelf, or to pick the product identifiers (Amazon ASINs) a company will be tracked by. Declares and verifies only; it never collects reviews and never scores tone.
 ---
 
 # Review Tone Peer Group
@@ -10,8 +10,9 @@ group**: the set of companies selling substitutable consumer products, anywhere 
 world, with the specific products each will be tracked by.
 
 **Read `CORE-PROMPT.md` in the project root in full before doing anything.** §2 is this
-component's specification; §1 is binding on everything. The rules most easily broken in
-the moment:
+component's specification; §1 is binding on everything. Then read **`CONTRACTS.md` §1**
+(the output shape the workflow reads) and **`PLAN.md`'s concentration filter** (which
+decides most memberships). The rules most easily broken in the moment:
 
 - **Declared before collection.** A peer added once tone is known is not a peer, it is a
   choice. A frozen version is never edited; a change is a new version with its reason.
@@ -19,6 +20,9 @@ the moment:
   looks.** The group is about product substitutability and nothing else.
 - **Products are chosen for continuity, not popularity.** An item that will still be sold
   in a year. A bestseller that is discontinued ends a series.
+- **One product line must dominate the member's revenue, evidenced from its own filing.**
+  This is stricter than substitutability and it is the test that usually decides. A
+  member with no evidence is not a member.
 - **Collect nothing here.** Fresh review collection is a separate component. This one's
   output is its input.
 - **No number in prose** (§1.2). The counts, the hash and the comparability block come
@@ -37,16 +41,36 @@ One script, `scripts/declare_group.py`, in a fixed order:
 
 ```bash
 S=.claude/skills/review-tone-peer-group/scripts/declare_group.py
+export SEC_USER_AGENT="Your Name your@email.example"
 
-python3 $S draft --group-id soft-drinks --seed-kind category --seed "carbonated soft drinks"
+# Optional first pass for a whole pool: fetch concentration evidence for every US
+# registrant in data/peer_groups/candidate_pool.json. ~0.7s per company.
+python3 .claude/skills/review-tone-peer-group/scripts/screen_pool.py
+
+python3 $S draft --group-id grills --seed-kind category --seed "outdoor barbecue grills"
 # fill the members in the draft — this is the judgement, see below
 
-export SEC_USER_AGENT="Your Name your@email.example"
-python3 $S resolve-us    data/peer_groups/soft-drinks.draft.json   # CIK + calendar, US only
-python3 $S check-products data/peer_groups/soft-drinks.draft.json  # do the ASINs resolve?
-python3 $S check          data/peer_groups/soft-drinks.draft.json  # validate, freeze nothing
-python3 $S declare        data/peer_groups/soft-drinks.draft.json  # freeze as v1 + .hash
+python3 $S resolve-us     data/peer_groups/grills.draft.json  # CIK + calendar, US only
+python3 $S concentration  data/peer_groups/grills.draft.json  # evidence from own filings
+python3 $S check-products data/peer_groups/grills.draft.json  # do the ASINs resolve?
+python3 $S check          data/peer_groups/grills.draft.json  # validate, freeze nothing
+python3 $S declare        data/peer_groups/grills.draft.json  # freeze v1 + .hash + view
 ```
+
+`declare` writes three things: the versioned **declaration of record** under
+`data/peer_groups/`, its `.hash` sidecar, and the **`CONTRACTS.md` §1 view** at
+`groups/<id>.json` that the workflow reads.
+
+### Stage G
+
+`CONTRACTS.md` §4 invokes every stage as `script --group <group_id>`:
+
+```bash
+python3 $S --group grills     # exit 0 satisfied · 2 integrity violation · 3 not built
+```
+
+It reads a group id and nothing else. Satisfied means a declaration exists, its hash
+verifies, the view matches it, and every member has concentration evidence.
 
 Afterwards:
 
@@ -56,9 +80,11 @@ python3 $S verify                      # re-hash every version; detect an edit i
 python3 $S revise soft-drinks --from-draft <draft> --reason "..."   # v2, with a hash chain
 ```
 
-`check-products` writes the observed title into each product's `verification`. Set
-`title_at_declare` to what the marketplace actually served — the contract compares them,
-which is how a transposed ASIN gets caught.
+`check-products` writes the observed title into each product's `verification`. Set `name`
+to what the marketplace actually served — the contract compares them, which is how a
+transposed ASIN gets caught. It also records `parent_asin_seen`: **reviews are served at
+the parent**, and 14 of the first 15 products declared were variant children, so the
+parent is the real unit of the review pool.
 
 ## Where the judgement happens
 
@@ -78,8 +104,9 @@ the contract is the same either way.
 - `references/substitutability.md` — the frozen test, the selection boundary, and what
   product continuity actually costs per category. **Read before any company or product
   enters or leaves a group.**
-- `references/peer-group-contract.md` — the exact schema, the hash and sidecar format,
-  and what the collector is handed.
+- `references/peer-group-contract.md` — the exact schema, how it implements
+  `CONTRACTS.md` §1, the hash and view format, and **what the collector is handed**,
+  including the parent-ASIN problem.
 
 ## What the script owns
 
@@ -96,6 +123,8 @@ the contract is the same either way.
 5. **Comparability.** The marketplaces, calendars, currencies and private members are
    computed and recorded, so a group spanning them cannot be charted without that being
    visible.
+6. **The concentration floor.** A disclosed share below 0.60 is refused, and a listed
+   member can never claim the private-company evidence exemption.
 
 ## Tests
 
@@ -113,6 +142,10 @@ legitimate reason would plausibly contain is pinned as a must-pass.
 Recorded in `CHANGELOG.md` under 2026-10-11 and summarised here because they change how a
 group should be read:
 
+- **Reviews come from the parent ASIN, not the product.** 14 of 15 declared products are
+  variant children, so what is measured is a variation family.
+- **The concentration filter, not substitutability, decides most memberships** — and it
+  rules out the household names. Build from focused companies.
 - **Grocery ASIN continuity is poor exactly for the core SKU**, which is re-listed under
   fresh identifiers. Choosing for continuity pulls away from the flagship pack.
 - **An electronics model's ASIN lives about three years.** Prefer the current generation

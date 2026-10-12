@@ -27,7 +27,7 @@ dashboard           the chart, with coverage and volume shown beside every numbe
 
 | Component | Status |
 |---|---|
-| Peer-group finder | being built |
+| Peer-group finder (`review-tone-peer-group`) | built — 6 groups, 15 companies declared |
 | Fresh review collector | being built |
 | Tone scorer (`score_reviews.py`) | built, carried over |
 | Aggregation (`aggregate.py`) | built, carried over — needs rework for live cadence |
@@ -36,6 +36,13 @@ dashboard           the chart, with coverage and volume shown beside every numbe
 
 No reviews collected yet, so there is nothing to chart. The series starts the day
 collection starts.
+
+Declared groups are in [`groups/`](groups/) (the `CONTRACTS.md` §1 view the workflow
+reads) and `data/peer_groups/` (the hash-chained declarations of record). See
+[`CHANGELOG.md`](CHANGELOG.md) for what the concentration filter did to the candidate
+pool — the short version is that the pool of focused, Amazon-selling, publicly-reporting
+consumer companies is roughly 40–60, not 80+, and six of 36 US candidates have left the
+public market recently.
 
 ## The two things worth knowing before trusting a number
 
