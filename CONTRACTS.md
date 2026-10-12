@@ -87,6 +87,24 @@ Three consequences that have to be understood rather than worked around:
 A group where two members track children of the **same parent** is refused: they would
 be handed identical reviews and compared against each other.
 
+**Re-resolution, not just declaration.** That refusal happens at declaration time, but
+re-parenting happens afterwards. Two members declared under distinct parents can
+converge later with **no id anywhere changing**, and nothing currently rechecks. Stage G
+therefore re-resolves every declared parent on a cadence, not only when a group is
+first written, and a convergence found later is the same refusal as one found at
+declaration.
+
+### What pooling looks like in one real batch
+
+Measured 2026-10-12, a single batch collected under "Hydro Flask 32 oz Wide Mouth":
+
+- three of eight reviews were tagged `Style: 20 Oz`, `Style: 40 Oz` and `Style: 64 Oz` —
+  a different bottle
+- reviews came from Australia, Spain, Singapore, Canada and Italy
+
+**Both pooling axes, one product, one page.** This is why `parent_asin` and
+`review_country` are columns and not notes.
+
 ## 2. Collector → scorer
 
 `data/<group_id>/<company_slug>/reviews.csv`
@@ -108,6 +126,19 @@ Columns, extending the existing contract in
 | `verified_purchase` | bool | |
 | `helpful_vote` | int | |
 | `batch_id` | str | joins to the batch record below |
+
+**The parent is captured from the page and verified — never copied from the group file.**
+A declared parent that no longer matches what Amazon serves **refuses the batch**. The
+repair belongs in stage G, and the group file must not simply be edited to match: two
+members may have converged on one parent, in which case the group no longer holds. A
+group file that was right when written can stop being right silently, and trusting §1
+would make that undetectable.
+
+**`/dp/<ASIN>` is the only defensible Route A surface.** The `/product-reviews/` page
+does not expose `parentAsin` at all, so on that surface the parent can only be asserted,
+never confirmed; `/dp/` exposes it and returns 13 reviews rather than 8. The two surfaces
+render identical reviews with **different paragraph whitespace**, so a collector must
+never mix them — the same review would look edited.
 
 `review_date` carries no `fiscal_quarter` column. Fresh collection is not organised on a
 company's fiscal calendar; aggregation assigns periods, and doing it here would bake one
