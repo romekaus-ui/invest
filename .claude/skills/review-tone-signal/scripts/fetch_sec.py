@@ -26,7 +26,7 @@ import sys
 from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from screen_universe import fetch, ua  # noqa: E402
+from http_util import fetch, ua  # noqa: E402
 
 FACTS = "https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json"
 SUBMISSIONS = "https://data.sec.gov/submissions/CIK{cik}.json"

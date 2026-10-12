@@ -87,11 +87,34 @@ company's calendar into another's data.
   "filters": {"star": 5},                // whatever narrowed the request
   "asin": "B0...", "marketplace": "amazon.com",
   "requested": 100, "returned": 87,
-  "claimed_total": 14203,                // what the product page says exists
+
+  "claimed_total": 8672,                 // null when the page gives neither
+  "claimed_total_basis": "ratings",      // "reviews" | "ratings" | "unavailable"
   "coverage_ratio": 0.0061,              // returned / claimed_total
+
+  "sort_requested": "recent",            // what was ASKED for
+  "sort_verified": false,                // true | false | null (no dates to test)
+  "date_order": {"monotonic_descending": false, "inversions": 4,
+                 "oldest": "2022-12-20", "newest": "2026-08-26"},
+  "sort_produces_series": false,         // false whenever sort_verified is false
+
   "blocked": false, "block_reason": null // a refusal is recorded, never routed around
 }
 ```
+
+**`claimed_total_basis` is not optional.** Amazon often publishes only a *ratings*
+count ("8,672 global ratings"), and ratings include star-only entries with no text that
+this pipeline can never sample. Dividing by ratings systematically understates coverage
+and is not comparable across products or marketplaces — which is exactly what a
+peer-relative reading needs. Record which number you got.
+
+**There is no `sort` field, because the page does not support the claim.** Measured on
+amazon.com signed in, 2026-10-12: `/product-reviews/<asin>/?sortBy=recent` renders no
+sort control, the parameter is ignored, returned dates are not in date order, and
+`pageNumber=2` returns the same 8 reviews as page 1. So a sort "as returned" is
+unreadable and a sort taken from the request is a claim about Amazon that is false.
+`sort_verified` is therefore **derived from the collected dates** — the only evidence
+that cannot be mislabelled.
 
 `coverage_ratio` travels with every tone number downstream (CORE-PROMPT §4). A tone mean
 over 0.6% of a product's reviews is not that product's tone and must never be rendered
@@ -105,7 +128,7 @@ never invents a stage's output and never skips a stage that is missing.
 | Stage | Does | Satisfied when |
 |---|---|---|
 | `G` | declare peer groups | ≥1 group file, hash verified, every member has concentration evidence |
-| `C` | collect reviews | every tracked ASIN has a batch within the declared cadence |
+| `C` | collect reviews | every tracked ASIN has a batch within the cadence declared in `collection-plan.json` |
 | `K` | calibrate the scorer | `data/calibration.json` exists, agreement recorded — **human step** |
 | `S` | score tone | `scores.csv` for every company with reviews |
 | `A` | aggregate | tone per company per period, plus peer-relative |
@@ -116,6 +139,17 @@ reads a path it was not given. This single line is what was wrong last time.
 
 Exit codes: `0` ran or reported a clean stop · `2` an integrity violation, needs a human
 · `3` a stage is not built yet.
+
+**Stage C being satisfied does not mean the data supports a trend.** They are different
+conditions and the runner must never conflate them: `C` asks whether collection ran,
+while a trend claim additionally needs `sort_produces_series: true` across the batches
+behind it. A run can legitimately pass `C`, render a dashboard, and still have nothing
+that may be read as a time series. The dashboard says so on its face.
+
+**Cadence lives in `collection-plan.json`**, not in the group file: the same peer group
+can be collected on different cadences, so cadence is a property of a collection
+campaign. It records the cadence, its declared date, and an append-only log of changes,
+each with a reason. Changing the cadence changes the instrument.
 
 ## 5. What no component may do
 
