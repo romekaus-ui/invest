@@ -1,37 +1,28 @@
 #!/usr/bin/env python3
-"""The `--window {dev,full}` contract shared by every pipeline stage.
+"""Window restriction — inert in the live design, and loud about it.
 
-CORE-PROMPT s1.4 forbids inspecting held-out quarters before the prereg is
-frozen, and s6 fixes held-out at the final 8 complete quarters. The orchestrator
-invokes every pre-freeze stage with `--window dev` (`.claude/commands/
-review-tone-run.md`), and that invocation is the *mechanical* half of the
-guarantee: the discipline is not meant to depend on anyone remembering it.
+The archived harness held out the final 8 quarters of a frozen corpus until a
+prereg was committed, and this module enforced that mechanically: every
+pre-freeze stage ran `--window dev` and physically could not write a held-out
+quarter.
 
-A flag that parses and does nothing is worse than no flag at all. It converts a
-silent guarantee into a late crash, because `pipeline_state.heldout_contamination`
-aborts the run with exit 2 once the held-out quarters are already on disk - by
-which time the contamination has happened and no later discipline undoes it. So
-every stage that reads or writes quarter-labelled data resolves its window here
-and genuinely restricts itself to it.
+**The live monitor has no held-out window and no prereg.** Every review it holds
+was collected after collection started, so there is no unspent future period
+sitting in the data to protect. `CORE-PROMPT.md` §8 handles the same danger
+differently: a predictive claim needs its test, horizon and threshold written
+down *before the revenue arrives*, which is a discipline about time, not about
+which rows a script may read.
 
-Two deliberate choices:
+So this module keeps its interface — `score_reviews.py` and `aggregate.py` call
+it, and the contract in `CONTRACTS.md` §4 names `--window` — while restricting
+nothing. That is a deliberate no-op, not an oversight, and it is **announced on
+every run** rather than being silent.
 
-  * **The default is `dev`, not `full`.** The two mistakes are not symmetric.
-    Defaulting to `dev` and wanting `full` costs a re-run; defaulting to `full`
-    before the freeze costs the held-out window permanently. A stage run by hand
-    with no flag therefore gets the conservative window.
-
-  * **`--window full` is refused while the prereg is not frozen.** This is what
-    makes the flag binding rather than advisory: before the freeze there is no
-    argument that produces held-out output from a pre-freeze stage, so the rule
-    cannot be worked around per run. The stages that legitimately see the full
-    window (`backtest.py`, `degrade.py`) sit behind the `B1.prereg_frozen` gate,
-    so they only ever ask for `full` once it is true.
-
-The boundary itself is never written down twice: it is read from the active
-prereg (or, when none is frozen, `prereg/TEMPLATE.md`) through
-`pipeline_state.parse_window`, which is the same function the contamination
-check uses. One source of truth, so the filter and the check cannot disagree.
+A silently-inert guard is the specific failure this project has already paid
+for: `detect_calibration` once gated B3 on a file the scorer never wrote, so the
+gate could never be met however good the measurement was, and nothing said so.
+Hence `_refuse_if_discipline_returns()` below: if a `prereg/` directory ever
+reappears, this module hard-exits rather than quietly permitting everything.
 
 Standard library only (`references/numeric-stack.md`).
 """
@@ -39,184 +30,79 @@ Standard library only (`references/numeric-stack.md`).
 import os
 import sys
 
-# `pipeline_state` moved to archive/historical-harness/ with the rest of the
-# falsification harness, and this unconditional import took every live stage
-# down with it: score_reviews.py, which imports this module, could not be
-# loaded at all.
-#
-# It is NOT restored here, because the window machinery belongs to the
-# historical backtest. The live monitor's series starts the day collection
-# starts (CORE-PROMPT §0), so there is no history to hold out and no prereg to
-# read a boundary from - until §8's predictive test is written down, at which
-# point this needs a decision rather than a shim.
-#
-# So the absence is handled explicitly, in the conservative direction:
-#   - `--window full` is still refused, exactly as before;
-#   - `--window dev` does not restrict, and says so loudly on every run,
-#     because there is no prereg and therefore no boundary to restrict to;
-#   - if a prereg directory DOES exist while this module is missing, that is a
-#     broken install rather than a live monitor, and it is a hard failure. A
-#     window silently not enforced against a prereg that exists is precisely
-#     the "flag that parses and does nothing" this module was written against.
-try:
-    import pipeline_state as ps
-    HAVE_PIPELINE_STATE = True
-except ImportError:
-    ps = None
-    HAVE_PIPELINE_STATE = False
-
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_ROOT = os.path.abspath(os.path.join(HERE, "..", "..", "..", ".."))
 
 CHOICES = ("dev", "full")
 
+_ANNOUNCED = [False]
+
+
+def _refuse_if_discipline_returns(root):
+    """Hard-exit if held-out discipline has been reintroduced without this module.
+
+    If someone restores a `prereg/` directory, they mean to hold data back. This
+    module would then be permitting exactly what it used to prevent, and the
+    only signal would be a line of stdout nobody reads. Stop instead.
+    """
+    prereg = os.path.join(root, "prereg")
+    if os.path.isdir(prereg) and any(
+            f.endswith(".md") and f != "TEMPLATE.md"
+            for f in os.listdir(prereg)):
+        sys.exit(
+            "refusing to run: %s exists, so held-out discipline has been\n"
+            "reintroduced, but window.py no longer enforces it. It was made\n"
+            "inert when the project moved to forward-only collection, where\n"
+            "there is no unspent period in the data to protect.\n\n"
+            "Restoring the prereg means restoring the enforcement with it.\n"
+            "The archived implementation is at\n"
+            "  archive/historical-harness/scripts/pipeline_state.py\n"
+            "(detect_prereg, parse_window, heldout_contamination).\n\n"
+            "This is a refusal and not a warning, because a guard that permits\n"
+            "everything while looking like a guard is worse than no guard."
+            % prereg)
+
 
 class Window(object):
-    """A resolved window, and the predicate that enforces it."""
+    """Accepts every period. Kept so callers need not branch on the design."""
 
-    def __init__(self, mode, bounds, source, frozen, heldout_start):
-        self.mode = mode
-        self.bounds = bounds              # (start, end) as (year, q), or None
-        self.source = source
-        self.frozen = frozen
-        self.heldout_start = heldout_start
-        self.dropped = 0                  # quarters/reviews refused, for the log
+    def __init__(self, mode, root):
+        self.mode, self.root = mode, root
+        self.dropped = 0
 
     @property
     def restricts(self):
-        return self.mode == "dev" and self.bounds is not None
+        return False
 
-    def allows(self, label):
-        """Is this fiscal-quarter label inside the window?
-
-        An unparseable label is NOT allowed through under `dev`. The fiscal
-        labels are on the company's own calendar while the window is in calendar
-        quarters (the boundary caveat recorded in
-        `pipeline_state.heldout_contamination`), so an unreadable label cannot be
-        shown to be outside held-out. Refusing it loses a quarter; admitting it
-        risks the window.
-        """
-        if not self.restricts:
-            return True
-        k = ps.qkey(label)
-        if k is None:
-            self.dropped += 1
-            return False
-        ok = self.bounds[0] <= k <= self.bounds[1]
-        if not ok:
-            self.dropped += 1
-        return ok
+    def allows(self, label):          # noqa: ARG002 - every label is allowed
+        return True
 
     def describe(self):
-        if self.bounds is None:
-            return ("window %s - no window table found in %s, so nothing is "
-                    "restricted" % (self.mode, self.source))
-        return ("window %s - %dQ%d..%dQ%d (from %s)%s"
-                % ((self.mode,) + self.bounds[0] + self.bounds[1]
-                   + (self.source,
-                      "" if self.restricts else " - full window, no restriction")))
+        return ("no window restriction: the live monitor collects forward, so "
+                "there is no held-out period in the data (CORE-PROMPT s8)")
 
 
 def add_argument(parser):
-    """Add the stage contract's `--window` flag."""
     parser.add_argument("--window", choices=CHOICES, default="dev",
-                        help="dev: restrict reads and writes to the prereg's "
-                             "development window, leaving the held-out quarters "
-                             "untouched (CORE-PROMPT s1.4). full: the whole "
-                             "window, allowed only once the prereg is frozen. "
-                             "Default dev, because defaulting to full before "
-                             "the freeze would spend the held-out window.")
+                        help="retained for the stage contract; restricts "
+                             "nothing in the live design (see window.py)")
     parser.add_argument("--root", default=None,
                         help="project root; default: inferred from this script")
 
 
 def resolve(args, stage="this stage"):
-    """Resolve `--window` into a Window, or exit if the request is not allowed."""
     root = os.path.abspath(getattr(args, "root", None) or DEFAULT_ROOT)
-    if not HAVE_PIPELINE_STATE:
-        return _resolve_without_prereg(args, stage, root)
-    pr = ps.detect_prereg(root)
-    win = pr.get("window") or {}
-    frozen = bool(pr.get("frozen"))
-    source = win.get("source") or "no prereg found"
-    heldout_start = (win.get("heldout") or (None,))[0]
-
+    _refuse_if_discipline_returns(root)
     mode = getattr(args, "window", "dev")
-
-    if mode == "full" and not frozen:
-        sys.exit(
-            "refusing --window full: the prereg is not frozen (%s).\n\n"
-            "%s is a pre-freeze stage. Before the freeze, the final %d quarters\n"
-            "are held out and may not be inspected, plotted, described or\n"
-            "reasoned about (CORE-PROMPT s1.4, s6). Running it over the full\n"
-            "window would write them to disk, which is the contamination\n"
-            "itself - and it is not undone by deleting the files afterwards.\n\n"
-            "Run it with --window dev. The stages that legitimately see the\n"
-            "full window (backtest.py, degrade.py) sit behind the\n"
-            "B1.prereg_frozen gate and will be allowed once it is met.\n\n"
-            "This is not a flag to override. Freezing the prereg is the step\n"
-            "that opens the full window, and it is a deliberate human act."
-            % (source, stage, ps.HELDOUT_QUARTERS))
-
-    bounds = win.get("development") if mode == "dev" else win.get("full")
-
-    if mode == "dev" and bounds is None:
-        sys.exit(
-            "refusing to run --window dev with no development window: %s\n"
-            "carries no parseable window table, so there is no boundary to\n"
-            "restrict to and nothing would stop held-out quarters being\n"
-            "written. Fix the window table (s3) before running %s."
-            % (source, stage))
-
-    return Window(mode, bounds, source, frozen, heldout_start)
-
-
-def _resolve_without_prereg(args, stage, root):
-    """No prereg machinery on disk. Refuse `full`; do not pretend `dev` binds."""
-    mode = getattr(args, "window", "dev")
-    prereg_dir = os.path.join(root, "prereg")
-    if os.path.isdir(prereg_dir) and os.listdir(prereg_dir):
-        sys.exit(
-            "%s exists but pipeline_state.py is not importable, so the window\n"
-            "boundary cannot be read and --window cannot be enforced.\n"
-            "Refusing to run: a window that parses and does not bind is worse\n"
-            "than no window, because it turns a guarantee into a late crash\n"
-            "after the held-out quarters are already on disk.\n"
-            "Restore pipeline_state.py beside this module, or remove the\n"
-            "prereg if this install is the live monitor rather than the\n"
-            "historical harness." % prereg_dir)
-    if mode == "full":
-        sys.exit(
-            "refusing --window full: there is no frozen prereg (no prereg\n"
-            "machinery on disk at all).\n"
-            "%s is a pre-freeze stage, and the freeze is the deliberate human\n"
-            "act that opens the full window (CORE-PROMPT §8). Run it with\n"
-            "--window dev." % stage)
-    print("!! no prereg machinery on disk, so --window dev does NOT restrict "
-          "anything.")
-    print("!! Nothing is being held out, because the live monitor's series "
-          "starts the day")
-    print("!! collection starts and there is no history to hold out "
-          "(CORE-PROMPT §0, §8).")
-    print("!! Before any predictive claim, §8 requires the test, horizon, "
-          "endpoint and")
-    print("!! threshold written down first - and that is what restores a real "
-          "window here.")
-    return Window(mode, None, "no prereg machinery (live monitor)", False, None)
+    if not _ANNOUNCED[0]:
+        sys.stderr.write(
+            "note: --window %s accepted but restricts nothing. The live monitor\n"
+            "      collects forward, so no period is held out; %s reads every\n"
+            "      period it has. CORE-PROMPT s8 governs what may be claimed.\n"
+            % (mode, stage))
+        _ANNOUNCED[0] = True
+    return Window(mode, root)
 
 
 def add_tickers_argument(parser, help_text):
-    """The stage contract's `--tickers T [T ...]`.
-
-    The orchestrator builds every stage call as `--tickers T1 T2 ...`
-    (`.claude/commands/review-tone-run.md`), so that spelling is the contract.
-    """
-    parser.add_argument("--tickers", nargs="+", metavar="TICKER",
-                        help=help_text)
-
-
-if __name__ == "__main__":
-    import argparse
-    p = argparse.ArgumentParser(description="print the resolved window")
-    add_argument(p)
-    print(resolve(p.parse_args(), "window.py").describe())
+    parser.add_argument("--tickers", nargs="+", default=None, help=help_text)

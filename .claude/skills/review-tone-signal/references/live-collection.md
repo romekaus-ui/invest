@@ -77,13 +77,42 @@ whose basis is unlabelled is not comparable between two members of a peer group.
 batch therefore carries `claimed_total_basis` ∈ `reviews` / `ratings` / `unavailable`
 alongside `claimed_total`.
 
-**3. The ~500-per-product star fanout does not apply here.** CORE-PROMPT §3 notes the
-10-page cap is per filter combination, so a 1★–5★ fanout multiplies yield. That assumes
-pagination works. On this surface it does not: page 2 is page 1. A star fanout may still
-help — `--star` is wired for it — but it has not been shown to on this route.
+**3. The ~500-per-product star fanout does not work: the star filter is ignored too.**
+CORE-PROMPT §3 notes the 10-page cap is per filter combination, so a 1★–5★ fanout should
+multiply yield roughly fivefold. Measured on B09HM94VDS:
+
+| request | reviews returned | ids |
+|---|---|---|
+| `?sortBy=recent&pageNumber=1` | 8 | set X |
+| `?sortBy=recent&pageNumber=2` | 8 | **identical set X** |
+| `?filterByStar=five_star` | 8 | **identical set X** |
+| `?filterByStar=one_star` | 8 | **identical set X** — including a 4★ review |
+
+Four different requests, one identical set of eight review ids. `one_star` returning a
+4★ review is the proof that the filter is not merely unhelpful but ignored. `--star` stays
+wired in case the surface changes, but on this route the fanout buys nothing.
+
+**3b. The product detail page is the better surface: 13 rather than 8.** `/dp/<ASIN>`
+returns a strict superset — the same 8 plus 5 more. But the extra 5 are the
+*international* block (UAE, Canada, Brazil, Egypt, Mexico) and they are short and
+largely non-English: "Sensacional. Recomendo" (22 bytes), "Perfecto, Gracias !!! A+++"
+(26 bytes). For a US-listed registrant's revenue they are a different population, so the
+usable US yield is still 8.
+
+Two cautions if you collect from `/dp/` instead. It renders the same review text with
+different paragraph whitespace than `/product-reviews/` does (4,398 vs 4,387 bytes for
+the same review id), so **mixing the two surfaces makes every shared review look edited**
+and trips the text-changed warning. Pick one surface per series and record it. And
+`review_country` must be read, because that page mixes marketplaces.
 
 **4. Non-US marketplaces need their own sign-in.** `amazon.co.uk` redirected to
 `/ap/signin` for this account. Recorded as a block; not attempted.
+
+**5. Freshness varies by product and cannot be requested.** Newest review shown on
+2026-10-12: Hydro Flask 2026-10-06 (6 days old), Logitech 2026-08-26 (47 days old) on a
+product with 8,672 ratings. So the set does refresh, but there are only 8 slots, no way
+to ask for the newest, and no way to tell a slot that changed from one that did not
+without diffing against the previous batch.
 
 **The consequence to carry forward:** nothing collected through Route A today is a time
 series. Stage C can be satisfied — every tracked ASIN has a batch within the cadence —

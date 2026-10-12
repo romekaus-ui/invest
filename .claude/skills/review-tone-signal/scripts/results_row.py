@@ -27,7 +27,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import pipeline_state as ps  # noqa: E402
+import integrity as ps  # noqa: E402
 
 VERDICTS = ("signal", "no_signal", "insufficient_data")
 

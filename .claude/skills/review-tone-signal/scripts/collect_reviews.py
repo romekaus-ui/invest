@@ -1269,46 +1269,42 @@ def record_batch(outdir, group_id, member, asin, batch, cadence, batch_id,
     ratio_series, _c, _b = coverage(on_product, batch.claimed)
 
     rec = OrderedDict([
-        # --- CONTRACTS.md §3, verbatim field names ---
+        # --- CONTRACTS.md §3, in its order and with its spellings ---
         ("batch_id", batch_id),
         ("collected_at", batch.requested_at),
         ("route", batch.route),
-        ("sort", sort_requested),
         ("filters", batch.filters),
         ("asin", asin.upper()),
         ("marketplace", batch.marketplace),
         ("requested", batch.requested),
         ("returned", batch.returned),
+
         ("claimed_total", claimed_total),
+        ("claimed_total_basis", basis),
         ("coverage_ratio", ratio_batch),
+
+        # There is deliberately no `sort` field (§3). A sort read back off the
+        # page is unreadable - the current page has no sort control - and a
+        # sort taken from the request is a claim about Amazon that is false.
+        # `sort_verified` is derived from the collected dates, the only
+        # evidence that cannot be mislabelled.
+        ("sort_requested", sort_requested),
+        ("sort_verified", sort_verified),
+        ("date_order", {"monotonic_descending": sort_verified,
+                        "inversions": inversions,
+                        "oldest": oldest, "newest": newest}),
+        ("sort_produces_series", bool(SORTS[sort_requested]["produces_series"])
+                                 and sort_verified is True),
+
         ("blocked", bool(batch.blocked)),
         ("block_reason", batch.block_reason),
 
-        # --- additive: what §3's fields cannot say on their own ---
-        #
-        # `claimed_total` alone is ambiguous. Amazon states a RATINGS count and
-        # a REVIEWS count and they are different populations; dividing by
-        # ratings understates coverage and is not comparable across products.
-        ("claimed_total_basis", basis),
+        # --- additive ---
         ("claimed_total_source_text", batch.claimed.get("reviews_source_text") or
                                       batch.claimed.get("ratings_source_text")),
         ("claimed_reviews", batch.claimed.get("reviews_total")),
         ("claimed_ratings", batch.claimed.get("ratings_total")),
-
-        # `sort` cannot be recorded "as returned": the current amazon.com
-        # review page states no sort order at all and ignores sortBy in the
-        # URL. So what was asked for is recorded as `sort`, and whether the
-        # DATES bear it out is recorded separately - that being the only
-        # evidence that cannot be mislabelled.
-        ("sort_requested", sort_requested),
         ("sort_order_observed", batch.sort_observed),
-        ("sort_verified", sort_verified),
-        ("sort_produces_series", bool(SORTS[sort_requested]["produces_series"])
-                                 and sort_verified is not False),
-        ("date_order", {"monotonic_descending": sort_verified,
-                        "inversions": inversions,
-                        "oldest": oldest, "newest": newest}),
-
         ("coverage_ratio_series", ratio_series),
         ("reviews_on_product_after", on_product),
         ("group_id", group_id),
@@ -1352,7 +1348,7 @@ def update_manifest(outdir, group_id, member, cadence, rec):
         "last_collected_at": rec["collected_at"],
         "routes_used": sorted(set((live.get("routes_used") or []) + [rec["route"]])),
         "sorts_requested": sorted(set((live.get("sorts_requested") or []) +
-                                      [rec["sort"]])),
+                                      [rec["sort_requested"]])),
         "any_sort_verified": bool(live.get("any_sort_verified")) or
                              rec["sort_verified"] is True,
         "review_id_schemes": sorted(set((live.get("review_id_schemes") or []) +
@@ -1365,7 +1361,7 @@ def update_manifest(outdir, group_id, member, cadence, rec):
     man["coverage_ratio"] = rec["coverage_ratio_series"]
     man["coverage_method"] = ("collected/%s claimed (%s basis), route %s, sort %s"
                               % (rec["claimed_total"], rec["claimed_total_basis"],
-                                 rec["route"], rec["sort"]))
+                                 rec["route"], rec["sort_requested"]))
     man["source"] = "live Amazon collection (CORE-PROMPT §3), not the 2023 corpus"
     write_json(path, man)
     return path
@@ -1656,7 +1652,7 @@ def cmd_status(args):
                 ver = {b.get("sort_verified") for b in ok}
                 any_verified = any_verified or (True in ver)
                 print("    sort             %s · verified: %s"
-                      % (", ".join(sorted({str(b.get("sort")) for b in ok})),
+                      % (", ".join(sorted({str(b.get("sort_requested")) for b in ok})),
                          ", ".join(sorted(str(v) for v in ver))))
                 dates = sorted(r["review_date"] for r in rows.values()
                                if (r.get("asin") or "").upper() == asin)
@@ -1870,13 +1866,16 @@ def cmd_selftest(args):
         check("a clean capture is accepted", rc == 0, "exit %s" % rc)
         rec = read_jsonl(batches_path(os.path.join(root3, "data"),
                                       "testgroup", "test-co"))[0]
-        for k in ("batch_id", "collected_at", "route", "sort", "filters", "asin",
+        for k in ("batch_id", "collected_at", "route", "filters", "asin",
                   "marketplace", "requested", "returned", "claimed_total",
-                  "coverage_ratio", "blocked", "block_reason"):
+                  "claimed_total_basis", "coverage_ratio", "sort_requested",
+                  "sort_verified", "date_order", "sort_produces_series",
+                  "blocked", "block_reason"):
             check("§3 key %r present" % k, k in rec)
-        for k in ("claimed_total_basis", "sort_verified", "sort_produces_series",
-                  "date_order"):
-            check("additive key %r present" % k, k in rec)
+        check("no bare 'sort' field (§3: the page does not support the claim)",
+              "sort" not in rec)
+        check("sort_produces_series is false unless the dates verified it",
+              rec["sort_produces_series"] is (rec["sort_verified"] is True))
         check("route is spelled 'session' for the logged-in path (§3)",
               rec["route"] == "session", rec["route"])
         check("coverage_ratio is returned/claimed_total",

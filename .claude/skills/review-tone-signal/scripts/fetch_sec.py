@@ -15,7 +15,7 @@ Output: data/{TICKER}/fundamentals.csv
 Standard library only. That is a binding policy for every pipeline stage,
 not an accident of this script: see references/numeric-stack.md. numpy and
 scipy are development-only, and no stage may import them.
-Needs SEC_USER_AGENT.
+Needs SEC_USER_AGENT (see screen_universe.py).
 """
 
 import argparse
@@ -23,65 +23,10 @@ import csv
 import json
 import os
 import sys
-import time
-import urllib.error
-import urllib.request
 from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-# `ua` and `fetch` used to be imported from screen_universe.py, which moved to
-# archive/historical-harness/ when the harness was replaced by the live
-# monitor. The import was left behind, so this module - stage B6 - could not be
-# imported at all, and neither could anything that needed its fiscal-calendar
-# helpers. They live here now because this is the only live stage that talks to
-# EDGAR; the archived copy is unchanged and still serves the archived harness.
-
-_last_call = [0.0]
-
-
-def ua():
-    agent = os.environ.get("SEC_USER_AGENT", "").strip()
-    if not agent or "@" not in agent:
-        sys.exit(
-            "SEC_USER_AGENT is not set.\n"
-            "SEC requires a contact in the User-Agent header. Set it to your own\n"
-            "name and email - this script will not guess one for you:\n\n"
-            '    export SEC_USER_AGENT="Your Name your@email.example"\n'
-        )
-    return agent
-
-
-def fetch(url, rate=0.22, retries=3):
-    """Rate-limited GET. SEC asks for <10 req/s; we stay well under."""
-    for attempt in range(retries):
-        wait = rate - (time.time() - _last_call[0])
-        if wait > 0:
-            time.sleep(wait)
-        _last_call[0] = time.time()
-        req = urllib.request.Request(url, headers={
-            "User-Agent": ua(),
-            "Accept-Encoding": "gzip, deflate",
-            "Accept": "*/*",
-        })
-        try:
-            with urllib.request.urlopen(req, timeout=45) as r:
-                raw = r.read()
-                if r.headers.get("Content-Encoding") == "gzip":
-                    import gzip
-                    raw = gzip.decompress(raw)
-                return raw
-        except urllib.error.HTTPError as e:
-            if e.code == 404:
-                return None
-            if attempt == retries - 1:
-                raise
-            time.sleep(2 ** attempt)
-        except (urllib.error.URLError, TimeoutError):
-            if attempt == retries - 1:
-                raise
-            time.sleep(2 ** attempt)
-    return None
+from http_util import fetch, ua  # noqa: E402
 
 FACTS = "https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json"
 SUBMISSIONS = "https://data.sec.gov/submissions/CIK{cik}.json"
