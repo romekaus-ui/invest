@@ -40,7 +40,12 @@
 (async () => {
   "use strict";
 
-  const CAPTURE_VERSION = "1";
+  /* 2 adds parent_asin, which is also hashed. Amazon serves reviews at the
+   * PARENT asin, pooled across every variant (colour, size, pack count), so a
+   * capture that records only the child asin files the parent's reviews under
+   * a label that claims a narrower population. Version 1 payloads cannot say
+   * which parent they came from and are refused rather than assumed. */
+  const CAPTURE_VERSION = "2";
 
   /* ---------------------------------------------------------------- blocks */
 
@@ -258,6 +263,33 @@
     return { votes: n === null ? 0 : n, text: s, stated: n !== null };
   }
 
+  /* The parent asin, from the page rather than from the group file.
+   *
+   * Captured so the declared parent can be CHECKED against the one Amazon
+   * actually served, not merely trusted. Amazon re-parents variation families
+   * over time, so a group file that was right when it was written can silently
+   * stop being right, with no id anywhere changing. */
+  function parentAsin() {
+    const html = document.documentElement.innerHTML;
+    const hits = [...new Set([...html.matchAll(/"parentAsin"\s*:\s*"([A-Z0-9]{10})"/g)]
+                             .map(m => m[1]))];
+    if (hits.length === 1) return { parent_asin: hits[0], via: "page parentAsin" };
+    if (hits.length > 1) {
+      /* Several distinct parents on one page means this reading cannot say
+       * which one served the reviews. Reported, never picked. */
+      return { parent_asin: null, via: "ambiguous", candidates: hits };
+    }
+    return { parent_asin: null, via: "not found" };
+  }
+
+  function childAsin(u) {
+    const el = document.querySelector("input#ASIN, input[name='ASIN']");
+    if (el && /^[A-Z0-9]{10}$/.test(el.value)) return el.value;
+    const m = document.documentElement.innerHTML.match(/"currentAsin"\s*:\s*"([A-Z0-9]{10})"/);
+    if (m) return m[1];
+    return (u.pathname.match(/\/(?:product-reviews|dp|gp\/product)\/([A-Z0-9]{10})/) || [])[1] || null;
+  }
+
   function reviewId(r) {
     /* Amazon's own review id (RHBCYOKA8617N). Strictly better than a hash of
      * user + asin + date: it is the identifier Amazon itself dedupes on, it is
@@ -306,7 +338,8 @@
 
   /* ------------------------------------------------------------------ hash */
 
-  const HASH_HEADER = ["capture_version", "marketplace", "product_id", "page_number"];
+  const HASH_HEADER = ["capture_version", "marketplace", "product_id",
+                       "parent_asin", "page_number"];
   const HASH_REVIEW = ["review_id", "star_rating", "review_date_text", "review_country",
                        "title", "text", "verified_purchase", "helpful_votes",
                        "variation", "profile_name"];
@@ -353,12 +386,14 @@
   const u = new URL(location.href);
   const filters = observedFilters();
   const productId = (u.pathname.match(/\/(?:product-reviews|dp|gp\/product)\/([A-Z0-9]{10})/) || [])[1] ||
-                    (document.querySelector("input#ASIN, input[name='ASIN']") || {}).value || null;
+                    childAsin(u);
+  const par = parentAsin();
 
   const header = {
     capture_version: CAPTURE_VERSION,
     marketplace: location.hostname.replace(/^www\./, ""),
     product_id: productId,
+    parent_asin: par.parent_asin,
     page_number: filters.page_number
   };
 
@@ -372,6 +407,9 @@
       collected_at: new Date().toISOString(),
       marketplace: header.marketplace,
       product_id: productId,
+      parent_asin: par.parent_asin,
+      parent_asin_via: par.via,
+      parent_asin_candidates: par.candidates || null,
       /* Every field the hash covers is emitted at the payload's TOP LEVEL,
        * where the verifier looks for it. page_number also appears under
        * `filters`, and relying on that nesting alone was a real bug: the
@@ -401,6 +439,9 @@
     collected_at: new Date().toISOString(),
     marketplace: header.marketplace,
     product_id: productId,
+    parent_asin: par.parent_asin,
+    parent_asin_via: par.via,
+    parent_asin_candidates: par.candidates || null,
     page_number: header.page_number,
     page_url: location.href,
     page_title: document.title,

@@ -121,6 +121,47 @@ while the data still cannot support a trend claim. Those are different condition
 
 ---
 
+## Reviews are served at the PARENT asin — join on that, not `asin`
+
+Amazon pools reviews across every variant of a product: colour, size, pack count. A
+collector keyed on the child asin therefore files the parent's reviews under a label
+claiming a narrower population, and **dedup by `review_id` does not catch it** — those
+are genuine, distinct reviews, just of a wider product than the label says.
+
+Both products in the test fixture turned out to be variant children:
+
+| declared | real parent |
+|---|---|
+| `B09HM94VDS` Logitech MX Master 3S | `B0GWMVC57F` |
+| `B07YXM6XTF` Hydro Flask 32 oz | `B0FCZK1WMV` |
+
+One batch collected under "Hydro Flask 32oz Wide Mouth" contained reviews tagged
+`Style: 20 Oz`, `Style: 40 Oz` and `Style: 64 Oz` — three of eight were of a different
+bottle size — plus reviews from Australia, Spain, Singapore, Canada and Italy. Both
+pooling axes, visible in a single batch.
+
+So:
+
+- `parent_asin` is a contract column and **the join key** (§2). `asin` records which
+  variant was declared; it does not describe the review population.
+- It is captured from the **page**, hashed with the rest of the header, and **checked
+  against the group file on every batch**. A mismatch refuses the batch rather than
+  being reconciled, because Amazon re-parents variation families over time: a group file
+  that was right when written can stop being right with no id anywhere changing, and the
+  series would change population underneath whoever is reading it. The right repair is
+  to re-resolve the parent in stage G, not to edit the file to match — two members may
+  have converged on one parent, in which case the peer group itself no longer holds.
+- A capture that cannot state a parent is refused. Version 1 payloads carry none.
+
+**This is also the reason to collect from `/dp/<ASIN>`.** The `/product-reviews/`
+surface does not expose `parentAsin` at all, so the parent cannot be confirmed there —
+only asserted. `/dp/` exposes it, and returns 13 rather than 8 besides.
+
+**What is being measured is variation-family tone, not the named product's tone.**
+Nothing downstream may caption a chart with the child product's name as though the
+reviews were of that variant. And choosing a product for continuity (§2) does not buy
+continuity of the review pool.
+
 ## Route A and the §1.3 problem
 
 §1.3: review text is collected verbatim or it does not exist, and a model-written review

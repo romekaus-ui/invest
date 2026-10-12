@@ -68,8 +68,28 @@ EXTRACTOR_JS = os.path.join(SCRIPT_DIR, "capture_reviews.js")
 COLLECTOR_VERSION = "d1-collect-v1"
 
 # `data/<group_id>/<company_slug>/reviews.csv` as CONTRACTS.md §2 defines it.
-REVIEW_FIELDS = ("review_id", "asin", "marketplace", "review_date", "rating",
-                 "title", "text", "verified_purchase", "helpful_vote", "batch_id")
+REVIEW_FIELDS = ("review_id", "asin", "parent_asin", "marketplace",
+                 "review_country", "review_date", "rating", "title", "text",
+                 "verified_purchase", "helpful_vote", "batch_id")
+
+# `parent_asin` is the join key, not `asin` (CONTRACTS.md §2).
+#
+# Amazon serves reviews at the PARENT asin, pooled across every variant -
+# colour, size, pack count. A row keyed on the child asin therefore holds the
+# parent's reviews under a label claiming a narrower population, and dedup by
+# review_id does NOT catch it: those are genuinely distinct reviews, just of a
+# different population than the label says. Of the fifteen products in the
+# peer-group component's first real pass, fourteen were variant children.
+#
+# Two consequences this column exists to keep visible:
+#   - what is measured is variation-family tone, not the named product's tone,
+#     so nothing downstream may caption a chart with the child's name as though
+#     the reviews were of that variant;
+#   - choosing a product for continuity does not buy continuity of the review
+#     pool, because Amazon re-parents variation families over time. The
+#     population can change underneath a series without any id changing, which
+#     is why the parent is captured from the PAGE and checked against the group
+#     file on every batch rather than copied from it.
 
 # There is deliberately NO `fiscal_quarter` column (CONTRACTS.md §2). Fresh
 # collection is not organised on a company's fiscal calendar: aggregation
@@ -90,9 +110,9 @@ REVIEW_FIELDS = ("review_id", "asin", "marketplace", "review_date", "rating",
 # carried per review rather than only per batch because reviews.csv is merged
 # across batches and a per-file route stamp would be a lie the moment two
 # routes meet.
-PROVENANCE_FIELDS = ("collection_route", "collected_at", "review_country",
-                     "review_id_scheme", "review_date_precision", "vine_voice",
-                     "sort_requested", "sort_verified")
+PROVENANCE_FIELDS = ("collection_route", "collected_at", "review_id_scheme",
+                     "review_date_precision", "vine_voice", "sort_requested",
+                     "sort_verified")
 
 ALL_FIELDS = REVIEW_FIELDS + PROVENANCE_FIELDS
 
@@ -429,7 +449,8 @@ def parse_review_date(date_text):
 # The payload hash - the §1.3 check
 # --------------------------------------------------------------------------
 
-HASH_HEADER = ("capture_version", "marketplace", "product_id", "page_number")
+HASH_HEADER = ("capture_version", "marketplace", "product_id",
+               "parent_asin", "page_number")
 HASH_REVIEW = ("review_id", "star_rating", "review_date_text", "review_country",
                "title", "text", "verified_purchase", "helpful_votes",
                "variation", "profile_name")
@@ -487,7 +508,8 @@ class Batch(object):
                  requested, marketplace="amazon.com", page_url=None,
                  blocked=False, block_reason=None, provider=None,
                  plan_tier=None, cost=None, raw_meta=None, requested_at=None,
-                 review_id_scheme="amazon_review_id", date_precision="day"):
+                 review_id_scheme="amazon_review_id", date_precision="day",
+                 parent_asin=None, parent_asin_via=None):
         self.route = route
         self.sort_observed = sort_observed
         self.filters = filters or {}
@@ -504,6 +526,10 @@ class Batch(object):
         self.raw_meta = raw_meta or {}
         self.requested_at = requested_at or utcnow()
         self.review_id_scheme = review_id_scheme
+        # Where Amazon actually served these reviews from, as the PAGE stated
+        # it - never copied from the group file, so the two can be compared.
+        self.parent_asin = parent_asin
+        self.parent_asin_via = parent_asin_via
         # Amazon publishes a DATE, not a timestamp. The 2023 corpus carried
         # second-level timestamps; this route does not, and recording the
         # difference stops anything downstream assuming an ordering within a
@@ -567,8 +593,16 @@ class SessionRoute(Route):
             die("%s holds a list. One capture file is one page; pass them one at "
                 "a time so each gets its own batch record." % self.capture_path)
         v = str(payload.get("capture_version") or "")
-        if v != "1":
-            die("capture_version %r from %s; this collector speaks version 1"
+        if v == "1":
+            die("capture_version 1 from %s. Version 1 payloads carry no\n"
+                "parent_asin, and Amazon serves reviews at the PARENT asin,\n"
+                "pooled across every variant. A version 1 capture cannot say\n"
+                "which population its reviews are of, and guessing the parent\n"
+                "from the child would be inventing the provenance.\n"
+                "Re-capture the page with the current extractor."
+                % self.capture_path)
+        if v != "2":
+            die("capture_version %r from %s; this collector speaks version 2"
                 % (v, self.capture_path))
 
         got_pid = (payload.get("product_id") or "").upper()
@@ -581,6 +615,8 @@ class SessionRoute(Route):
 
         if payload.get("blocked"):
             return Batch(route="session", sort_observed=None,
+                         parent_asin=payload.get("parent_asin"),
+                         parent_asin_via=payload.get("parent_asin_via"),
                          filters=payload.get("filters"), reviews=[],
                          claimed=claimed, requested=limit,
                          marketplace=payload.get("marketplace") or "amazon.com",
@@ -628,6 +664,8 @@ class SessionRoute(Route):
 
         rows, notes = normalise_capture(payload)
         return Batch(route="session",
+                     parent_asin=payload.get("parent_asin"),
+                     parent_asin_via=payload.get("parent_asin_via"),
                      sort_observed=obs.get("label") or obs.get("value"),
                      filters=payload.get("filters"), reviews=rows,
                      claimed=claimed, requested=limit,
@@ -697,6 +735,7 @@ def normalise_capture(payload):
         rows.append({
             "review_id": str(rid),
             "asin": (payload.get("product_id") or "").upper(),
+            "parent_asin": (payload.get("parent_asin") or "").upper(),
             "review_date": date,
             # Verbatim apart from NULs, which break CSV readers. The scorer
             # must see what was actually published, markup and all.
@@ -1006,8 +1045,8 @@ def normalise_provider(items, product_id, provider):
                 claimed[dest.replace("_total", "_source_text")] = "%s item.%s" % (provider, k)
         rows.append({
             "review_id": str(rid),
-            "asin": (it.get("asin") or it.get("parent_asin") or
-                     product_id or "").upper(),
+            "asin": (it.get("asin") or product_id or "").upper(),
+            "parent_asin": (it.get("parent_asin") or "").upper(),
             "review_date": date,
             "title": str(title).replace("\x00", ""),
             "text": str(text).replace("\x00", ""),
@@ -1167,6 +1206,7 @@ def merge_batch(outdir, group_id, slug, batch, batch_id, sort_requested,
         row = {
             "review_id": r["review_id"],
             "asin": r["asin"],
+            "parent_asin": r.get("parent_asin") or (batch.parent_asin or ""),
             "marketplace": batch.marketplace,
             "review_date": r["review_date"],
             "rating": r["rating"],
@@ -1194,7 +1234,7 @@ def merge_batch(outdir, group_id, slug, batch, batch_id, sort_requested,
         dupes += 1
         diffs = {}
         for k in ("helpful_vote", "title", "text", "rating", "verified_purchase",
-                  "review_date"):
+                  "review_date", "parent_asin"):
             a, b = str(prev.get(k, "")), str(row[k])
             if a != b:
                 diffs[k] = {"first_seen": a, "now": b}
@@ -1255,7 +1295,7 @@ def schedule_drift(outdir, group_id, slug, asin, cadence, collected_at):
 
 def record_batch(outdir, group_id, member, asin, batch, cadence, batch_id,
                  sort_requested, sort_verified, inversions, oldest, newest,
-                 merge_stats, stage_note):
+                 merge_stats, stage_note, declared_parent=None):
     """Write the batch's provenance. CORE-PROMPT §1.4: or it is not data.
 
     The keys CONTRACTS.md §3 names come first and are spelled exactly as it
@@ -1275,6 +1315,7 @@ def record_batch(outdir, group_id, member, asin, batch, cadence, batch_id,
         ("route", batch.route),
         ("filters", batch.filters),
         ("asin", asin.upper()),
+        ("parent_asin", batch.parent_asin),
         ("marketplace", batch.marketplace),
         ("requested", batch.requested),
         ("returned", batch.returned),
@@ -1304,6 +1345,11 @@ def record_batch(outdir, group_id, member, asin, batch, cadence, batch_id,
                                       batch.claimed.get("ratings_source_text")),
         ("claimed_reviews", batch.claimed.get("reviews_total")),
         ("claimed_ratings", batch.claimed.get("ratings_total")),
+        ("parent_asin_declared", declared_parent),
+        ("parent_asin_via", batch.parent_asin_via),
+        ("parent_asin_matches_declared",
+         None if not (declared_parent and batch.parent_asin)
+         else declared_parent.upper() == (batch.parent_asin or "").upper()),
         ("sort_order_observed", batch.sort_observed),
         ("coverage_ratio_series", ratio_series),
         ("reviews_on_product_after", on_product),
@@ -1490,14 +1536,60 @@ def cmd_collect(args, route, stage_note):
         ("%s|%s|%s|%s" % (slug, asin, batch.requested_at,
                           batch.route)).encode()).hexdigest()[:10]
 
+    declared_parent = (product.get("parent_asin") or "").upper() or None
+    if declared_parent is None:
+        die("%s in %s carries no parent_asin.\n"
+            "Amazon serves reviews at the PARENT asin, pooled across every\n"
+            "variant, so without it this batch cannot say which population its\n"
+            "reviews are of - and dedup by review_id will not catch the\n"
+            "mislabelling, because those are genuine reviews of a wider\n"
+            "product. §1 requires parent_asin per product." % (asin, group["_path"]))
+
     print("group / company    %s / %s" % (args.group, slug))
     print("route              %s" % batch.route)
     print("product            %s  (%s)" % (asin, product.get("name") or ""))
+    print("parent asin        %s declared" % declared_parent)
     print("marketplace        %s" % batch.marketplace)
     if batch.marketplace != marketplace:
         warn("the group file says %s but the batch came from %s; recorded as "
              "collected, not as requested" % (marketplace, batch.marketplace))
     print("requested at       %s" % batch.requested_at)
+
+    # The declared parent is CHECKED against the one the page served, never
+    # trusted. Amazon re-parents variation families over time, so a group file
+    # that was right when it was written can stop being right with no id
+    # anywhere changing - and the series would then change population
+    # underneath whoever is reading it.
+    served = (batch.parent_asin or "").upper() or None
+    if not batch.blocked:
+        if served is None:
+            warn("the page did not state a parent asin (%s), so the declared "
+                 "parent %s could not be checked. The batch is recorded with "
+                 "parent_asin_matches_declared = null; treat the population as "
+                 "unconfirmed." % (batch.parent_asin_via or "not found",
+                                   declared_parent))
+        elif served != declared_parent:
+            die("PARENT ASIN MISMATCH for %s\n"
+                "  group file declares  %s\n"
+                "  the page served      %s  (via %s)\n\n"
+                "Refusing the batch. Amazon serves reviews at the parent, so\n"
+                "these reviews are of a different population than the group\n"
+                "file says this product belongs to - and nothing downstream\n"
+                "could detect it, because they are genuine reviews with genuine\n"
+                "ids. Amazon re-parents variation families over time, so the\n"
+                "likeliest cause is that the group file is now stale rather\n"
+                "than that it was wrong. Re-resolve the parent in stage G; do\n"
+                "not edit it to match, because the peer group may no longer\n"
+                "hold if two members have converged on one parent."
+                % (asin, declared_parent, served, batch.parent_asin_via))
+        else:
+            print("parent asin        %s confirmed by the page (via %s)"
+                  % (served, batch.parent_asin_via))
+        if served and served != asin.upper():
+            print("                   -> these are the PARENT's reviews, pooled "
+                  "across variants;")
+            print("                      this is variation-family tone, not %s's "
+                  "alone" % asin.upper())
 
     if batch.blocked:
         # CORE-PROMPT §9 / CONTRACTS.md §5: a block is a finding to report, not
@@ -1508,7 +1600,7 @@ def cmd_collect(args, route, stage_note):
                            batch_id, args.sort, None, 0, None, None,
                            {"new": 0, "duplicates": 0, "changed": 0,
                             "total_after": len(load_reviews(outdir, args.group, slug))},
-                           stage_note)
+                           stage_note, declared_parent)
         update_manifest(outdir, args.group, member, cadence, rec)
         print("\n!! BLOCKED: %s" % batch.block_reason)
         print("!! Recorded as batch %s and STOPPING." % batch_id)
@@ -1546,7 +1638,7 @@ def cmd_collect(args, route, stage_note):
                         sort_verified)
     rec = record_batch(outdir, args.group, member, asin, batch, cadence,
                        batch_id, args.sort, sort_verified, inversions, oldest,
-                       newest, stats, stage_note)
+                       newest, stats, stage_note, declared_parent)
     man = update_manifest(outdir, args.group, member, cadence, rec)
 
     print("\nrequested          %s" % rec["requested"])
@@ -1702,8 +1794,9 @@ def cmd_selftest(args):
         _mkcadence(root)
 
         print("1 · the §1.3 hash agrees with capture_reviews.js's scheme")
-        pay = {"capture_version": "1", "marketplace": "amazon.com",
-               "product_id": "B000TEST01", "page_number": 1,
+        pay = {"capture_version": "2", "marketplace": "amazon.com",
+               "product_id": "B000TEST01", "parent_asin": "B000PARENT",
+               "page_number": 1,
                "reviews": [{"review_id": "R1AAAAAAAAAA", "star_rating": 5.0,
                             "review_date_text": "December 20, 2022",
                             "review_country": "the United States",
@@ -1736,6 +1829,7 @@ def cmd_selftest(args):
                    page_url="https://www.amazon.com/product-reviews/B000TEST01/",
                    claimed={"reviews_total": 1000, "ratings_total": 5000},
                    sort_order_observed={"label": "Most recent"},
+                   parent_asin_via="page parentAsin",
                    filters={"star": "all_stars"}, returned=1, payload_sha256=h1)
         good = os.path.join(tmp, "good.json")
         write_json(good, cap)
@@ -1808,6 +1902,12 @@ def cmd_selftest(args):
               {"review_id", "title", "text"} <= set(cols))
         check("NO fiscal_quarter column (§2: aggregation assigns periods)",
               "fiscal_quarter" not in cols)
+        check("parent_asin is a contract column, and it is the join key",
+              "parent_asin" in cols[:len(REVIEW_FIELDS)])
+        check("review_country is a contract column (/dp/ pools marketplaces)",
+              "review_country" in cols[:len(REVIEW_FIELDS)])
+        check("the parent is carried on every row, not just the batch",
+              all(r["parent_asin"] == "B000PARENT" for r in rows.values()))
         check("batch_id joins a review to its batch record", "batch_id" in cols)
         check("route is per review, not per file", "collection_route" in cols)
         check("deterministic order (review_date, review_id)",
@@ -1817,8 +1917,9 @@ def cmd_selftest(args):
 
         print("\n7 · a block is recorded and stops collection (§9, §5)")
         write_json(os.path.join(tmp, "blk.json"),
-                   {"capture_version": "1", "blocked": True,
+                   {"capture_version": "2", "blocked": True,
                     "block_reason": "signin_required",
+                    "parent_asin": "B000PARENT", "parent_asin_via": "page parentAsin",
                     "collected_at": "2026-10-12T12:00:00.000Z",
                     "marketplace": "amazon.com", "product_id": "B000TEST01",
                     "page_number": 1, "page_url": "https://www.amazon.com/ap/signin",
@@ -1867,7 +1968,8 @@ def cmd_selftest(args):
         rec = read_jsonl(batches_path(os.path.join(root3, "data"),
                                       "testgroup", "test-co"))[0]
         for k in ("batch_id", "collected_at", "route", "filters", "asin",
-                  "marketplace", "requested", "returned", "claimed_total",
+                  "parent_asin", "marketplace", "requested", "returned",
+                  "claimed_total",
                   "claimed_total_basis", "coverage_ratio", "sort_requested",
                   "sort_verified", "date_order", "sort_produces_series",
                   "blocked", "block_reason"):
@@ -1881,6 +1983,36 @@ def cmd_selftest(args):
         check("coverage_ratio is returned/claimed_total",
               abs(rec["coverage_ratio"] - rec["returned"] / float(rec["claimed_total"]))
               < 1e-9)
+
+        print("\n9b · the parent asin is checked against the page, not trusted")
+        root4 = os.path.join(tmp, "proj4")
+        _mkgroup(root4)
+        _mkcadence(root4)
+        wrong = json.loads(json.dumps(cap))
+        wrong["parent_asin"] = "B000OTHER0"
+        wrong["payload_sha256"] = payload_hash(wrong)
+        write_json(os.path.join(tmp, "wrongparent.json"), wrong)
+        rc = _cap(tmp, root4, os.path.join(tmp, "wrongparent.json"), "B000TEST01")
+        check("a page serving a different parent than declared is REFUSED",
+              rc != 0, "exit %s - the reviews would be of another population" % rc)
+        v1 = json.loads(json.dumps(cap))
+        v1["capture_version"] = "1"
+        v1.pop("parent_asin", None)
+        write_json(os.path.join(tmp, "v1.json"), v1)
+        check("a version 1 capture (no parent_asin) is refused",
+              _cap(tmp, root4, os.path.join(tmp, "v1.json"), "B000TEST01") != 0)
+        check("parent_asin is inside the hashed header, so it cannot be edited",
+              "parent_asin" in HASH_HEADER)
+        noparent = {"group_id": "testgroup", "declared_at": "2026-10-12",
+                    "seed": "f", "hash": "f",
+                    "members": [{"company": "Test Co", "company_slug": "test-co",
+                                 "products": [{"asin": "B000TEST01",
+                                               "marketplace": "amazon.com"}]}]}
+        root5 = os.path.join(tmp, "proj5")
+        write_json(os.path.join(root5, GROUPS_DIR, "testgroup.json"), noparent)
+        _mkcadence(root5)
+        check("a product declared without a parent_asin cannot be collected",
+              _cap(tmp, root5, good, "B000TEST01") != 0)
 
         print("\n10 · the group file is read, never written (§1)")
         rc = _cap(tmp, root3, good, "B0NOTINGROUP")
@@ -1957,7 +2089,8 @@ def _cap(tmp, root, capture, asin):
 
 
 def _rev(rid, date, votes, title, text):
-    return {"review_id": rid, "asin": "B000TEST01", "review_date": date,
+    return {"review_id": rid, "asin": "B000TEST01",
+            "parent_asin": "B000PARENT", "review_date": date,
             "title": title, "text": text, "rating": 5.0,
             "verified_purchase": True, "helpful_vote": votes,
             "review_country": "the United States", "vine_voice": False,
@@ -1967,7 +2100,8 @@ def _rev(rid, date, votes, title, text):
 def _fakebatch(rows, sort_observed="Most recent"):
     return Batch(route="session", sort_observed=sort_observed, filters={},
                  reviews=rows, claimed={"reviews_total": 1000}, requested=10,
-                 requested_at="2026-10-12T12:00:00Z")
+                 requested_at="2026-10-12T12:00:00Z",
+                 parent_asin="B000PARENT", parent_asin_via="page parentAsin")
 
 
 def _mkgroup(root):
@@ -1981,6 +2115,7 @@ def _mkgroup(root):
                                                "evidence": "fixture",
                                                "source_url": "fixture"},
                              "products": [{"asin": "B000TEST01",
+                                           "parent_asin": "B000PARENT",
                                            "marketplace": "amazon.com",
                                            "name": "fixture"}],
                              "reporting": {"calendar": "quarterly",
