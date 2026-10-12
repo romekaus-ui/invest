@@ -553,6 +553,17 @@ def _validate_reporting(m, tag):
         p.append("%s.reporting.currency %r: must be a 3-letter ISO 4217 code. "
                  "§5 forbids silent conversion, so the native currency is "
                  "recorded even when it is awkward" % (tag, cur))
+    readable = (m.get("concentration") or {}).get("revenue_readable") is not False
+    fy = _s(rep, "fy_end")
+    if readable and not re.match(r"^(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])$", fy):
+        p.append("%s.reporting.fy_end %r: CONTRACTS.md §1 requires MMDD for any "
+                 "member whose revenue will be read. §5 forbids aligning two "
+                 "companies' figures as if their calendars matched, and this is "
+                 "the field that says they do not" % (tag, fy))
+    elif not readable and fy:
+        p.append("%s.reporting.fy_end %r: set on a member with no public "
+                 "reporting. Nothing publishes a year end for it, so empty is "
+                 "the honest value" % (tag, fy))
     if not _s(rep, "calendar_source"):
         p.append("%s.reporting.calendar_source: empty. Say where the calendar "
                  "was read from, so a wrong one can be traced" % tag)
@@ -744,7 +755,13 @@ def _validate_products(m, tag, brands, seen_asin, seen_parent, idx, allow_unveri
         # two members tracking children of one parent would be handed the same
         # reviews and their "peer-relative" tone would be a comparison of a
         # series with itself. Caught here because nothing downstream could tell.
-        parent = _s((pr.get("verification") or {}), "parent_asin_seen")
+        parent = _s(pr, "parent_asin") or _s(
+            (pr.get("verification") or {}), "parent_asin_seen")
+        if not parent:
+            p.append("%s.parent_asin: empty. CONTRACTS.md §1 requires it - "
+                     "Amazon serves reviews at the parent, so this is where the "
+                     "reviews actually come from and what the collector joins "
+                     "on. `check-products` records it" % ptag)
         if parent:
             if parent in seen_parent and seen_parent[parent] != idx:
                 p.append("%s: parent ASIN %s is already tracked by members[%d]. "
@@ -1466,8 +1483,8 @@ def mode_concentration(args):
 # Exactly the keys CONTRACTS.md §1 names, in its order, per member.
 CONTRACT_MEMBER_KEYS = ("company", "venue", "brands", "concentration",
                         "products", "reporting")
-CONTRACT_PRODUCT_KEYS = ("asin", "marketplace", "name")
-CONTRACT_REPORTING_KEYS = ("calendar", "currency", "source")
+CONTRACT_PRODUCT_KEYS = ("asin", "parent_asin", "marketplace", "name")
+CONTRACT_REPORTING_KEYS = ("calendar", "currency", "fy_end", "source")
 
 
 def content_hash(view):
@@ -1502,7 +1519,6 @@ def contract_view(group):
         out["products"] = [
             dict({k: pr.get(k) for k in CONTRACT_PRODUCT_KEYS},
                  continuity_reason=pr.get("continuity_reason"),
-                 parent_asin=(pr.get("verification") or {}).get("parent_asin_seen"),
                  verification=pr.get("verification"))
             for pr in m.get("products") or []]
         rep = m.get("reporting") or {}
@@ -1619,6 +1635,32 @@ def mode_check(args):
     return 1
 
 
+def normalise_for_contract(group):
+    """Fill the §1 fields that are mechanical rather than judgements.
+
+    `parent_asin` is lifted from the verification record onto the product,
+    because §1 requires it on the product and the collector joins on it.
+    `no_public_report` / `revenue_readable` are made explicit on every member:
+    §1 shows them on a listed member as false/true, and leaving them absent
+    would make "not private" and "not yet checked" look the same.
+    """
+    group = json.loads(json.dumps(group))
+    for m in group.get("members") or []:
+        c = m.setdefault("concentration", {})
+        if not isinstance(c, dict):
+            continue
+        if venue_is_private(m):
+            c.setdefault("no_public_report", False)
+        else:
+            c["no_public_report"] = False
+        c["revenue_readable"] = not c.get("no_public_report")
+        for pr in m.get("products") or []:
+            seen = _s((pr.get("verification") or {}), "parent_asin_seen")
+            if seen and not _s(pr, "parent_asin"):
+                pr["parent_asin"] = seen
+    return group
+
+
 def _freeze(draft, version, supersedes, revision_reason, allow_unverified):
     """Validate, stamp, write <gid>.v<N>.json + .hash. Refuses to overwrite."""
     gid = _s(draft, "group_id")
@@ -1637,6 +1679,7 @@ def _freeze(draft, version, supersedes, revision_reason, allow_unverified):
 
     n_readings = readings_for(gid)
     group = dict(draft)
+    group = normalise_for_contract(group)
     group["schema_version"] = SCHEMA_VERSION
     group["version"] = version
     # CONTRACTS.md §1: a DATE, never a wall-clock during collection. The exact

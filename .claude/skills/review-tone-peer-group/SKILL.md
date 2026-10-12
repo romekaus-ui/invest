@@ -125,11 +125,19 @@ the contract is the same either way.
    visible.
 6. **The concentration floor.** A disclosed share below 0.60 is refused, and a listed
    member can never claim the private-company evidence exemption.
+7. **The evidence record.** `pool_evidence.jsonl` is append-only and hash-chained; a
+   withdrawal is appended with a reason, never deleted. `evidence_log.py verify` detects
+   an altered line, a removed line, a snapshot that drifts from the log, or a snapshot
+   edited after it was hashed.
+8. **The company it asked for.** A venue is resolved only when its exchange is a US one,
+   and the entity name SEC returns is compared to the company name before the evidence is
+   recorded. A mismatch is refused, not recorded (`CONTRACTS.md` §5).
 
 ## Tests
 
 ```bash
-python3 .claude/skills/review-tone-peer-group/tests/test_declare_group.py
+python3 .claude/skills/review-tone-peer-group/tests/test_declare_group.py   # 147
+python3 .claude/skills/review-tone-peer-group/tests/test_evidence_log.py    # 27
 ```
 
 Standard library only, no network. The lexicon tests are the ones that matter: a refusal

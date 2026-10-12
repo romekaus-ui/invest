@@ -52,14 +52,15 @@ def member(**over):
                       "calendar_source": "SEC EDGAR submissions CIK0000021344",
                       "resolved_by": "edgar"},
         "products": [{
-            "asin": "B000TNY0AM", "marketplace": "amazon.com",
-            "brand": "Coca-Cola",
+            "asin": "B000TNY0AM", "parent_asin": "B0PARENTKO",
+            "marketplace": "amazon.com", "brand": "Coca-Cola",
             "name": "Coca-Cola Classic, 12 fl oz, 12 Pack",
             "continuity_reason": ("The standard 12-can pack of the core cola "
                                   "line, listed continuously since 2012."),
             "verification": {"status": "resolved", "checked_at": "2026-10-11T00:00:00Z",
                              "route": "http-direct",
-                             "title_seen": "Coca-Cola Classic, 12 fl oz, 12 Pack"},
+                             "title_seen": "Coca-Cola Classic, 12 fl oz, 12 Pack",
+                             "parent_asin_seen": "B0PARENTKO"},
         }],
     }
     m.update(over)
@@ -73,7 +74,8 @@ def other(**over):
         brands=["Pepsi"],
         reason="Sells cola under Pepsi, the direct alternative a shopper reaches "
                "for instead of a Coca-Cola can at the same shelf.",
-        products=[dict(member()["products"][0], asin="B00N4OTQKM", brand="Pepsi",
+        products=[dict(member()["products"][0], asin="B00N4OTQKM",
+                       parent_asin="B0PARENTPE", brand="Pepsi",
                        name="Pepsi Cola, 12 oz Cans, 12 Pack",
                        verification={"status": "resolved", "checked_at": "x",
                                      "route": "http-direct",
@@ -98,7 +100,8 @@ def group(members=None, **over):
                     "reaches for instead of a Coca-Cola can at the same "
                     "shelf."),
             products=[{
-                "asin": "B00N4OTQKM", "marketplace": "amazon.com",
+                "asin": "B00N4OTQKM", "parent_asin": "B0PARENTPE",
+                "marketplace": "amazon.com",
                 "brand": "Pepsi", "name": "Pepsi Cola, 12 oz Cans, 12 Pack",
                 "continuity_reason": ("The standard 12-can pack of the flagship "
                                       "cola, in the permanent range."),
@@ -113,6 +116,10 @@ def group(members=None, **over):
 
 def problems(g, **kw):
     return dg.validate(copy.deepcopy(g), **kw)
+
+
+def _unver_problems():
+    return "see the group built inline above"
 
 
 # ----------------------------------------------------------- the happy path
@@ -180,7 +187,8 @@ check("a full group with a Momentum member validates",
                             "fy_end": "0331",
                             "calendar_source": "Sonova financial calendar",
                             "resolved_by": "agent"},
-                 products=[{"asin": "B0B6GHW1SX", "marketplace": "amazon.com",
+                 products=[{"asin": "B0B6GHW1SX", "parent_asin": "B0PARENTSE",
+                            "marketplace": "amazon.com",
                             "brand": "Sennheiser",
                             "name": "Sennheiser Momentum 4 Wireless "
                                                 "Headphones, ANC, 60 Hr Battery, Black",
@@ -191,7 +199,8 @@ check("a full group with a Momentum member validates",
                                              "route": "http-direct",
                                              "title_seen": "Sennheiser Momentum 4 "
                                                            "Wireless Headphones, ANC, "
-                                                           "60 Hr Battery, Black"}}])])) == [],
+                                                           "60 Hr Battery, Black",
+                                             "parent_asin_seen": "B0PARENTSE"}}])])) == [],
       problems(group()))
 
 print("\npopularity lexicon on continuity reasons")
@@ -280,22 +289,14 @@ refuses("unresolved product without --allow-unverified",
                                                            "route": "http-direct"})]),
                        member(company="PepsiCo")]),
         "not 'resolved'")
+_unver = group(members=[
+    member(products=[dict(member()["products"][0],
+                          verification={"status": "not_found", "checked_at": "x",
+                                        "route": "http-direct"})]),
+    other()])
 check("the same unresolved product passes WITH --allow-unverified",
-      problems(group(members=[member(products=[dict(member()["products"][0],
-                                                    verification={"status": "not_found",
-                                                                  "checked_at": "x",
-                                                                  "route": "http-direct"})]),
-                              member(company="PepsiCo", venue="NASDAQ:PEP",
-                                     brands=["Pepsi"],
-                                     reason="Sells cola under Pepsi, the alternative a "
-                                            "shopper reaches for instead of a Coke.",
-                                     products=[dict(member()["products"][0], asin="B00N4OTQKM", brand="Pepsi",
-                 name="Pepsi Cola, 12 oz Cans, 12 Pack",
-                 verification={"status": "resolved", "checked_at": "x",
-                               "route": "http-direct",
-                               "title_seen": "Pepsi Cola, 12 oz Cans, 12 Pack"})])],
-                     ), allow_unverified=True) == [],
-      problems(group(), allow_unverified=True))
+      problems(_unver, allow_unverified=True) == [],
+      problems(_unver, allow_unverified=True))
 
 refuses("one ASIN claimed by two companies",
         group(members=[member(), member(company="PepsiCo, Inc.", brands=["Pepsi"],
@@ -307,17 +308,13 @@ refuses("one ASIN claimed by two companies",
         "cannot be two companies'")
 refuses("two members tracking children of the same parent ASIN",
         group(members=[
-            member(products=[dict(member()["products"][0], verification=dict(
-                member()["products"][0]["verification"], parent_asin_seen="B0PARENT01"))]),
-            other(products=[dict(other()["products"][0], verification=dict(
-                other()["products"][0]["verification"], parent_asin_seen="B0PARENT01"))])]),
+            member(products=[dict(member()["products"][0], parent_asin="B0PARENT01")]),
+            other(products=[dict(other()["products"][0], parent_asin="B0PARENT01")])]),
         "is already tracked by members[0]")
 check("distinct parents are fine",
       problems(group(members=[
-          member(products=[dict(member()["products"][0], verification=dict(
-              member()["products"][0]["verification"], parent_asin_seen="B0PARENT01"))]),
-          other(products=[dict(other()["products"][0], verification=dict(
-              other()["products"][0]["verification"], parent_asin_seen="B0PARENT02"))])])) == [])
+          member(products=[dict(member()["products"][0], parent_asin="B0PARENT01")]),
+          other(products=[dict(other()["products"][0], parent_asin="B0PARENT02")])])) == [])
 refuses("duplicate company", group(members=[member(), member()]), "duplicate of")
 refuses("altered substitutability test",
         group(substitutability_test="Does it look like a competitor?"),
@@ -328,27 +325,55 @@ refuses("a venue that is not EXCHANGE:TICKER and not 'private'",
 refuses("an empty venue", group(members=[member(venue=""),
                                          member(company="PepsiCo")]),
         "venue: empty")
-check("a private member validates",
+_priv = group(members=[
+    member(venue="private",
+           concentration=dict(member()["concentration"], share_of_revenue=None,
+                              no_public_report=True, revenue_readable=False),
+           reporting={"calendar": "annual", "currency": "EUR", "source": "none",
+                      "regime": "unlisted, no public interim reporting",
+                      "fy_end": "", "calendar_source": "company website, no filings",
+                      "resolved_by": "agent"}),
+    other()])
+check("a private member validates", problems(_priv) == [], problems(_priv))
+refuses("fy_end set on a member with no public reporting",
+        group(members=[
+            member(venue="private",
+                   concentration=dict(member()["concentration"], share_of_revenue=None,
+                                      no_public_report=True, revenue_readable=False),
+                   reporting=dict(member()["reporting"], source="none", fy_end="1231")),
+            other()]),
+        "set on a member with no public reporting")
+refuses("a listed member claiming the private evidence exemption",
+        group(members=[member(concentration=dict(member()["concentration"],
+                                                 no_public_report=True)), other()]),
+        "set on a LISTED member")
+refuses("a missing fy_end on a member whose revenue will be read",
+        group(members=[member(reporting=dict(member()["reporting"], fy_end="")),
+                       other()]),
+        "requires MMDD")
+# `parent_asin` may be absent from the draft as long as check-products recorded
+# it; `_freeze` lifts it onto the product, so the frozen file always carries it.
+check("a draft without parent_asin passes while verification carries it",
       problems(group(members=[
-          member(venue="private",
-                 reporting={"calendar": "annual", "currency": "EUR", "source": "none",
-                            "regime": "unlisted, no public interim reporting",
-                            "fy_end": "1231",
-                            "calendar_source": "company website, no filings",
-                            "resolved_by": "agent"}),
-          member(company="PepsiCo, Inc.", brands=["Pepsi"],
-                 venue="NASDAQ:PEP",
-                 reason="Sells cola under Pepsi, the direct alternative a shopper "
-                        "reaches for at the same shelf.",
-                 products=[dict(member()["products"][0], asin="B00N4OTQKM", brand="Pepsi",
-                 name="Pepsi Cola, 12 oz Cans, 12 Pack",
-                 verification={"status": "resolved", "checked_at": "x",
-                               "route": "http-direct",
-                               "title_seen": "Pepsi Cola, 12 oz Cans, 12 Pack"})])])) == [],
-      problems(group(members=[member(venue="private")])))
+          member(products=[{k: v for k, v in member()["products"][0].items()
+                            if k != "parent_asin"}]), other()])) == [])
+refuses("a product with no parent ASIN anywhere",
+        group(members=[member(products=[dict(
+            {k: v for k, v in member()["products"][0].items() if k != "parent_asin"},
+            verification={k: v for k, v
+                          in member()["products"][0]["verification"].items()
+                          if k != "parent_asin_seen"})]), other()]),
+        "parent_asin: empty")
+check("_freeze lifts parent_asin from the verification record onto the product",
+      dg.normalise_for_contract(group(members=[
+          member(products=[{k: v for k, v in member()["products"][0].items()
+                            if k != "parent_asin"}]), other()])
+      )["members"][0]["products"][0]["parent_asin"] == "B0PARENTKO")
+check("normalise makes the two §1 flags explicit on a listed member",
+      dg.normalise_for_contract(group())["members"][0]["concentration"]
+      == dict(member()["concentration"], no_public_report=False,
+              revenue_readable=True))
 
-# The transposed-identifier check. Prose and ASIN are written in different
-# moments, so this is the only thing that notices they disagree.
 refuses("an ASIN whose served title does not carry the declared brand",
         group(members=[member(products=[dict(
             member()["products"][0], brand="Coca-Cola",
@@ -480,11 +505,13 @@ mixed = group(members=[
            venue="private",
            reason="Sells caffeinated glucose energy drinks under Lucozade, taken "
                   "instead of a cola by the same shopper at the same shelf.",
+           concentration=dict(member()["concentration"], share_of_revenue=None,
+                              no_public_report=True, revenue_readable=False),
            reporting={"calendar": "half-yearly", "currency": "JPY", "source": "none",
-                      "regime": "no interim reporting", "fy_end": "1231",
+                      "regime": "no interim reporting", "fy_end": "",
                       "calendar_source": "company reports", "resolved_by": "agent"},
            products=[dict(member()["products"][0], asin="B001LION9E",
-                          brand="Lucozade",
+                          parent_asin="B0PARENTLU", brand="Lucozade",
                           name="Lucozade Energy Original 380 ml",
                           verification={"status": "resolved", "checked_at": "x",
                                         "route": "http-direct",
@@ -570,7 +597,8 @@ try:
                  reason=("Sells carbonated soft drinks under Dr Pepper and 7UP, "
                          "bought instead of a cola or a lemon-lime can at the "
                          "same shelf."),
-                 products=[{"asin": "B01N0XCS0Y", "marketplace": "amazon.com",
+                 products=[{"asin": "B01N0XCS0Y", "parent_asin": "B0PARENTDP",
+                            "marketplace": "amazon.com",
                             "brand": "Dr Pepper",
                             "name": "Dr Pepper Soda, 12 fl oz, 12 Pack",
                             "continuity_reason": "The standard 12-can pack of the "
@@ -578,6 +606,7 @@ try:
                             "verification": {"status": "resolved",
                                              "checked_at": "2026-10-11T00:00:00Z",
                                              "route": "http-direct",
+                                             "parent_asin_seen": "B0PARENTDP",
                                              "title_seen": "Dr Pepper Soda, 12 fl oz, "
                                                            "12 Pack"}}])
     g2 = group(members=group()["members"] + [kdp])

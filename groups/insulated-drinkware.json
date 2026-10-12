@@ -21,11 +21,11 @@
   },
   "declared_at": "2026-10-12",
   "declared_by": {
-    "code_commit": "2e283e86054612b87e2ebbe364e44b7385d0cf1c-dirty",
+    "code_commit": "647f12d4710a82d49d914ed37b34a641e9a89789-dirty",
     "tool": "declare_group.py"
   },
   "group_id": "insulated-drinkware",
-  "hash": "558abdea378e07f2188a0d277860ce1ed390de163c299b1d88d83f3e57ed8c0b",
+  "hash": "017c7ca396f1fef66041907a56a58871653d72d10e6c585b4ba9ab7342a6a404",
   "members": [
     {
       "brands": [
@@ -37,6 +37,8 @@
       "concentration": {
         "dominant_line": "insulated drinkware and coolers",
         "evidence": "FY2025 10-K: 'Coolers & Equipment, Drinkware, and Other represented 40%, 58%, and 2% of net sales, respectively.' Drinkware alone is 58%, below the filter's floor; the line is taken at the level the tracked product sits at - insulated drinkware and coolers together, 98%.",
+        "no_public_report": false,
+        "revenue_readable": true,
         "share_of_revenue": 0.98,
         "source_url": "https://www.sec.gov/Archives/edgar/data/1670592/000167059226000013/yeti-20260103.htm"
       },
@@ -177,13 +179,18 @@
   "peer_relative_reading": true,
   "post_collection": false,
   "readings_at_declare": 0,
-  "record_of_declaration": "data/peer_groups/insulated-drinkware.v1.json",
-  "revision_reason": null,
+  "record_of_declaration": "data/peer_groups/insulated-drinkware.v2.json",
+  "revision_reason": "CONTRACTS.md §1 was amended the same day (A1-A4 adopted on main, 5473f2f): parent_asin is required per product, no_public_report and revenue_readable are explicit on every member, and fy_end is required in reporting. No member, brand, product, reason or concentration figure changed; the member diff is empty, which is the point of recording it.",
   "seed": "insulated stainless steel drinkware",
   "seed_kind": "category",
   "solo": false,
   "solo_reason": null,
   "substitutability_test": "Would a consumer shopping for this seed's product consider this company's product instead of it, as a direct alternative for the same need, at the same point of purchase? If yes, it is a peer. Size, country, listing venue and currency are irrelevant to the answer.",
-  "supersedes": null,
-  "version": 1
+  "supersedes": {
+    "declared_at": "2026-10-12",
+    "file": "insulated-drinkware.v1.json",
+    "sha256": "a36769425c751ddb0d682ec27b995c1691ef3ed331a03e19f6af2282435c1b09",
+    "version": 1
+  },
+  "version": 2
 }

@@ -21,11 +21,11 @@
   },
   "declared_at": "2026-10-12",
   "declared_by": {
-    "code_commit": "2e283e86054612b87e2ebbe364e44b7385d0cf1c-dirty",
+    "code_commit": "647f12d4710a82d49d914ed37b34a641e9a89789-dirty",
     "tool": "declare_group.py"
   },
   "group_id": "energy-drinks",
-  "hash": "5c49f52e70b0652a7b905e01f4e32d16f4beda580eb921d153f1b7bff0115ed4",
+  "hash": "e9c8e1a2ffb657ccba781adcfe901e5f34d2e792a7f393e940d3b8dd3920ebeb",
   "members": [
     {
       "brands": [
@@ -36,6 +36,8 @@
       "concentration": {
         "dominant_line": "sugar-free energy drinks",
         "evidence": "FY2025 10-K: the company 'functions as a single operating segment' and discloses revenue by geography only, with no product-line split. Its range is energy drinks and energy drink powders.",
+        "no_public_report": false,
+        "revenue_readable": true,
         "share_of_revenue": null,
         "source_url": "https://www.sec.gov/Archives/edgar/data/1341766/000134176626000024/celh-20251231.htm"
       },
@@ -84,6 +86,8 @@
       "concentration": {
         "dominant_line": "energy drinks",
         "evidence": "FY2025 10-K: 'Our Monster Energy Drinks segment represented 92.4% and 91.6% of our net sales for the years ended December 31, 2025 and 2024, respectively.'",
+        "no_public_report": false,
+        "revenue_readable": true,
         "share_of_revenue": 0.924,
         "source_url": "https://www.sec.gov/Archives/edgar/data/865752/000110465926020831/mnst-20251231x10k.htm"
       },
@@ -174,13 +178,18 @@
   "peer_relative_reading": true,
   "post_collection": false,
   "readings_at_declare": 0,
-  "record_of_declaration": "data/peer_groups/energy-drinks.v1.json",
-  "revision_reason": null,
+  "record_of_declaration": "data/peer_groups/energy-drinks.v2.json",
+  "revision_reason": "CONTRACTS.md §1 was amended the same day (A1-A4 adopted on main, 5473f2f): parent_asin is required per product, no_public_report and revenue_readable are explicit on every member, and fy_end is required in reporting. No member, brand, product, reason or concentration figure changed; the member diff is empty, which is the point of recording it.",
   "seed": "canned energy drinks",
   "seed_kind": "category",
   "solo": false,
   "solo_reason": null,
   "substitutability_test": "Would a consumer shopping for this seed's product consider this company's product instead of it, as a direct alternative for the same need, at the same point of purchase? If yes, it is a peer. Size, country, listing venue and currency are irrelevant to the answer.",
-  "supersedes": null,
-  "version": 1
+  "supersedes": {
+    "declared_at": "2026-10-12",
+    "file": "energy-drinks.v1.json",
+    "sha256": "174bee3b7ac6107a5e855ae85979a795875728a185fff193c5c1c8bc79067a68",
+    "version": 1
+  },
+  "version": 2
 }

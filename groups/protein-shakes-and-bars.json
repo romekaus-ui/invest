@@ -17,11 +17,11 @@
   },
   "declared_at": "2026-10-12",
   "declared_by": {
-    "code_commit": "2e283e86054612b87e2ebbe364e44b7385d0cf1c-dirty",
+    "code_commit": "647f12d4710a82d49d914ed37b34a641e9a89789-dirty",
     "tool": "declare_group.py"
   },
   "group_id": "protein-shakes-and-bars",
-  "hash": "ea3e1ccc0f80bcd82806213f7c98008dfe9e9fd722b323835d4b6cfb306f55fc",
+  "hash": "379ea41f6371b6c7bb118900c8bff74ba7ff2dba6bf982478d378be7b34eab12",
   "members": [
     {
       "brands": [
@@ -32,6 +32,8 @@
       "concentration": {
         "dominant_line": "ready-to-drink protein shakes",
         "evidence": "FY2025 10-K Note 4, net sales by product: Shakes $1,892.9m, Powders $366.5m, Other $57.2m of Net Sales $2,316.6m.",
+        "no_public_report": false,
+        "revenue_readable": true,
         "share_of_revenue": 0.817,
         "source_url": "https://www.sec.gov/Archives/edgar/data/1772016/000177201625000153/brbr-20250930.htm"
       },
@@ -81,6 +83,8 @@
       "concentration": {
         "dominant_line": "nutritional snacks, bars and shakes",
         "evidence": "FY2025 10-K: operations are 'organized into two operating segments, Quest and Atkins, and OWYN, which are aggregated into one reportable segment due to similar financial, economic and operating characteristics'. All three brands are nutritional snacks and shakes; no product-line split is disclosed.",
+        "no_public_report": false,
+        "revenue_readable": true,
         "share_of_revenue": null,
         "source_url": "https://www.sec.gov/Archives/edgar/data/1702744/000170274425000046/atk-20250830.htm"
       },
@@ -123,13 +127,18 @@
   "peer_relative_reading": true,
   "post_collection": false,
   "readings_at_declare": 0,
-  "record_of_declaration": "data/peer_groups/protein-shakes-and-bars.v1.json",
-  "revision_reason": null,
+  "record_of_declaration": "data/peer_groups/protein-shakes-and-bars.v2.json",
+  "revision_reason": "CONTRACTS.md §1 was amended the same day (A1-A4 adopted on main, 5473f2f): parent_asin is required per product, no_public_report and revenue_readable are explicit on every member, and fy_end is required in reporting. No member, brand, product, reason or concentration figure changed; the member diff is empty, which is the point of recording it.",
   "seed": "ready-to-drink protein shakes and protein bars",
   "seed_kind": "category",
   "solo": false,
   "solo_reason": null,
   "substitutability_test": "Would a consumer shopping for this seed's product consider this company's product instead of it, as a direct alternative for the same need, at the same point of purchase? If yes, it is a peer. Size, country, listing venue and currency are irrelevant to the answer.",
-  "supersedes": null,
-  "version": 1
+  "supersedes": {
+    "declared_at": "2026-10-12",
+    "file": "protein-shakes-and-bars.v1.json",
+    "sha256": "30ed186a24987f8bf1a150af65ebed68b11d98322814c243fc3226c76f0b2e13",
+    "version": 1
+  },
+  "version": 2
 }

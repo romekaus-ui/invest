@@ -17,11 +17,11 @@
   },
   "declared_at": "2026-10-12",
   "declared_by": {
-    "code_commit": "2e283e86054612b87e2ebbe364e44b7385d0cf1c-dirty",
+    "code_commit": "647f12d4710a82d49d914ed37b34a641e9a89789-dirty",
     "tool": "declare_group.py"
   },
   "group_id": "gaming-headsets",
-  "hash": "b5b406d0f4a0b7b627f27fec0c0f84f6b030784e1d38f9a3cd38970303b3a18e",
+  "hash": "3d7fff43cab13c39984f8bac7f5bbe07ac9a6e882fc4d7db250b7c90d418cb04",
   "members": [
     {
       "brands": [
@@ -33,6 +33,8 @@
       "concentration": {
         "dominant_line": "gaming accessories",
         "evidence": "FY2025 10-K: 'The company operates in a single reportable segment, referred to as gaming accessories.' No product-line split is disclosed, so no share is recorded.",
+        "no_public_report": false,
+        "revenue_readable": true,
         "share_of_revenue": null,
         "source_url": "https://www.sec.gov/Archives/edgar/data/1493761/000119312526104436/tbch-20251231.htm"
       },
@@ -81,6 +83,8 @@
       "concentration": {
         "dominant_line": "gaming and creator hardware",
         "evidence": "FY2025 10-K segment net revenue: Gamer and Creator Peripherals $492,137 thousand, 33.4% of net revenue; the Gaming Components and Systems segment is the remainder. Both segments are gaming hardware and no non-gaming line is disclosed, so no single-line share is recorded.",
+        "no_public_report": false,
+        "revenue_readable": true,
         "share_of_revenue": null,
         "source_url": "https://www.sec.gov/Archives/edgar/data/1743759/000119312526067833/crsr-20251231.htm"
       },
@@ -129,6 +133,8 @@
       "concentration": {
         "dominant_line": "computer and gaming peripherals",
         "evidence": "FY2026 10-K: Logitech reports as a single operating segment and discloses revenue by product category; every category it lists is a computer or gaming peripheral. No non-peripheral line is disclosed, so no single-line share is recorded.",
+        "no_public_report": false,
+        "revenue_readable": true,
         "share_of_revenue": null,
         "source_url": "https://www.sec.gov/Archives/edgar/data/1032975/000103297526000021/logi-20260331.htm"
       },
@@ -171,13 +177,18 @@
   "peer_relative_reading": true,
   "post_collection": false,
   "readings_at_declare": 0,
-  "record_of_declaration": "data/peer_groups/gaming-headsets.v1.json",
-  "revision_reason": null,
+  "record_of_declaration": "data/peer_groups/gaming-headsets.v2.json",
+  "revision_reason": "CONTRACTS.md §1 was amended the same day (A1-A4 adopted on main, 5473f2f): parent_asin is required per product, no_public_report and revenue_readable are explicit on every member, and fy_end is required in reporting. No member, brand, product, reason or concentration figure changed; the member diff is empty, which is the point of recording it.",
   "seed": "wireless gaming headsets",
   "seed_kind": "category",
   "solo": false,
   "solo_reason": null,
   "substitutability_test": "Would a consumer shopping for this seed's product consider this company's product instead of it, as a direct alternative for the same need, at the same point of purchase? If yes, it is a peer. Size, country, listing venue and currency are irrelevant to the answer.",
-  "supersedes": null,
-  "version": 1
+  "supersedes": {
+    "declared_at": "2026-10-12",
+    "file": "gaming-headsets.v1.json",
+    "sha256": "922c0c98de116b6f9dbfe74b0d64bebf838a3b4437fdf4c7d288bac8a1083298",
+    "version": 1
+  },
+  "version": 2
 }

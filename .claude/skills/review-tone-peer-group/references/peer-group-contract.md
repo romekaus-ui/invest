@@ -26,7 +26,33 @@ price or a result, and nothing here may be changed once frozen.
 | `data/peer_groups/<id>.concentration.json` | Verbatim evidence windows from each member's own filing, with the URL fetched. |
 | `groups/<id>.json` | **The CONTRACTS.md §1 view** — what the workflow reads. Generated from the current version, never hand-edited, carrying its own `hash`. |
 | `data/peer_groups/candidate_pool.json` | Screening input: candidate companies by category. Not a declaration. |
-| `data/peer_groups/pool_evidence.json` | `screen_pool.py` output: one evidence record per screened company. |
+| `data/peer_groups/pool_evidence.jsonl` | **Append-only, hash-chained evidence record.** The truth. |
+| `data/peer_groups/pool_evidence.json` | Snapshot derived from the log. Regenerated, never hand-edited. |
+| `data/peer_groups/pool_evidence.hash` | sha256 of the snapshot. |
+
+### The evidence log
+
+`pool_evidence.json` feeds the counts everyone quotes — how many focused companies
+exist, how many have a disclosed split, whether the pool runs out. It was the one
+artefact here a silent edit would not have shown, and it is the artefact this component
+had already edited: two poisoned records were deleted from it when `EPA:EL` turned out to
+have resolved to Estée Lauder. Deleting them was right; leaving no trace was not.
+
+So it is now written the way the declarations are (CORE-PROMPT §1.5). Every line of
+`pool_evidence.jsonl` carries `prev`, the sha256 of the line before it, so removing or
+altering a line breaks the chain at that point and at every point after it. A withdrawal
+is an appended `withdraw` record with a reason, **never a deletion** — the wrong evidence
+stays visible, marked wrong, which is the only way a reader can tell "never fetched" from
+"fetched and wrong". The two deletions are reconstructed in the log and marked as
+reconstructions rather than dressed up as original records.
+
+```bash
+python3 .claude/skills/review-tone-peer-group/scripts/evidence_log.py verify
+# chain intact · snapshot matches the log · snapshot hash ok · 2 withdrawals
+```
+
+`verify` exits 2 on any of: a broken chain, a snapshot that disagrees with the log, or a
+snapshot edited after it was hashed.
 
 ### Two paths, one truth
 

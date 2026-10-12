@@ -6,6 +6,84 @@ here.
 
 ---
 
+## 2026-10-12 (later) — schema 2, and the evidence record made tamper-evident
+
+`CONTRACTS.md` §1 was amended the same day (A1–A4 adopted on `main`, `5473f2f`), and a
+peer pointed out the one artefact in this component that a silent edit would not have
+shown. Both addressed. 147 + 27 tests, 12 versions hash-clean, stage G satisfied for all
+six groups.
+
+### Schema 2
+
+§1 now requires `parent_asin` per product, `no_public_report` / `revenue_readable`
+explicit on every member, and `fy_end` in `reporting`. `SCHEMA_VERSION` is 2 and the six
+groups were **revised to v2 rather than edited** — the contract genuinely changed, the
+member diff is empty, and an empty diff is exactly what a schema-only revision should
+leave behind.
+
+`fy_end` is required only for a member whose revenue will be read, and must be *empty*
+for one with `no_public_report: true`: nothing publishes a year end for a private
+company, so inventing one would be the same class of mistake as inventing a revenue
+share. `parent_asin` may be absent from a draft when `check-products` recorded it in the
+verification block; the freeze lifts it onto the product, so a frozen file always carries
+it.
+
+### The evidence record is now append-only and hash-chained
+
+Raised by the peer who settled the contract, and it was right: `pool_evidence.json` feeds
+the counts everyone quotes, and it was the one artefact here held to a lower standard
+than the declarations — **while being the artefact this component had already edited.**
+Two poisoned records were deleted from it under defect 11. Deleting them was correct;
+leaving no trace was not, and a reader afterwards could not tell "never fetched" from
+"fetched and wrong".
+
+| File | What it is |
+|---|---|
+| `pool_evidence.jsonl` | append-only, hash-chained. **The record.** |
+| `pool_evidence.json` | snapshot derived from the log, regenerated |
+| `pool_evidence.hash` | sha256 of the snapshot |
+
+Every line carries `prev`, the sha256 of the line before it. A withdrawal is an appended
+record with a reason, never a deletion. `evidence_log.py verify` exits 2 on a broken
+chain, a snapshot that disagrees with the log, or a snapshot edited after it was hashed —
+each case has a test that performs the tamper and checks it is caught.
+
+The two deleted records are reconstructed in the log and **marked as reconstructions**,
+not dressed up as contemporaneous records, and the opening line says plainly that
+everything before it is unwitnessed: a backfill cannot prove the file was not edited
+before the log existed. When the genesis line turned out to put a stray `__genesis__` key
+in the derived snapshot, the fix was a correction appended to the log and a change to
+`derive`, **not an edit of the opening line** — editing it would have broken the chain
+and defeated the point of having one.
+
+### The check that would have caught defect 11
+
+`screen_pool.py` now compares the entity name SEC returned against the company name
+asked for, and **refuses to record evidence on a mismatch** rather than recording it with
+a warning. Wrong evidence that looks right is worse than none.
+
+Tested against the real awkward cases rather than only the obvious ones: it rejects
+`EssilorLuxottica S.A.` / `ESTEE LAUDER COMPANIES INC` and `Societe BIC` /
+`BLACKBERRY Ltd`, while accepting `Helen of Troy Limited (Hydro Flask)` /
+`HELEN OF TROY LTD`, `Church & Dwight Co., Inc. (Waterpik)` /
+`CHURCH & DWIGHT CO INC /DE/` and `The Simply Good Foods Company` /
+`Simply Good Foods Co`. A parenthetical brand name, a `/DE/` suffix and a dropped article
+must not read as a different company, or the check gets switched off.
+
+### Defect
+
+13. **A no-op assertion sat in the new test file.** `check("the snapshot matches the log",
+    el.derive() == el.read_json_snapshot() if hasattr(el, "read_json_snapshot") else
+    True)` — `read_json_snapshot` does not exist, so the ternary always evaluated `True`
+    and the check passed without testing anything. Caught on reading the file back, not
+    by running it, because a test that always passes looks exactly like a test that
+    passes. Replaced with two real assertions: the snapshot on disk equals what the log
+    derives, and the hash sidecar matches the snapshot bytes. Worth recording because the
+    whole point of this entry is tamper-evidence, and a test that cannot fail is the
+    software equivalent of the mutable evidence file.
+
+---
+
 ## 2026-10-12 — peer groups: the contract, the concentration filter, and six groups
 
 Adopted `CONTRACTS.md` §1 as the declaration's own shape, added PLAN.md's concentration

@@ -20,11 +20,11 @@
   },
   "declared_at": "2026-10-12",
   "declared_by": {
-    "code_commit": "2e283e86054612b87e2ebbe364e44b7385d0cf1c-dirty",
+    "code_commit": "647f12d4710a82d49d914ed37b34a641e9a89789-dirty",
     "tool": "declare_group.py"
   },
   "group_id": "wireless-speakers",
-  "hash": "8deba7a34281b631debf49cf625720505ccc0c597a76d6033bcdbf365859a459",
+  "hash": "f2a337436c3dc4ea7bd90c4f93217dcd9b61f8e538aa14907e2af20a40196ee8",
   "members": [
     {
       "brands": [
@@ -36,6 +36,8 @@
       "concentration": {
         "dominant_line": "wireless speakers",
         "evidence": "FY2025 10-K, revenue by major product category: Sonos speakers $1,121,808 thousand of $1,443,276 thousand total revenue. The filing states '% of total revenue 77.7%'.",
+        "no_public_report": false,
+        "revenue_readable": true,
         "share_of_revenue": 0.777,
         "source_url": "https://www.sec.gov/Archives/edgar/data/1314727/000131472725000090/sono-20250927.htm"
       },
@@ -127,13 +129,18 @@
   "peer_relative_reading": true,
   "post_collection": false,
   "readings_at_declare": 0,
-  "record_of_declaration": "data/peer_groups/wireless-speakers.v1.json",
-  "revision_reason": null,
+  "record_of_declaration": "data/peer_groups/wireless-speakers.v2.json",
+  "revision_reason": "CONTRACTS.md §1 was amended the same day (A1-A4 adopted on main, 5473f2f): parent_asin is required per product, no_public_report and revenue_readable are explicit on every member, and fy_end is required in reporting. No member, brand, product, reason or concentration figure changed; the member diff is empty, which is the point of recording it.",
   "seed": "Sonos",
   "seed_kind": "company",
   "solo": false,
   "solo_reason": null,
   "substitutability_test": "Would a consumer shopping for this seed's product consider this company's product instead of it, as a direct alternative for the same need, at the same point of purchase? If yes, it is a peer. Size, country, listing venue and currency are irrelevant to the answer.",
-  "supersedes": null,
-  "version": 1
+  "supersedes": {
+    "declared_at": "2026-10-12",
+    "file": "wireless-speakers.v1.json",
+    "sha256": "b12197e197dd8f5b71f0656eaf82fb39c8954622b828e4f0de59327ba0a6bcf9",
+    "version": 1
+  },
+  "version": 2
 }
