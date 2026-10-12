@@ -198,3 +198,27 @@ From CORE-PROMPT §1, repeated here because these are the ones broken by acciden
 - Write a review that Amazon did not serve.
 - Record a batch without its provenance.
 - Defeat, solve or route around a block. A refusal is recorded and the stage stops.
+- **Resolve a company by ticker symbol without its exchange.**
+
+### Why that last one is a rule and not advice
+
+SEC's ticker index is keyed on **symbol alone**. So a lookup of `EPA:EL`
+(EssilorLuxottica, Paris) returns `EL` — Estée Lauder, New York. `EPA:BB` (Société BIC)
+returns `BB` — BlackBerry. Both then fetch a real 10-K and produce entirely plausible
+concentration evidence, carrying a genuine `sec.gov` URL, filed under the right
+company's name.
+
+**Nothing in the output looks wrong.** The entity name SEC returns is the only tell, and
+it is not read by anything that trusts the symbol. This is the worst shape a defect can
+take here: a different company's revenue attributed to the company you meant, with a
+real primary source beside it.
+
+It was caught in the peer-group pool screen, where it inflated the counts by two. A
+component that resolves a venue to a CIK **checks the exchange against a US set before
+looking up the symbol**, and records the entity name it got back so a mismatch is
+visible.
+
+`fetch_sec.py` is clear: it takes `TICKER CIK` positionally and keys every fetch on the
+**CIK**, using the ticker only as a directory name. That does not make the problem go
+away — it relocates it to whoever produces the CIK, which is now the peer-group
+declaration's `venue` field.
