@@ -27,15 +27,22 @@ A component satisfies this file or the workflow cannot call it.
       "brands": ["Roomba", "Braava"],
       "concentration": {
         "dominant_line": "robot vacuums and mops",
-        "share_of_revenue": 0.92,        // null if not disclosed
+        "share_of_revenue": 0.92,        // null when the filing does not split it
         "evidence": "FY2024 10-K, revenue by product category",
-        "source_url": "https://www.sec.gov/..."
+        "source_url": "https://www.sec.gov/...",
+        "no_public_report": false,       // true only for a private member
+        "revenue_readable": true         // false whenever no_public_report
       },
       "products": [
-        {"asin": "B0...", "marketplace": "amazon.com", "name": "Roomba j7+"}
+        {"asin": "B0...",                // the variant actually sold
+         "parent_asin": "B0...",         // REQUIRED - where Amazon serves the reviews
+         "marketplace": "amazon.com", "name": "Roomba j7+"}
       ],
       "reporting": {"calendar": "quarterly", "currency": "USD",
-                    "source": "SEC"}     // SEC | companies-house | EDINET | none
+                    "fy_end": "1231",    // MMDD; "0102" for a 52/53-week year
+                    "source": "SEC"}
+      // source: SEC | companies-house | EDINET | TDnet | SIX | DART
+      //       | other-national | none
     }
   ]
 }
@@ -44,11 +51,41 @@ A component satisfies this file or the workflow cannot call it.
 Rules this encodes (CORE-PROMPT §2, PLAN.md concentration filter):
 
 - `declared_at` is set **before any review is collected** for the group.
-- `concentration.evidence` cites the company's own filing. A member with no evidence is
-  not a member.
+- `concentration.evidence` cites the company's own filing, for **every member whose
+  revenue will be read**. A private member sets `no_public_report: true`, which forces
+  `share_of_revenue: null` and `revenue_readable: false` — but still has to say what it
+  sells and where that was established. A listed member is never exempt.
+  (The earlier wording, "a member with no evidence is not a member", deleted every
+  private member and so contradicted the line below it. Concentration exists so tone can
+  be joined to *revenue*; a private member has no revenue to join and is there to tell a
+  category-wide move from a company-specific one.)
 - `venue: "private"` is valid and useful — a private competitor is a category control.
 - At least two members, or `members[0]` is explicitly flagged as having no peer.
 - Revising a group means a **new file with a new hash**, never an edit in place.
+- `fy_end` is required because CORE-PROMPT §5 forbids aligning two companies' figures as
+  if their calendars matched. Measured across six declared groups: `1231`, `0102`,
+  `1003`, `0930`, `0826`, `0331` — five of six are not 31 December and two are 52/53-week
+  years that move annually.
+
+### `parent_asin`, and why it is required
+
+**Amazon serves reviews at the parent ASIN, pooled across every variant** — colour, size,
+pack count. Of fifteen products declared in the first real pass, **fourteen were variant
+children**: Premier Protein chocolate 12-pack `B07MJL8NXR` resolves to parent
+`B0BLGMF97X`, which pools every Premier Protein flavour and pack size.
+
+Three consequences that have to be understood rather than worked around:
+
+1. A `reviews.csv` keyed on `asin` alone holds the **parent's** reviews filed under a
+   child's id, and dedup by `review_id` will not notice, because the ids are genuinely
+   distinct reviews.
+2. "Product-level tone" is really **variation-family-level tone**. Say so; do not label
+   a chart with the child product's name as though the reviews were of that variant.
+3. Choosing a product for continuity does **not** buy continuity of the review pool,
+   because Amazon re-parents variation families over time.
+
+A group where two members track children of the **same parent** is refused: they would
+be handed identical reviews and compared against each other.
 
 ## 2. Collector → scorer
 
@@ -60,8 +97,10 @@ Columns, extending the existing contract in
 | column | type | notes |
 |---|---|---|
 | `review_id` | str | Amazon's own review id where available, else a stable hash |
-| `asin` | str | |
+| `asin` | str | the declared variant |
+| `parent_asin` | str | **where the reviews actually came from** (§1). Join on this |
 | `marketplace` | str | `amazon.com`, `amazon.de`, … |
+| `review_country` | str | `/dp/` pools international reviews; a US revenue join needs this |
 | `review_date` | date | **as displayed by Amazon** — never inferred, never filled |
 | `rating` | float | retained but **withheld from the scorer** |
 | `title` | str | |
@@ -83,7 +122,6 @@ company's calendar into another's data.
   "batch_id": "...",
   "collected_at": "2026-10-12T08:00:00Z",
   "route": "session",                    // "session" (logged in) | "<provider name>"
-  "sort": "recent",                      // "recent" | "helpful" | "<as returned>"
   "filters": {"star": 5},                // whatever narrowed the request
   "asin": "B0...", "marketplace": "amazon.com",
   "requested": 100, "returned": 87,
