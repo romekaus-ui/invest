@@ -39,7 +39,8 @@ A component satisfies this file or the workflow cannot call it.
          "marketplace": "amazon.com", "name": "Roomba j7+"}
       ],
       "reporting": {"calendar": "quarterly", "currency": "USD",
-                    "fy_end": "1231",    // MMDD; "0102" for a 52/53-week year
+                    "fy_end": "1231",    // MMDD; "0102" for a 52/53-week year.
+                                         // EMPTY when no_public_report is true
                     "source": "SEC"}
       // source: SEC | companies-house | EDINET | TDnet | SIX | DART
       //       | other-national | none
@@ -62,10 +63,14 @@ Rules this encodes (CORE-PROMPT §2, PLAN.md concentration filter):
 - `venue: "private"` is valid and useful — a private competitor is a category control.
 - At least two members, or `members[0]` is explicitly flagged as having no peer.
 - Revising a group means a **new file with a new hash**, never an edit in place.
-- `fy_end` is required because CORE-PROMPT §5 forbids aligning two companies' figures as
-  if their calendars matched. Measured across six declared groups: `1231`, `0102`,
-  `1003`, `0930`, `0826`, `0331` — five of six are not 31 December and two are 52/53-week
-  years that move annually.
+- `fy_end` is required **for every member whose revenue will be read**, and must be
+  **empty** for one with `no_public_report: true`. CORE-PROMPT §5 forbids aligning two
+  companies' figures as if their calendars matched, so a readable member needs it — but
+  nothing publishes a year end for Bose or Stanley/PMI, and writing a plausible-looking
+  `1231` for them would be inventing provenance, the same class of error as inventing a
+  revenue share. Measured across six declared groups: `1231`, `0102`, `1003`, `0930`,
+  `0826`, `0331` — five of six are not 31 December and two are 52/53-week years that
+  move annually.
 
 ### `parent_asin`, and why it is required
 
@@ -230,6 +235,16 @@ From CORE-PROMPT §1, repeated here because these are the ones broken by acciden
 - Record a batch without its provenance.
 - Defeat, solve or route around a block. A refusal is recorded and the stage stops.
 - **Resolve a company by ticker symbol without its exchange.**
+- **Ship a guard that cannot fail.** This project has now produced three, and they are
+  the same bug wearing different clothes: a calibration gate reading a file the scorer
+  never wrote, so it could never be met however good the measurement; a window module
+  that restricted nothing while keeping the interface of one that did; and a test
+  asserting `a == b if hasattr(obj, "f") else True` where `f` did not exist, so it
+  passed without testing anything. **A check that always passes is indistinguishable
+  from a check that passes.** Every guard needs a case that demonstrably trips it, and
+  every mechanical check needs its awkward *near-misses* tested too — a verifier that
+  fires on `CHURCH & DWIGHT CO INC /DE/` vs `Church & Dwight Co., Inc. (Waterpik)` gets
+  switched off, and then it guards nothing at all.
 
 ### Why that last one is a rule and not advice
 
