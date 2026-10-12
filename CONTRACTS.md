@@ -27,15 +27,22 @@ A component satisfies this file or the workflow cannot call it.
       "brands": ["Roomba", "Braava"],
       "concentration": {
         "dominant_line": "robot vacuums and mops",
-        "share_of_revenue": 0.92,        // null if not disclosed
+        "share_of_revenue": 0.92,        // null when the filing does not split it
         "evidence": "FY2024 10-K, revenue by product category",
-        "source_url": "https://www.sec.gov/..."
+        "source_url": "https://www.sec.gov/...",
+        "no_public_report": false,       // true only for a private member
+        "revenue_readable": true         // false whenever no_public_report
       },
       "products": [
-        {"asin": "B0...", "marketplace": "amazon.com", "name": "Roomba j7+"}
+        {"asin": "B0...",                // the variant actually sold
+         "parent_asin": "B0...",         // REQUIRED - where Amazon serves the reviews
+         "marketplace": "amazon.com", "name": "Roomba j7+"}
       ],
       "reporting": {"calendar": "quarterly", "currency": "USD",
-                    "source": "SEC"}     // SEC | companies-house | EDINET | none
+                    "fy_end": "1231",    // MMDD; "0102" for a 52/53-week year
+                    "source": "SEC"}
+      // source: SEC | companies-house | EDINET | TDnet | SIX | DART
+      //       | other-national | none
     }
   ]
 }
@@ -44,11 +51,41 @@ A component satisfies this file or the workflow cannot call it.
 Rules this encodes (CORE-PROMPT §2, PLAN.md concentration filter):
 
 - `declared_at` is set **before any review is collected** for the group.
-- `concentration.evidence` cites the company's own filing. A member with no evidence is
-  not a member.
+- `concentration.evidence` cites the company's own filing, for **every member whose
+  revenue will be read**. A private member sets `no_public_report: true`, which forces
+  `share_of_revenue: null` and `revenue_readable: false` — but still has to say what it
+  sells and where that was established. A listed member is never exempt.
+  (The earlier wording, "a member with no evidence is not a member", deleted every
+  private member and so contradicted the line below it. Concentration exists so tone can
+  be joined to *revenue*; a private member has no revenue to join and is there to tell a
+  category-wide move from a company-specific one.)
 - `venue: "private"` is valid and useful — a private competitor is a category control.
 - At least two members, or `members[0]` is explicitly flagged as having no peer.
 - Revising a group means a **new file with a new hash**, never an edit in place.
+- `fy_end` is required because CORE-PROMPT §5 forbids aligning two companies' figures as
+  if their calendars matched. Measured across six declared groups: `1231`, `0102`,
+  `1003`, `0930`, `0826`, `0331` — five of six are not 31 December and two are 52/53-week
+  years that move annually.
+
+### `parent_asin`, and why it is required
+
+**Amazon serves reviews at the parent ASIN, pooled across every variant** — colour, size,
+pack count. Of fifteen products declared in the first real pass, **fourteen were variant
+children**: Premier Protein chocolate 12-pack `B07MJL8NXR` resolves to parent
+`B0BLGMF97X`, which pools every Premier Protein flavour and pack size.
+
+Three consequences that have to be understood rather than worked around:
+
+1. A `reviews.csv` keyed on `asin` alone holds the **parent's** reviews filed under a
+   child's id, and dedup by `review_id` will not notice, because the ids are genuinely
+   distinct reviews.
+2. "Product-level tone" is really **variation-family-level tone**. Say so; do not label
+   a chart with the child product's name as though the reviews were of that variant.
+3. Choosing a product for continuity does **not** buy continuity of the review pool,
+   because Amazon re-parents variation families over time.
+
+A group where two members track children of the **same parent** is refused: they would
+be handed identical reviews and compared against each other.
 
 ## 2. Collector → scorer
 
@@ -60,8 +97,10 @@ Columns, extending the existing contract in
 | column | type | notes |
 |---|---|---|
 | `review_id` | str | Amazon's own review id where available, else a stable hash |
-| `asin` | str | |
+| `asin` | str | the declared variant |
+| `parent_asin` | str | **where the reviews actually came from** (§1). Join on this |
 | `marketplace` | str | `amazon.com`, `amazon.de`, … |
+| `review_country` | str | `/dp/` pools international reviews; a US revenue join needs this |
 | `review_date` | date | **as displayed by Amazon** — never inferred, never filled |
 | `rating` | float | retained but **withheld from the scorer** |
 | `title` | str | |
@@ -83,15 +122,37 @@ company's calendar into another's data.
   "batch_id": "...",
   "collected_at": "2026-10-12T08:00:00Z",
   "route": "session",                    // "session" (logged in) | "<provider name>"
-  "sort": "recent",                      // "recent" | "helpful" | "<as returned>"
   "filters": {"star": 5},                // whatever narrowed the request
   "asin": "B0...", "marketplace": "amazon.com",
   "requested": 100, "returned": 87,
-  "claimed_total": 14203,                // what the product page says exists
+
+  "claimed_total": 8672,                 // null when the page gives neither
+  "claimed_total_basis": "ratings",      // "reviews" | "ratings" | "unavailable"
   "coverage_ratio": 0.0061,              // returned / claimed_total
+
+  "sort_requested": "recent",            // what was ASKED for
+  "sort_verified": false,                // true | false | null (no dates to test)
+  "date_order": {"monotonic_descending": false, "inversions": 4,
+                 "oldest": "2022-12-20", "newest": "2026-08-26"},
+  "sort_produces_series": false,         // false whenever sort_verified is false
+
   "blocked": false, "block_reason": null // a refusal is recorded, never routed around
 }
 ```
+
+**`claimed_total_basis` is not optional.** Amazon often publishes only a *ratings*
+count ("8,672 global ratings"), and ratings include star-only entries with no text that
+this pipeline can never sample. Dividing by ratings systematically understates coverage
+and is not comparable across products or marketplaces — which is exactly what a
+peer-relative reading needs. Record which number you got.
+
+**There is no `sort` field, because the page does not support the claim.** Measured on
+amazon.com signed in, 2026-10-12: `/product-reviews/<asin>/?sortBy=recent` renders no
+sort control, the parameter is ignored, returned dates are not in date order, and
+`pageNumber=2` returns the same 8 reviews as page 1. So a sort "as returned" is
+unreadable and a sort taken from the request is a claim about Amazon that is false.
+`sort_verified` is therefore **derived from the collected dates** — the only evidence
+that cannot be mislabelled.
 
 `coverage_ratio` travels with every tone number downstream (CORE-PROMPT §4). A tone mean
 over 0.6% of a product's reviews is not that product's tone and must never be rendered
@@ -105,7 +166,7 @@ never invents a stage's output and never skips a stage that is missing.
 | Stage | Does | Satisfied when |
 |---|---|---|
 | `G` | declare peer groups | ≥1 group file, hash verified, every member has concentration evidence |
-| `C` | collect reviews | every tracked ASIN has a batch within the declared cadence |
+| `C` | collect reviews | every tracked ASIN has a batch within the cadence declared in `collection-plan.json` |
 | `K` | calibrate the scorer | `data/calibration.json` exists, agreement recorded — **human step** |
 | `S` | score tone | `scores.csv` for every company with reviews |
 | `A` | aggregate | tone per company per period, plus peer-relative |
@@ -117,6 +178,17 @@ reads a path it was not given. This single line is what was wrong last time.
 Exit codes: `0` ran or reported a clean stop · `2` an integrity violation, needs a human
 · `3` a stage is not built yet.
 
+**Stage C being satisfied does not mean the data supports a trend.** They are different
+conditions and the runner must never conflate them: `C` asks whether collection ran,
+while a trend claim additionally needs `sort_produces_series: true` across the batches
+behind it. A run can legitimately pass `C`, render a dashboard, and still have nothing
+that may be read as a time series. The dashboard says so on its face.
+
+**Cadence lives in `collection-plan.json`**, not in the group file: the same peer group
+can be collected on different cadences, so cadence is a property of a collection
+campaign. It records the cadence, its declared date, and an append-only log of changes,
+each with a reason. Changing the cadence changes the instrument.
+
 ## 5. What no component may do
 
 From CORE-PROMPT §1, repeated here because these are the ones broken by accident:
@@ -126,3 +198,27 @@ From CORE-PROMPT §1, repeated here because these are the ones broken by acciden
 - Write a review that Amazon did not serve.
 - Record a batch without its provenance.
 - Defeat, solve or route around a block. A refusal is recorded and the stage stops.
+- **Resolve a company by ticker symbol without its exchange.**
+
+### Why that last one is a rule and not advice
+
+SEC's ticker index is keyed on **symbol alone**. So a lookup of `EPA:EL`
+(EssilorLuxottica, Paris) returns `EL` — Estée Lauder, New York. `EPA:BB` (Société BIC)
+returns `BB` — BlackBerry. Both then fetch a real 10-K and produce entirely plausible
+concentration evidence, carrying a genuine `sec.gov` URL, filed under the right
+company's name.
+
+**Nothing in the output looks wrong.** The entity name SEC returns is the only tell, and
+it is not read by anything that trusts the symbol. This is the worst shape a defect can
+take here: a different company's revenue attributed to the company you meant, with a
+real primary source beside it.
+
+It was caught in the peer-group pool screen, where it inflated the counts by two. A
+component that resolves a venue to a CIK **checks the exchange against a US set before
+looking up the symbol**, and records the entity name it got back so a mismatch is
+visible.
+
+`fetch_sec.py` is clear: it takes `TICKER CIK` positionally and keys every fetch on the
+**CIK**, using the ticker only as a directory name. That does not make the problem go
+away — it relocates it to whoever produces the CIK, which is now the peer-group
+declaration's `venue` field.

@@ -67,10 +67,27 @@ listing venue.
 
 Fresh from Amazon, by one of two routes, and **every batch records which**.
 
-**Route A — the user's logged-in session.** Sort by *most recent* is available only
-behind login. This is the route that produces a genuine time series rather than a
-popularity ranking, and it is therefore preferred for anything that will be charted
-over time.
+**Route A — the user's logged-in session.** Measured 2026-10-12 and **demoted from
+primary to control.** It was expected to give sort-by-recent behind login; it does not.
+
+What it actually yields: **8 US reviews per product per pass, ~0.09% coverage**, with no
+lever that increases it (see the measurements below). The decisive defect is not the
+size but that **you cannot ask for what is new** — 8 fixed slots, no recency sort, no
+since-date parameter. Freshness is whatever it happens to be: on 2026-10-12 the newest
+review shown was 6 days old for one product and **47 days old** for another carrying
+8,672 ratings. A cadence run against unsorted fixed slots does not accumulate a series;
+it re-reads the same rows.
+
+**Keep it as a control, not a source.** Run occasionally against the same ASINs a
+provider returns and compare. It is the only independent check available on whether a
+provider is serving real Amazon data.
+
+Two collection details, if it is used at all: `/dp/<ASIN>` returns 13 where the reviews
+page returns 8, but the extra 5 are the international block (UAE, Canada, Brazil, Egypt,
+Mexico), short and largely non-English — a different population for a US registrant's
+revenue, so `review_country` must be read. And the two surfaces render the same review
+with different paragraph whitespace, so mixing them makes every shared review look
+edited.
 
 - The user logs in themselves. The assistant never enters credentials and never creates
   an account (see §9).
@@ -83,8 +100,20 @@ over time.
 
 - No personal account at risk, and it scales. The cost is that sort options are
   provider-dependent and often helpfulness-ranked.
-- The 10-page cap applies **per filter combination**, so a star-rating fanout (1★–5★)
-  reaches roughly 500 reviews per product where a single pass reaches ~100.
+- **The "10-page cap per filter combination, therefore ~500 per product" premise is
+  false on the current site, and was measured so on 2026-10-12.** Against
+  `B09HM94VDS` signed in: `sortBy=recent` page 1 and page 2, `filterByStar=five_star`
+  and `filterByStar=one_star` all returned the **same 8 reviews** — and the `one_star`
+  request returned a 4★ review, which proves the filter is ignored rather than merely
+  unhelpful. Sort, pagination and star filter are all inert on that surface.
+- Whether a **provider** can do better is **unmeasured and is the open question the
+  project turns on**. Several providers scrape the same public page, in which case they
+  will return the same 8 and the constraint is Amazon's rather than the route's. Measure
+  it before building on it: reviews returned, whether dates are genuinely descending,
+  and how far back they reach.
+- Rainforest's reviews endpoint returned `503 "reviews request type is temporarily
+  unavailable"` independent of credentials (the same key against `type=product` returns
+  401). Not the one to try first.
 - The provider, plan and per-batch cost are recorded.
 
 Both routes write the same contract. A reading may mix routes across time only if the
