@@ -1,0 +1,238 @@
+{
+  "group_id": "anc-over-ear-headphones",
+  "members": [
+    {
+      "brands": [
+        "Sony",
+        "WH-1000X"
+      ],
+      "company": "Sony Group Corporation",
+      "country_of_domicile": "JP",
+      "listing": {
+        "exchange": "TSE",
+        "status": "listed",
+        "ticker": "6758"
+      },
+      "products": [
+        {
+          "asin": "B0F3PQHWTZ",
+          "brand": "Sony",
+          "continuity_reason": "The current flagship of the WH-1000X line, released in 2025, so it is early in its model life and is the variant expected to remain on sale through the next year rather than the outgoing XM5.",
+          "marketplace": "amazon.com",
+          "title_at_declare": "Sony WH-1000XM6 The Best Noise Cancelling Wireless Headphones, Black",
+          "verification": {
+            "asin_on_page": true,
+            "availability_seen": "In Stock",
+            "checked_at": "2026-10-11T20:10:22Z",
+            "http_status": 200,
+            "is_variant_child": true,
+            "marketplace": "amazon.com",
+            "parent_asin_seen": "B0GH8CHPZ5",
+            "route": "http-direct",
+            "status": "resolved",
+            "title_seen": "Sony WH-1000XM6 The Best Noise Cancelling Wireless Headphones, Black",
+            "url": "https://www.amazon.com/dp/B0F3PQHWTZ"
+          }
+        }
+      ],
+      "reason": "Sells wireless noise-cancelling over-ear headphones under Sony in the WH-1000X line, the item a shopper compares directly against AirPods Max or a Bose QuietComfort before choosing one of the three.",
+      "reporting": {
+        "calendar": "quarterly",
+        "currency": "JPY",
+        "fy_end": "0331",
+        "regime": "TSE quarterly (TDnet) / EDINET; SEC 20-F annually for the NYSE ADR",
+        "resolved_by": "agent",
+        "source": "Sony Group investor relations quarterly results calendar; FY ends 31 March"
+      },
+      "secondary_listings": [
+        {
+          "exchange": "NYSE",
+          "kind": "ADR",
+          "ticker": "SONY"
+        }
+      ]
+    },
+    {
+      "brands": [
+        "Apple",
+        "AirPods"
+      ],
+      "company": "Apple Inc.",
+      "country_of_domicile": "US",
+      "listing": {
+        "cik": "0000320193",
+        "exchange": "NASDAQ",
+        "status": "listed",
+        "ticker": "AAPL"
+      },
+      "products": [
+        {
+          "asin": "B0DGJC52FP",
+          "brand": "Apple",
+          "continuity_reason": "The USB-C revision of AirPods Max, which replaced the Lightning version in 2024 and is the only over-ear headphone Apple sells, so it has no in-range successor to be displaced by.",
+          "marketplace": "amazon.com",
+          "title_at_declare": "Apple AirPods Max Wireless Over-Ear Headphones, Pro-Level Active Noise Cancellation, Transparency Mode, Personalized Spatial Audio, USB-C Charging, Bluetooth Headphones for iPhone - Midnight",
+          "verification": {
+            "asin_on_page": true,
+            "availability_seen": "buy box not rendered in the static HTML (loaded by script); availability not established",
+            "checked_at": "2026-10-11T20:10:25Z",
+            "http_status": 200,
+            "is_variant_child": true,
+            "marketplace": "amazon.com",
+            "parent_asin_seen": "B0GGJGN339",
+            "route": "http-direct",
+            "status": "resolved",
+            "title_seen": "Apple AirPods Max Wireless Over-Ear Headphones, Pro-Level Active Noise Cancellation, Transparency Mode, Personalized Spatial Audio, USB-C Charging, Bluetooth Headphones for iPhone - Midnight",
+            "url": "https://www.amazon.com/dp/B0DGJC52FP"
+          }
+        }
+      ],
+      "reason": "Sells wireless noise-cancelling over-ear headphones under Apple as AirPods Max, placed against the Sony WH-1000X and Bose QuietComfort in the same purchase decision at the same price tier.",
+      "reporting": {
+        "calendar": "quarterly",
+        "currency": "USD",
+        "fy_end": "0926",
+        "regime": "SEC 10-Q / 10-K",
+        "resolved_by": "edgar",
+        "source": "SEC EDGAR submissions CIK0000320193, forms seen: 10-K, 10-Q"
+      }
+    },
+    {
+      "brands": [
+        "Bose",
+        "QuietComfort"
+      ],
+      "company": "Bose Corporation",
+      "country_of_domicile": "US",
+      "listing": {
+        "status": "private"
+      },
+      "products": [
+        {
+          "asin": "B0FDKR293G",
+          "brand": "Bose",
+          "continuity_reason": "The second generation of QuietComfort Ultra, released in 2025 and the current top of the permanent QuietComfort range, which Bose has carried continuously under that name for over a decade.",
+          "marketplace": "amazon.com",
+          "title_at_declare": "Bose QuietComfort Ultra Bluetooth Headphones (2nd Gen), Wireless Headphones with Spatial Audio, Over Ear Noise Cancelling with Mic, Up to 30 Hours of Play time, Black",
+          "verification": {
+            "asin_on_page": true,
+            "availability_seen": "buy box not rendered in the static HTML (loaded by script); availability not established",
+            "checked_at": "2026-10-11T20:10:28Z",
+            "http_status": 200,
+            "is_variant_child": true,
+            "marketplace": "amazon.com",
+            "parent_asin_seen": "B0FMZYMXNR",
+            "route": "http-direct",
+            "status": "resolved",
+            "title_seen": "Bose QuietComfort Ultra Bluetooth Headphones (2nd Gen), Wireless Headphones with Spatial Audio, Over Ear Noise Cancelling with Mic, Up to 30 Hours of Play time, Black",
+            "url": "https://www.amazon.com/dp/B0FDKR293G"
+          }
+        }
+      ],
+      "reason": "Sells wireless noise-cancelling over-ear headphones under Bose as QuietComfort Ultra, the third item in the set a shopper weighs against Sony WH-1000X and AirPods Max.",
+      "reporting": {
+        "calendar": "irregular",
+        "currency": "USD",
+        "fy_end": "",
+        "regime": "privately held, no public periodic reporting; no filings and no published interim figures",
+        "resolved_by": "agent",
+        "source": "company is private; no public reporting exists, so no revenue series can be joined to this member's tone"
+      }
+    },
+    {
+      "brands": [
+        "Sennheiser",
+        "Momentum"
+      ],
+      "company": "Sonova Holding AG",
+      "country_of_domicile": "CH",
+      "listing": {
+        "exchange": "SIX",
+        "status": "listed",
+        "ticker": "SOON"
+      },
+      "products": [
+        {
+          "asin": "B0B6GHW1SX",
+          "brand": "Sennheiser",
+          "continuity_reason": "The black colourway of Momentum 4, on sale since 2022 and still the current generation of the long-running Momentum line, with no replacement announced.",
+          "marketplace": "amazon.com",
+          "title_at_declare": "Sennheiser Momentum 4 Wireless Headphones, ANC, 60 Hr Battery, Black",
+          "verification": {
+            "asin_on_page": true,
+            "availability_seen": "In Stock",
+            "checked_at": "2026-10-11T20:10:31Z",
+            "http_status": 200,
+            "is_variant_child": true,
+            "marketplace": "amazon.com",
+            "parent_asin_seen": "B0G43SSW9J",
+            "route": "http-direct",
+            "status": "resolved",
+            "title_seen": "Sennheiser Momentum 4 Wireless Headphones, ANC, 60 Hr Battery, Black",
+            "url": "https://www.amazon.com/dp/B0B6GHW1SX"
+          }
+        }
+      ],
+      "reason": "Sells wireless noise-cancelling over-ear headphones under the Sennheiser brand as Momentum 4, acquired with Sennheiser's consumer division, and shoppers cross-shop it against the Sony WH-1000X at the same price.",
+      "reporting": {
+        "calendar": "half-yearly",
+        "currency": "CHF",
+        "fy_end": "0331",
+        "regime": "SIX Swiss Exchange; half-year results to 30 September and full-year results to 31 March, no quarterly revenue",
+        "resolved_by": "agent",
+        "source": "Sonova investor information financial calendar: half-year results as of 30 September, full-year results as of 31 March (report.sonova.com)"
+      }
+    },
+    {
+      "brands": [
+        "JBL",
+        "Harman"
+      ],
+      "company": "Samsung Electronics Co., Ltd.",
+      "country_of_domicile": "KR",
+      "listing": {
+        "exchange": "KRX",
+        "status": "listed",
+        "ticker": "005930"
+      },
+      "products": [
+        {
+          "asin": "B0DWTD2D4M",
+          "brand": "JBL",
+          "continuity_reason": "The current generation of the JBL Tour One line, released in 2025, which JBL has carried as its flagship over-ear noise-cancelling model across three successive generations.",
+          "marketplace": "amazon.com",
+          "title_at_declare": "JBL Tour One M3 Smart Tx - Wireless Over-Ear (Mocha)",
+          "verification": {
+            "asin_on_page": true,
+            "availability_seen": "buy box not rendered in the static HTML (loaded by script); availability not established",
+            "checked_at": "2026-10-11T20:10:34Z",
+            "http_status": 200,
+            "is_variant_child": true,
+            "marketplace": "amazon.com",
+            "parent_asin_seen": "B0F1FTMBJX",
+            "route": "http-direct",
+            "status": "resolved",
+            "title_seen": "JBL Tour One M3 Smart Tx - Wireless Over-Ear (Mocha)",
+            "url": "https://www.amazon.com/dp/B0DWTD2D4M"
+          }
+        }
+      ],
+      "reason": "Sells wireless noise-cancelling over-ear headphones under JBL, owned through Harman International, in the Tour One line that a shopper considers instead of the Sony WH-1000X at a lower price in the same category.",
+      "reporting": {
+        "calendar": "quarterly",
+        "currency": "KRW",
+        "fy_end": "1231",
+        "regime": "KRX quarterly, filed under the Korean FSS DART system in KRW",
+        "resolved_by": "agent",
+        "source": "Samsung Electronics investor relations quarterly earnings releases; FY ends 31 December"
+      }
+    }
+  ],
+  "peer_relative_reading": true,
+  "seed": {
+    "kind": "category",
+    "value": "wireless noise-cancelling over-ear headphones"
+  },
+  "solo": false,
+  "substitutability_test": "Would a consumer shopping for this seed's product consider this company's product instead of it, as a direct alternative for the same need, at the same point of purchase? If yes, it is a peer. Size, country, listing venue and currency are irrelevant to the answer."
+}
