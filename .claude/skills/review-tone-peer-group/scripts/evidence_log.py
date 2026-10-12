@@ -37,70 +37,27 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import chain  # noqa: E402
 import declare_group as dg  # noqa: E402
 
 LOG = os.path.join("data", "peer_groups", "pool_evidence.jsonl")
 SNAPSHOT = os.path.join("data", "peer_groups", "pool_evidence.json")
 SNAPSHOT_HASH = os.path.join("data", "peer_groups", "pool_evidence.hash")
 
-GENESIS = "0" * 64
-
-
-def line_hash(record):
-    """sha256 of the record as written, which includes its own `prev`."""
-    return hashlib.sha256(
-        json.dumps(record, sort_keys=True, separators=(",", ":"),
-                   ensure_ascii=False).encode("utf-8")).hexdigest()
+GENESIS = chain.GENESIS
+line_hash = chain.line_hash
 
 
 def read_log(path=LOG):
-    if not os.path.exists(path):
-        return []
-    out = []
-    with open(path, encoding="utf-8") as f:
-        for n, line in enumerate(f, 1):
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                out.append((n, json.loads(line)))
-            except ValueError:
-                out.append((n, None))
-    return out
+    return chain.read(path)
 
 
 def append(record, path=LOG):
-    """Append one record, chained to the last line."""
-    rows = read_log(path)
-    prev = line_hash(rows[-1][1]) if rows and rows[-1][1] else GENESIS
-    record = dict(record, prev=prev, recorded_at=dg.now_iso())
-    d = os.path.dirname(path)
-    if d:
-        os.makedirs(d, exist_ok=True)
-    with open(path, "a", encoding="utf-8") as f:
-        f.write(json.dumps(record, sort_keys=True, separators=(",", ":"),
-                           ensure_ascii=False) + "\n")
-    return record
+    return chain.append(path, record)
 
 
 def walk(path=LOG):
-    """Every break in the chain. Empty means the log has not been altered."""
-    problems = []
-    prev = GENESIS
-    for n, rec in read_log(path):
-        if rec is None:
-            problems.append("line %d: not valid JSON" % n)
-            return problems
-        if rec.get("prev") != prev:
-            problems.append(
-                "line %d: chained to %s but the previous line hashes to %s - a "
-                "line was altered or removed at or before here"
-                % (n, (rec.get("prev") or "none")[:12], prev[:12]))
-            return problems
-        if rec.get("action") not in ("fetch", "withdraw", "note"):
-            problems.append("line %d: unknown action %r" % (n, rec.get("action")))
-        prev = line_hash(rec)
-    return problems
+    return chain.walk(path, actions=("fetch", "withdraw", "note"))
 
 
 def derive(path=LOG):

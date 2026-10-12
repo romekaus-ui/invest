@@ -26,6 +26,7 @@ price or a result, and nothing here may be changed once frozen.
 | `data/peer_groups/<id>.concentration.json` | Verbatim evidence windows from each member's own filing, with the URL fetched. |
 | `groups/<id>.json` | **The CONTRACTS.md §1 view** — what the workflow reads. Generated from the current version, never hand-edited, carrying its own `hash`. |
 | `data/peer_groups/candidate_pool.json` | Screening input: candidate companies by category. Not a declaration. |
+| `data/peer_groups/<id>.parents.jsonl` | **Append-only, hash-chained parent re-resolution.** What stage G refuses on. |
 | `data/peer_groups/pool_evidence.jsonl` | **Append-only, hash-chained evidence record.** The truth. |
 | `data/peer_groups/pool_evidence.json` | Snapshot derived from the log. Regenerated, never hand-edited. |
 | `data/peer_groups/pool_evidence.hash` | sha256 of the snapshot. |
@@ -237,6 +238,47 @@ group cannot be charted without them being visible.
 | `revenue_comparable_without_stated_handling` | true only when one calendar, one currency and no private member |
 
 ---
+
+## Parent drift, and why declaring is not enough
+
+The same-parent refusal in `validate` fires **when a group is declared**. Amazon
+re-parents variation families afterwards, so two members declared under distinct parents
+can converge later with **no identifier changing anywhere** — not the child ASINs, not
+the group file, not its hash. The group is then handing two members identical reviews and
+comparing them against each other: exactly the condition already refused, arriving by a
+route nothing watched.
+
+So `CONTRACTS.md` §1 requires every declared parent to be **re-resolved on a cadence**,
+and a convergence found later is the same refusal as one found at declaration.
+
+| | |
+|---|---|
+| `declare_group.py reresolve <id>` | does the network work, appends what it saw |
+| `declare_group.py --group <id>` | reads the log and refuses; makes no network call |
+| Cadence | `REPARENT_CHECK_DAYS = 7` |
+
+**Split deliberately.** Stage G is a gate the workflow calls; a gate that makes fifteen
+network requests and can be blocked by the marketplace is not a gate. `reresolve` is the
+verb that can be slow, blocked or scheduled; stage G stays offline, cheap and
+deterministic, and refuses when the sweep is missing, stale, incomplete, of an older
+version, or found something.
+
+What a sweep records per product: `unchanged`, `reparented` (the pool is now a different
+variation family), `converged` (**fatal** — two members share a parent), `ended` (the
+product no longer resolves, so the series ends and is recorded as ended, never swapped),
+`no_parent_on_page`, or `blocked`.
+
+**`reresolve` never rewrites the declaration.** The collector verifies the parent from
+the page and treats the group file as the declaration, not the authority; editing the
+file to match what Amazon now serves would paper over the very convergence this exists to
+find. A real change is a new version through `revise`, with its reason.
+
+**A blocked sweep is "unchecked", not "checked and clean".** §3: recorded, never routed
+around, and stage G says the parents are unchecked rather than passing them.
+
+**Parents are read from `/dp/<ASIN>` only.** `/product-reviews/` does not expose
+`parentAsin`, so a parent taken from there would be asserted rather than confirmed. The
+one marketplace URL this component builds is `https://<host>/dp/<asin>`.
 
 ## What the collector is handed
 

@@ -10,6 +10,7 @@ plausibly contain is pinned here as a must-pass.
 """
 
 import copy
+import datetime as dt
 import json
 import os
 import shutil
@@ -661,11 +662,21 @@ try:
     # Stage G, CONTRACTS.md §4: invoked as `--group <group_id>`, exit 0/2/3.
     check("stage G exits 3 for a group that was never declared",
           dg.main(["--group", "no-such-group"]) == 3)
-    check("stage G exits 0 for a declared group", dg.main(["--group",
-          "soft-drinks-global"]) == 0)
+    # A declared group is NOT satisfied until its parents have been
+    # re-resolved: two members can converge onto one parent after declaration
+    # with no identifier changing, so "declared" is not "still valid".
+    check("a declared but never-re-resolved group is NOT satisfied",
+          dg.main(["--group", "soft-drinks-global"]) == 2)
     check("declare wrote the contract view",
           os.path.exists(os.path.join(dg.GROUPS_VIEW_DIR, "soft-drinks-global.json")))
     vp = os.path.join(dg.GROUPS_VIEW_DIR, "soft-drinks-global.json")
+    vp_record = dg.versions_of("soft-drinks-global")[-1][1]
+
+    def _view_problems(path):
+        ok_, rec_, act_ = dg.verify_contract_view(path)
+        return [] if ok_ else ["%s: hash field says %s, contents hash to %s"
+                               % (path, (rec_ or "none")[:12], act_[:12])]
+
     ok_, rec, act = dg.verify_contract_view(vp)
     check("the written view verifies its own hash", ok_, (rec, act))
     tampered = dg.read_json(vp)
@@ -676,9 +687,97 @@ try:
     check("a tampered view fails its own hash", not ok_)
     check("stage G exits 2 on an integrity violation",
           dg.main(["--group", "soft-drinks-global"]) == 2)
+    check("and names the view hash mismatch, not only the missing sweep",
+          any("contents hash to" in pr for pr in
+              [p2 for p2 in dg.parent_drift_state("soft-drinks-global",
+                                                  dg.read_json(vp_record))["problems"]]
+              + _view_problems(vp)), "see stage G output above")
     dg.main(["reemit", "soft-drinks-global"])
     check("reemit rebuilds the view from the record of declaration",
           dg.verify_contract_view(vp)[0])
+
+    # ---- parent drift: the gap between declaration and collection ----
+    # validate() refuses two members sharing a parent AT DECLARATION. Amazon
+    # re-parents afterwards, so two members can converge with no identifier
+    # changing anywhere. These are the tests for the route nothing watched.
+    print("\nparent drift after declaration")
+    import chain as _chain
+    gid = "soft-drinks-global"
+    gv = dg.read_json(dg.versions_of(gid)[-1][1])
+    plog = dg.parents_log(gid)
+
+    check("declared_parents lists every tracked product",
+          len(dg.declared_parents(gv)) == len(gv["members"]), dg.declared_parents(gv))
+    check("stage G refuses a group whose parents were never re-resolved",
+          dg.main(["--group", gid]) == 2)
+    check("the refusal says why, not just that",
+          any("never been re-resolved" in pr
+              for pr in dg.parent_drift_state(gid, gv)["problems"]))
+
+    def sweep(**over):
+        rec = {"action": "sweep", "group_version": gv["version"], "products": 2,
+               "findings": [], "blocked": False, "complete": True}
+        rec.update(over)
+        return _chain.append(plog, rec)
+
+    sweep()
+    check("a clean, current sweep satisfies the gate",
+          dg.parent_drift_state(gid, gv)["problems"] == [],
+          dg.parent_drift_state(gid, gv)["problems"])
+    check("stage G passes after a clean sweep", dg.main(["--group", gid]) == 0)
+
+    # A sweep that found a convergence must refuse, exactly as declaration does.
+    sweep(findings=["CONVERGED: A (B0AAA) and B now share parent B0PARENTXX. "
+                    "They would be handed identical reviews"])
+    st = dg.parent_drift_state(gid, gv)
+    check("a convergence found AFTER declaration refuses",
+          any("CONVERGED" in pr for pr in st["problems"]), st["problems"])
+    check("stage G exits 2 on a post-declaration convergence",
+          dg.main(["--group", gid]) == 2)
+
+    sweep(findings=["Coca-Cola B000TNY0AM: parent moved B0OLD -> B0NEW"])
+    check("a re-parenting refuses too - the review pool is a different family",
+          any("parent moved" in pr for pr in dg.parent_drift_state(gid, gv)["problems"]))
+
+    sweep(findings=["Pepsi B00N4OTQKM: no longer on sale (not_found)"])
+    check("a product that ended refuses",
+          any("no longer on sale" in pr
+              for pr in dg.parent_drift_state(gid, gv)["problems"]))
+
+    sweep(blocked=True, complete=False)
+    check("a blocked sweep is unchecked, not checked-and-clean",
+          any("did not complete" in pr
+              for pr in dg.parent_drift_state(gid, gv)["problems"]),
+          dg.parent_drift_state(gid, gv)["problems"])
+
+    sweep(group_version=gv["version"] - 1)
+    check("a sweep of an older version does not satisfy the current one",
+          any("declaration of record is v" in pr
+              for pr in dg.parent_drift_state(gid, gv)["problems"]))
+
+    sweep()
+    stale = (dt.datetime.now(dt.timezone.utc)
+             + dt.timedelta(days=dg.REPARENT_CHECK_DAYS + 1))
+    st = dg.parent_drift_state(gid, gv, now=stale)
+    check("a sweep older than the cadence refuses",
+          any("past the %d-day cadence" % dg.REPARENT_CHECK_DAYS in pr
+              for pr in st["problems"]), st["problems"])
+    check("and it is clean again inside the cadence",
+          dg.parent_drift_state(gid, gv)["problems"] == [])
+
+    # The log is the record, so tampering with it must show.
+    with open(plog, encoding="utf-8") as f:
+        lines = f.read().strip().split("\n")
+    with open(plog, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines[:1] + lines[2:]) + "\n")
+    check("a removed line in the parents log is caught",
+          any("parents log" in pr
+              for pr in dg.parent_drift_state(gid, gv)["problems"]),
+          dg.parent_drift_state(gid, gv)["problems"])
+    with open(plog, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    check("restoring the log clears the break",
+          dg.parent_drift_state(gid, gv)["problems"] == [])
 
     # the edit-in-place detector
     edited = dg.read_json(v1)

@@ -6,6 +6,93 @@ here.
 
 ---
 
+## 2026-10-12 (later still) — stage G re-resolves parents, because declaring is not enough
+
+A gap the collector session found, and it was mine. 163 + 27 tests; all six groups swept
+and satisfied.
+
+### The gap
+
+The same-parent refusal in `validate` fires **when a group is declared**. Amazon
+re-parents variation families afterwards, so two members declared under distinct parents
+can converge later with **no identifier changing anywhere** — not the child ASINs, not
+the group file, not its hash. The group is then handing two members identical reviews and
+comparing them against each other: precisely the condition already refused, arriving by a
+route nothing watched. `CONTRACTS.md` §1 now requires every declared parent to be
+re-resolved on a cadence.
+
+### Shape chosen: a separate verb, and a gate that reads it
+
+The contract left the shape to this component. Split in two:
+
+| | |
+|---|---|
+| `declare_group.py reresolve <id>` | network work; appends what it saw to `<id>.parents.jsonl` |
+| `declare_group.py --group <id>` | reads that log and refuses; **makes no network call** |
+
+**Why split.** Stage G is a gate the workflow calls on every run, and a gate that makes
+fifteen network requests and can be blocked by the marketplace is not a gate — it is a
+second point of failure in front of the thing it is guarding. So the slow, blockable,
+schedulable half is a verb, and the gate stays offline, cheap and deterministic. The gate
+refuses when the sweep is **missing, stale, incomplete, of an older group version, or
+found something**, which means "never checked" and "checked and clean" can never look
+alike.
+
+Per product a sweep records `unchanged`, `reparented` (the pool is now a different
+variation family), `converged` (**fatal**), `ended` (no longer resolves — the series ends
+and is recorded as ended, never swapped), `no_parent_on_page` or `blocked`.
+
+`REPARENT_CHECK_DAYS = 7`, and it is a **component constant, not a per-group field**:
+this is an operational property of the instrument, like the request rate, not something
+each group declares. Seven days is *chosen, not measured* — nobody knows how often Amazon
+re-parents. Short enough to catch a convergence inside one collection cycle, long enough
+not to be a second scraping load. It should be revisited once there is a record of how
+often `reparented` actually appears, and that record is now being kept.
+
+Three properties worth stating because each one is a decision:
+
+- **`reresolve` never rewrites the declaration.** The collector verifies the parent from
+  the page and treats the group file as the declaration rather than the authority.
+  Editing the file to match what Amazon now serves would paper over the very convergence
+  this exists to find. A real change is a new version through `revise`, with its reason.
+- **A blocked sweep is "unchecked", not "checked and clean"** (§3). It is recorded, the
+  sweep stops, and stage G says the parents are unchecked.
+- **A sweep of an older group version does not satisfy the current one.** Otherwise a
+  revision would silently inherit the previous version's clean bill.
+
+### First sweep, measured
+
+All six groups, fifteen products, **every parent `unchanged`** — expected over a few
+hours, and the point is that the baseline now exists and the next sweep has something to
+differ from.
+
+### The chain machinery is now one module
+
+`chain.py` holds `append` / `read` / `walk` / `line_hash`, used by both
+`pool_evidence.jsonl` and the per-group `<id>.parents.jsonl`. Extracted when the second
+log needed it, so there is one definition of "chained" and the two cannot drift apart.
+The refactor is byte-compatible: the existing 35-line evidence log still verifies.
+
+### Checked, and clear
+
+The collector also found that **`/product-reviews/` does not expose `parentAsin`** while
+`/dp/<ASIN>` does, so a parent taken from the reviews page would be asserted rather than
+confirmed. Audited every URL this component builds: the only marketplace URL is
+`https://<host>/dp/<asin>`. Parents here are confirmed, never asserted.
+
+### Defect
+
+14. **A test asserted the old truth and had to be corrected rather than kept.** `check("stage
+    G exits 0 for a declared group", ...)` passed before this change and failed after,
+    correctly — a declared group is no longer satisfied until its parents have been
+    re-resolved. The temptation was to append a sweep before that assertion so it kept
+    passing. That would have preserved a test whose *statement* was now false. It was
+    rewritten to assert the new truth — a declared but never-re-resolved group is **not**
+    satisfied — which is the assertion worth having, because it is the one a future
+    change to the cadence logic would break.
+
+---
+
 ## 2026-10-12 (later) — schema 2, and the evidence record made tamper-evident
 
 `CONTRACTS.md` §1 was amended the same day (A1–A4 adopted on `main`, `5473f2f`), and a

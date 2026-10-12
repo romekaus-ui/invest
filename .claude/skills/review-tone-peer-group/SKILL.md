@@ -61,16 +61,29 @@ python3 $S declare        data/peer_groups/grills.draft.json  # freeze v1 + .has
 `data/peer_groups/`, its `.hash` sidecar, and the **`CONTRACTS.md` §1 view** at
 `groups/<id>.json` that the workflow reads.
 
-### Stage G
+### Stage G, and keeping it satisfied
 
 `CONTRACTS.md` §4 invokes every stage as `script --group <group_id>`:
 
 ```bash
+python3 $S reresolve grills   # re-resolve every declared parent; run on a cadence
 python3 $S --group grills     # exit 0 satisfied · 2 integrity violation · 3 not built
 ```
 
-It reads a group id and nothing else. Satisfied means a declaration exists, its hash
-verifies, the view matches it, and every member has concentration evidence.
+Stage G reads a group id and nothing else, and **makes no network call**. Satisfied means
+a declaration exists, its hash verifies, the view matches it, every member has
+concentration evidence, **and the parents were re-resolved within the last 7 days with
+nothing found**.
+
+That last clause is the one people trip on. Declaring a group is not enough to keep it
+valid: Amazon re-parents variation families, so two members declared under distinct
+parents can converge afterwards with no identifier changing anywhere. `reresolve` does
+the network work and appends what it saw to a hash-chained log; stage G refuses when the
+sweep is missing, stale, incomplete, of an older version, or found a convergence, a
+re-parenting or an ended product.
+
+`reresolve` never rewrites the declaration — a real change is a new version through
+`revise`. Editing the file to match what Amazon now serves would hide the convergence.
 
 Afterwards:
 
@@ -136,7 +149,7 @@ the contract is the same either way.
 ## Tests
 
 ```bash
-python3 .claude/skills/review-tone-peer-group/tests/test_declare_group.py   # 147
+python3 .claude/skills/review-tone-peer-group/tests/test_declare_group.py   # 163
 python3 .claude/skills/review-tone-peer-group/tests/test_evidence_log.py    # 27
 ```
 

@@ -62,6 +62,9 @@ import urllib.error
 import urllib.request
 from html.parser import HTMLParser
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import chain  # noqa: E402
+
 GROUPS_DIR = os.path.join("data", "peer_groups")
 
 # Bumped when the shape of a declaration changes. `verify` hash-checks every
@@ -92,6 +95,17 @@ REPORTING_SOURCES = ("SEC", "companies-house", "EDINET", "none",
                      "TDnet", "SIX", "DART", "other-national")
 
 GROUPS_VIEW_DIR = "groups"
+
+# How often every declared parent is re-resolved (CONTRACTS.md §1). A component
+# constant rather than a per-group field: this is an operational property of the
+# instrument, like the request rate, not something each group declares. If a
+# group ever needs its own cadence that is a schema bump, and it should be one.
+#
+# Seven days is chosen, not measured - nobody knows how often Amazon re-parents.
+# It is short enough that a convergence is caught within one collection cycle
+# and long enough not to be a second scraping load. Revisit once there is a
+# record of how often `reparented` actually appears.
+REPARENT_CHECK_DAYS = 7
 
 # SEC's ticker index is keyed on SYMBOL ALONE, so a non-US venue must never be
 # looked up in it. "EPA:EL" is EssilorLuxottica in Paris and "EL" is Estee
@@ -1571,6 +1585,175 @@ def verify_contract_view(path):
     return recorded == actual, recorded, actual
 
 
+# ------------------------------------------- parent drift (CONTRACTS.md §1)
+
+def parents_log(group_id, groups_dir=GROUPS_DIR):
+    return os.path.join(groups_dir, "%s.parents.jsonl" % group_id)
+
+
+def declared_parents(group):
+    """[(company_index, company, asin, marketplace, declared_parent)]"""
+    out = []
+    for i, m in enumerate(group.get("members") or []):
+        for pr in m.get("products") or []:
+            out.append((i, m.get("company"), _s(pr, "asin"),
+                        _s(pr, "marketplace"),
+                        _s(pr, "parent_asin") or
+                        _s((pr.get("verification") or {}), "parent_asin_seen")))
+    return out
+
+
+def mode_reresolve(args):
+    """Re-resolve every declared parent and append what was found.
+
+    The gap this closes: the same-parent refusal in `validate` fires when a
+    group is DECLARED, but Amazon re-parents variation families afterwards. Two
+    members declared under distinct parents can converge later with no
+    identifier changing anywhere - not the child ASINs, not the group file, not
+    its hash - and the group is then handing two members identical reviews and
+    comparing them against each other. Nothing watched that route until here.
+
+    This verb does the network work and writes down what it saw. It NEVER
+    rewrites the declaration: the collector verifies the parent from the page
+    and treats the group file as the declaration rather than the authority, and
+    editing the file to match what Amazon now serves would paper over exactly
+    the convergence this exists to find. A real change is a new version with a
+    reason, through `revise`.
+
+    Stage G reads this log and is the thing that refuses. Kept separate so the
+    gate stays offline, cheap and deterministic: a gate that makes fifteen
+    network requests and can be blocked by the marketplace is not a gate.
+    """
+    gid = args.group_id.strip()
+    versions = versions_of(gid)
+    if not versions:
+        sys.exit("no declaration of record for %s" % gid)
+    n, path = versions[-1]
+    group = read_json(path)
+    log = parents_log(gid)
+
+    seen, findings, blocked = {}, [], False
+    for idx, company, asin, marketplace, declared in declared_parents(group):
+        if not ASIN_RE.match(asin) or marketplace not in MARKETPLACES:
+            continue
+        v = resolve_product(asin, marketplace, args.rate, args.route)
+        now_parent = _s(v, "parent_asin_seen")
+        rec = {"action": "resolve", "group_version": n, "company": company,
+               "asin": asin, "marketplace": marketplace,
+               "declared_parent": declared, "parent_now": now_parent or None,
+               "status": v.get("status"), "title_seen": v.get("title_seen"),
+               "http_status": v.get("http_status")}
+
+        if v.get("status") == "blocked":
+            rec["finding"] = "blocked"
+            blocked = True
+        elif v.get("status") in ("not_found", "unavailable"):
+            rec["finding"] = "ended"
+            findings.append("%s %s: no longer on sale (%s). \u00a72 - the series "
+                            "ENDS and is recorded as ended, never swapped for "
+                            "another product" % (company, asin, v.get("status")))
+        elif not now_parent:
+            rec["finding"] = "no_parent_on_page"
+            findings.append("%s %s: the page served no parentAsin" % (company, asin))
+        elif declared and now_parent != declared:
+            rec["finding"] = "reparented"
+            findings.append("%s %s: parent moved %s -> %s. The review pool is a "
+                            "different variation family than the one declared"
+                            % (company, asin, declared, now_parent))
+        else:
+            rec["finding"] = "unchanged"
+
+        if now_parent:
+            if now_parent in seen and seen[now_parent][0] != idx:
+                rec["finding"] = "converged"
+                rec["converged_with"] = seen[now_parent][1]
+                findings.append(
+                    "CONVERGED: %s (%s) and %s now share parent %s. They would "
+                    "be handed identical reviews and compared against each "
+                    "other" % (company, asin, seen[now_parent][1], now_parent))
+            else:
+                seen[now_parent] = (idx, company)
+
+        chain.append(log, rec)
+        print("  %-34s %-11s %-11s -> %-11s %s"
+              % (company[:34], asin, declared or "-", now_parent or "-",
+                 rec["finding"]))
+        if blocked:
+            break
+
+    summary = {"action": "sweep", "group_version": n,
+               "products": len(declared_parents(group)),
+               "findings": findings, "blocked": blocked,
+               "complete": not blocked}
+    chain.append(log, summary)
+
+    print("\n%s v%d: %d product(s) re-resolved" % (gid, n, len(declared_parents(group))))
+    if blocked:
+        print("STOPPED: the marketplace refused the request. \u00a73 - recorded, "
+              "not routed around. The sweep is incomplete and stage G will say so.")
+        return 2
+    for f in findings:
+        print("  ! " + f)
+    if findings:
+        print("\nNothing here is repaired by editing the declaration - that "
+              "would hide the change. A real change is a new version:\n"
+              "  declare_group.py revise %s --from-draft <draft> --reason \"...\""
+              % gid)
+    return 2 if findings else 0
+
+
+def parent_drift_state(group_id, group, now=None):
+    """What the parents log says about this group, for stage G to refuse on.
+
+    Offline. Reads the log and nothing else.
+    """
+    log = parents_log(group_id)
+    st = {"problems": [], "checked_at": None, "age_days": None,
+          "log_lines": len(chain.read(log))}
+
+    broken = chain.walk(log, actions=("resolve", "sweep", "note"))
+    if broken:
+        st["problems"].extend("parents log: " + b for b in broken)
+        return st
+
+    sweeps = [r for r in chain.records(log) if r.get("action") == "sweep"]
+    if not sweeps:
+        st["problems"].append(
+            "parents have never been re-resolved. CONTRACTS.md \u00a71 requires "
+            "every declared parent to be re-resolved on a cadence, because two "
+            "members can converge onto one parent after declaration with no "
+            "identifier changing. Run: declare_group.py reresolve %s" % group_id)
+        return st
+
+    last = sweeps[-1]
+    st["checked_at"] = last.get("recorded_at")
+    try:
+        when = dt.datetime.strptime(last["recorded_at"], "%Y-%m-%dT%H:%M:%SZ")
+        when = when.replace(tzinfo=dt.timezone.utc)
+        age = ((now or dt.datetime.now(dt.timezone.utc)) - when).total_seconds() / 86400.0
+        st["age_days"] = round(age, 2)
+    except (KeyError, ValueError):
+        age = None
+
+    if last.get("group_version") != group.get("version"):
+        st["problems"].append(
+            "the last sweep was of v%s but the declaration of record is v%s - "
+            "re-resolve the current version"
+            % (last.get("group_version"), group.get("version")))
+    if not last.get("complete"):
+        st["problems"].append(
+            "the last sweep did not complete (the marketplace refused it), so "
+            "the parents are unchecked rather than checked and clean")
+    if age is not None and age > REPARENT_CHECK_DAYS:
+        st["problems"].append(
+            "the last parent sweep was %.1f days ago, past the %d-day cadence. "
+            "A convergence that happened since would not have been seen"
+            % (age, REPARENT_CHECK_DAYS))
+    for f in last.get("findings") or []:
+        st["problems"].append(f)
+    return st
+
+
 # -------------------------------------------------------------------- modes
 
 def mode_draft(args):
@@ -1930,6 +2113,9 @@ def mode_stage(args):
                             "member with no evidence is not a member)"
                             % ", ".join(missing))
 
+        drift = parent_drift_state(gid, group)
+        problems.extend(drift["problems"])
+
     if problems:
         print("G %s: NOT satisfied" % gid)
         for pr in problems:
@@ -1939,8 +2125,11 @@ def mode_stage(args):
     print("G %s: satisfied  v%d  %d member(s)  %d product(s)"
           % (gid, versions[-1][0], len(group["members"]),
              sum(len(m["products"]) for m in group["members"])))
+    drift = parent_drift_state(gid, group)
     print("  record %s" % versions[-1][1])
     print("  view   %s" % view_path)
+    print("  parents re-resolved %s (%.1f days ago, cadence %d)"
+          % (drift["checked_at"], drift["age_days"] or 0.0, REPARENT_CHECK_DAYS))
     for n in print_comparability(group.get("comparability") or {}):
         print("  ! " + n)
     return 0
@@ -2025,6 +2214,13 @@ def build_parser():
     cn.add_argument("draft")
     cn.add_argument("--only-missing", action="store_true")
     cn.set_defaults(fn=mode_concentration)
+
+    rr = sub.add_parser("reresolve",
+                        help="re-resolve every declared parent (CONTRACTS.md §1)")
+    rr.add_argument("group_id")
+    rr.add_argument("--rate", type=float, default=3.0)
+    rr.add_argument("--route", default="http-direct")
+    rr.set_defaults(fn=mode_reresolve)
 
     re_ = sub.add_parser("reemit", help="regenerate the CONTRACTS.md §1 view")
     re_.add_argument("group_id", nargs="?")
