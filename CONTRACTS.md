@@ -201,7 +201,7 @@ never invents a stage's output and never skips a stage that is missing.
 
 | Stage | Does | Satisfied when |
 |---|---|---|
-| `G` | declare peer groups | ≥1 group file, hash verified, every member has concentration evidence |
+| `G` | declare peer groups | ≥1 group file, hash verified, every member whose revenue will be read has concentration evidence, **and every declared parent re-resolved within the cadence with nothing found** |
 | `C` | collect reviews | every tracked ASIN has a batch within the cadence declared in `collection-plan.json` |
 | `K` | calibrate the scorer | `data/calibration.json` exists, agreement recorded — **human step** |
 | `S` | score tone | `scores.csv` for every company with reviews |
@@ -213,6 +213,15 @@ reads a path it was not given. This single line is what was wrong last time.
 
 Exit codes: `0` ran or reported a clean stop · `2` an integrity violation, needs a human
 · `3` a stage is not built yet.
+
+**Re-resolution is a verb; the gate only reads its log.** `reresolve` does the network
+work and appends what it saw; stage G reads that log and **makes no network call**. A
+gate the runner evaluates on every pass must not itself be fifteen requests the
+marketplace can block, or the guard becomes a second point of failure standing in front
+of the thing it guards. Stage G refuses when the sweep is missing, stale, incomplete, of
+an older group version, or found something — so **"never checked" and "checked and
+clean" can never look alike**, and a blocked sweep reports parents as *unchecked* rather
+than passing them.
 
 **Stage C being satisfied does not mean the data supports a trend.** They are different
 conditions and the runner must never conflate them: `C` asks whether collection ran,
