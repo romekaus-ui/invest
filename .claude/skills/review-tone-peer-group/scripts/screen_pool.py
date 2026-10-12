@@ -53,10 +53,15 @@ def main():
                 private.append((company, grp["group_id"]))
                 continue
             ex, tk = venue.split(":", 1)
+            # SEC's index is keyed on symbol alone, so a non-US venue is never
+            # looked up in it: "EPA:EL" is EssilorLuxottica and "EL" is Estee
+            # Lauder. See declare_group.US_EXCHANGES.
+            if ex.upper() not in dg.US_EXCHANGES:
+                nonus.append((company, venue, grp["group_id"]))
+                continue
             hit = idx.get(tk.upper())
             if not hit:
-                (missing if ex in ("NYSE", "NASDAQ") else nonus).append(
-                    (company, venue, grp["group_id"]))
+                missing.append((company, venue, grp["group_id"]))
                 continue
             cik = hit[0]
             us.append((company, venue, cik, grp["group_id"]))

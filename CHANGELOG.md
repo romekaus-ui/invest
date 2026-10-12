@@ -172,9 +172,9 @@ companies, screened in `pool_evidence.json`:
 | | Count |
 |---|---|
 | Distinct candidate companies | 74 |
-| US registrants SEC knows | 32 |
-| …with a disclosed revenue split to read | **27** |
-| Listed outside the US (evidence by hand) | 13 |
+| US registrants SEC knows | 30 |
+| …with a disclosed revenue split to read | **25** |
+| Listed outside the US (evidence by hand) | 15 |
 | Private (category controls, no revenue) | 26 |
 | **US tickers SEC no longer lists** | **6** |
 
@@ -188,10 +188,12 @@ while the private half does not.
 
 The target is still reachable as **80 companies in total**, because private members count
 and there are 26 of them here. It is *not* reachable as 80 companies whose revenue can
-eventually be read. Planning should assume roughly **40–55 revenue-readable companies**
-across 20–30 groups, with private peers making up the rest as category controls. Padding
-to 80 public names would require admitting diversified companies, which is the one thing
-the filter exists to prevent.
+eventually be read: this pool's ceiling is **45** (30 US registrants plus 15 listed
+elsewhere), and only 25 of those have a disclosed split to read today. Reaching the high
+end would need more categories, not more names in these ones. Planning should assume
+roughly **40–50 revenue-readable companies** across 20–30 groups, with private peers
+making up the rest as category controls. Padding to 80 public names would require
+admitting diversified companies, which is the one thing the filter exists to prevent.
 
 ### Defects found
 
@@ -255,7 +257,26 @@ the filter exists to prevent.
    a late revision visible to anyone who looks and makes no difference to anyone who does
    not.
 
-10. **The 0.60 floor is the weakest number here.** PLAN.md states the filter without one.
+11. **The screener fetched the wrong companies' filings, and called them by the right
+    companies' names.** SEC's ticker index is keyed on **symbol alone**, so a non-US venue
+    matched a US company that happens to share the symbol: `EPA:EL` (EssilorLuxottica,
+    Paris) resolved to `EL` (Estée Lauder, New York) and `EPA:BB` (Société BIC) resolved
+    to `BB` (BlackBerry). Both fetched a real 10-K, both produced plausible-looking
+    concentration evidence, and nothing in the output looked wrong — the entity name SEC
+    returned was the only tell. Caught while re-checking pool counts for this entry, not
+    by any check in the component.
+
+    Fixed: the exchange is now tested against a US set *before* the symbol is looked up,
+    so a venue outside it is never resolved mechanically. The two poisoned records were
+    deleted from `pool_evidence.json` rather than corrected in place. No declared group
+    was affected — neither company is in one — but **this is the defect class that would
+    have been worst**: a wrong share of revenue attributed to the right company, carried
+    into a declaration with a real SEC URL beside it. The lesson is the same as defect 1:
+    the component's own checks passed, and only a cross-check against something it had
+    not been asked about exposed it. `screen_pool.py` prints the entity name SEC returned
+    for exactly this reason.
+
+12. **The 0.60 floor is the weakest number here.** PLAN.md states the filter without one.
     0.60 admits Sonos at 0.777 and would admit a company at 0.61 whose other 39% nobody
     reviews. A stricter 0.75 would have excluded nothing declared here, which is itself
     evidence the floor is not currently doing much work — the real screening came from

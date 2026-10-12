@@ -92,6 +92,16 @@ REPORTING_SOURCES = ("SEC", "companies-house", "EDINET", "none",
                      "TDnet", "SIX", "DART", "other-national")
 
 GROUPS_VIEW_DIR = "groups"
+
+# SEC's ticker index is keyed on SYMBOL ALONE, so a non-US venue must never be
+# looked up in it. "EPA:EL" is EssilorLuxottica in Paris and "EL" is Estee
+# Lauder in New York; "EPA:BB" is Societe BIC and "BB" is BlackBerry. Both
+# matched, and the screener fetched the wrong companies' 10-Ks under the right
+# companies' names (CHANGELOG.md 2026-10-12, defect 11). The exchange is now
+# checked before the symbol is, and a venue outside this set is never resolved
+# mechanically.
+US_EXCHANGES = ("NYSE", "NASDAQ", "NYSEAMERICAN", "NYSEARCA", "AMEX", "BATS",
+                "CBOE", "OTC", "OTCMKTS")
 VENUE_RE = re.compile(r"^[A-Z0-9.\-]{2,12}:[A-Z0-9.\-]{1,12}$")
 
 # PLAN.md's filter has no number in it, so one is chosen here and recorded.
@@ -500,6 +510,18 @@ def venue_parts(m):
         return None, None
     ex, tk = venue.split(":", 1)
     return ex, tk
+
+
+def us_ticker(m):
+    """The symbol to look up in SEC's index, or None if this is not a US venue.
+
+    The guard that stops a Paris symbol being resolved as the New York company
+    that happens to share it.
+    """
+    ex, tk = venue_parts(m)
+    if not tk or (ex or "").upper() not in US_EXCHANGES:
+        return None
+    return tk.strip().upper()
 
 
 def _validate_reporting(m, tag):
@@ -971,10 +993,14 @@ def mode_resolve_us(args):
         sys.exit("could not fetch the SEC ticker index; nothing changed")
     touched, skipped = [], []
     for m in draft.get("members") or []:
-        _, tk = venue_parts(m)
-        tk = (tk or "").strip().upper()
+        tk = us_ticker(m)
         if not tk:
-            skipped.append("%s: private or no ticker" % m.get("company"))
+            ex, raw = venue_parts(m)
+            skipped.append("%s: %s" % (
+                m.get("company"),
+                "private or no ticker" if not raw else
+                "%s is not a US exchange, so SEC's symbol-keyed index is not "
+                "consulted - record the calendar by hand" % ex))
             continue
         hit = idx.get(tk)
         if not hit:
@@ -1406,12 +1432,13 @@ def mode_concentration(args):
         company = m.get("company")
         cik = _s(m, "cik")
         if not cik:
-            _, tk = venue_parts(m)
-            hit = idx.get((tk or "").upper())
+            tk = us_ticker(m)
+            hit = idx.get(tk) if tk else None
             cik = hit[0] if hit else ""
         if not cik:
-            print("  %-34s no CIK - evidence must be recorded by hand with a "
-                  "source_url to the company's own report" % company)
+            print("  %-34s not a US registrant SEC can resolve - evidence must "
+                  "be recorded by hand with a source_url to the company's own "
+                  "report" % company)
             continue
         if args.only_missing and company in store and store[company].get("ok"):
             print("  %-34s already have it" % company)

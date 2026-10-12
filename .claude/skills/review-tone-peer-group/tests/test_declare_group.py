@@ -449,6 +449,21 @@ check("a plain filing citation does not trip the lexicon",
                       "Coolers & Equipment 40%", dg.PERFORMANCE_LEXICON) == [])
 
 # ------------------------------------------------------------ comparability
+# The wrong-company defect live data found. SEC's ticker index is keyed on
+# symbol alone, so a non-US venue must never be looked up in it.
+print("\nUS venue guard (defect 11)")
+check("a US venue resolves", dg.us_ticker({"venue": "NASDAQ:LOGI"}) == "LOGI")
+check("EPA:EL is NOT resolved as Estee Lauder's EL",
+      dg.us_ticker({"venue": "EPA:EL"}) is None)
+check("EPA:BB is NOT resolved as BlackBerry's BB",
+      dg.us_ticker({"venue": "EPA:BB"}) is None)
+check("a Shanghai venue is not resolved",
+      dg.us_ticker({"venue": "SHA:688169"}) is None)
+check("a private member is not resolved",
+      dg.us_ticker({"venue": "private"}) is None)
+check("a US venue in lower case still resolves",
+      dg.us_ticker({"venue": "nasdaq:celh"}) == "CELH")
+
 print("\nthe comparability block")
 c = dg.comparability(group())
 check("a single-marketplace group is not cross-marketplace",

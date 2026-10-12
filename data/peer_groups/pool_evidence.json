@@ -322,36 +322,6 @@
     },
     "venue": "NYSE:EPC"
   },
-  "EssilorLuxottica S.A.|EPA:EL": {
-    "chars": 566689,
-    "cik": "0001001250",
-    "company": "EssilorLuxottica S.A.",
-    "fetched_at": "2026-10-12T19:36:32Z",
-    "filing": {
-      "accession": "0001001250-26-000041",
-      "entity": "ESTEE LAUDER COMPANIES INC",
-      "filed": "2026-08-19",
-      "form": "10-K",
-      "primary_document": "el-20260630.htm",
-      "url": "https://www.sec.gov/Archives/edgar/data/1001250/000100125026000041/el-20260630.htm"
-    },
-    "group_id": "sunglasses",
-    "ok": true,
-    "probes": {
-      "by_category": [
-        "s through carefully selected distributors who we believe share our commitment to protecting the image and position of our brands. For information regarding our net sales by geographic region, see Item 8. Financial Statements and Supplementary Data – Note 14 – Revenue Recognition. 8 Table of Contents We continue to develop our strategy, assess performance and allocate resources by product category and will continue to report results by product category. To enhance accountability and streamline ope",
-        "thin our definitions of skin care, makeup, fragrance and hair care have been included in the “other” category. Year Ended June 30, (In millions) 2026 2025 2024 NET SALES By Product Category: Skin Care $ 7,338 $ 6,962 $ 7,908 Makeup 4,276 4,205 4,470 Fragrance 2,779 2,491 2,487 Hair Care 565 565 629 Other 103 100 115 15,061 14,323 15,609 Returns associated with restructuring and other activities (1) (12) 3 (1) Net sales $ 15,049 $ 14,326 $ 15,608 By Geographic Region (2) : The Americas $ 4,463 $ 4,410 $",
-        "deferred income taxes when calculating the per-share impact of each of the reconciling items. 45 Table of Contents The following table reconciles the change in net sales by product category and geographic region, as reported, to the change in net sales excluding the effects of foreign currency translation: As Reported Year Ended June 30, ($ in millions) 2026 2025 Variance Impact of foreign currency translation Variance, in constant currency % Change, as reported % Change, in constant currency By Product"
-      ],
-      "percent_of_revenue": [
-        "relates to our business in the domestic markets and travel retail locations in the region. Net sales from locations impacted by the conflict in the Middle East accounted for approximately 2% of consolidated net sales in fiscal 2025. We continue to monitor and assess the impact that these areas of volatility and uncertainty may have on net sales and profitability, including impacts to our effective tax rate from changes to our geographical mix of earnings. We are continuing to monitor and assess the potential effects of changing ta"
-      ],
-      "segments": [
-        "me manner as the consolidated financial statements; thus, no additional information is produced for the CEO or included herein. Information about the Company's four operating segments is as follows: (In millions) Year Ended June 30, 2026 Skin Care Makeup Fragrance Hair Care Total Net sales $ 15,049 Less: Other category net sales 103 Less: Returns associated with restructuring and other activities ( 12 ) Segment net sales $ 7,338 $ 4,276 $ 2,779 $ 565 $ 14,958 Cost of sales 1,761 1,102 638 144 3,645"
-      ]
-    },
-    "venue": "EPA:EL"
-  },
   "Freshpet, Inc.|NASDAQ:FRPT": {
     "chars": 295436,
     "cik": "0001611647",
@@ -703,41 +673,6 @@
       ]
     },
     "venue": "NYSE:SN"
-  },
-  "Societe BIC|EPA:BB": {
-    "chars": 433438,
-    "cik": "0001070235",
-    "company": "Societe BIC",
-    "fetched_at": "2026-10-12T19:36:31Z",
-    "filing": {
-      "accession": "0001070235-26-000039",
-      "entity": "BLACKBERRY Ltd",
-      "filed": "2026-04-09",
-      "form": "10-K",
-      "primary_document": "bbry-20260228.htm",
-      "url": "https://www.sec.gov/Archives/edgar/data/1070235/000107023526000039/bbry-20260228.htm"
-    },
-    "group_id": "wet-shaving",
-    "ok": true,
-    "probes": {
-      "by_category": [
-        "in the sections of this MD&A entitled, “Results of Operations - Fiscal year ended February 28, 2026 compared to fiscal year ended February 28, 2025 - Revenue - Revenue by Segment”, “Results of Operations - Fiscal year ended February 28, 2026 compared to fiscal year ended February 28, 2025 - Gross Margin and Adjusted EBITDA by Segment”, “Results of Operations - Fiscal year ended February 28, 2026 compared to fiscal year ended February 28, 2025 - Operating Expenses - General and Administrative E",
-        "on at the end of the fourth quarter of fiscal 2025. Results of Operations - Fiscal year ended February 28, 2026 compared to fiscal year ended February 28, 2025 Revenue Revenue by Segment Comparative breakdowns of revenue by segment are set forth below. For the Fiscal Years Ended (in millions) February 28, 2026 February 28, 2025 Change February 29, 2024 Change Revenue by Segment QNX $ 268.0 $ 236.0 $ 32.0 $ 215.4 $ 20.6 Secure Communications 258.9 272.6 (13.7) 283.8 (11.2) Licensing 22.2 26.3 (4.1) 259",
-        "esults of Operations - Fiscal year ended February 28, 2026 compared to fiscal year ended February 28, 2025 Revenue Revenue by Segment Comparative breakdowns of revenue by segment are set forth below. For the Fiscal Years Ended (in millions) February 28, 2026 February 28, 2025 Change February 29, 2024 Change Revenue by Segment QNX $ 268.0 $ 236.0 $ 32.0 $ 215.4 $ 20.6 Secure Communications 258.9 272.6 (13.7) 283.8 (11.2) Licensing 22.2 26.3 (4.1) 259.9 (233.6) $ 549.1 $ 534.9 $ 14.2 $ 759.1 $ ("
-      ],
-      "percent_of_revenue": [
-        "of such delays or challenges in obtaining timely payments could negatively impact the Company’s liquidity and financial condition. There was one customer that comprised 12% of the Company’s revenue in fiscal 2026 (fiscal 2025 - one customer that comprised 14%). Market values are determined for each individual security in the investment portfolio. The Company assesses declines in the value of individual investments for impairment. The Company makes this assessment by considering available evidence including chang"
-      ],
-      "segments": [
-        "ts expense. Adjusted Corporate operating costs is defined as the portion of the Company’s total adjusted operating costs that is not attributable to any of the three operating segments. The Company previously stated that it expected adjusted Corporate operating costs excluding amortization to be approximately $10 million in the fourth quarter of fiscal 2026. Adjusted Corporate operating costs excluding amortization were $11.1 million in the fourth quarter of fiscal 2026. 46 The Company expects adjus",
-        "urce of the Company’s reportable operating segments. The CODM, who is the CEO of the Company, makes decisions and assesses the performance of the Company using three operating segments. The CODM does not evaluate operating segments using discrete asset information. The Company does not specifically allocate assets to operating segments for internal reporting purposes. 102 BlackBerry Limited Notes to the Consolidated Financial Statements In millions of United States dollars, except share and per shar",
-        "llions of United States dollars, except share and per share data, and except as otherwise indicated Segment Disclosures The Company is organized and managed as three operating segments: QNX, Secure Communications, and Licensing. The following table shows information by reportable operating segment for the fiscal year ended February 28, 2026: For the Year Ended QNX Secure Communications Licensing Segment Totals Segment revenue $ 268.0 $ 258.9 $ 22.2 $ 549.1 Segment cost of sales 45.4 77.2 6.1 Segment"
-      ],
-      "table_intro": [
-        "ver time $ 248.4 $ 246.9 $ 210.0 Products and services transferred at a point in time 300.7 288.0 549.1 Total $ 549.1 $ 534.9 $ 759.1 Revenue contract balances The following table sets forth the activity in the Company’s revenue contract balances for the fiscal year ended February 28, 2026: Accounts Receivable Deferred Revenue Deferred Commissions Opening balance as at February 28, 2025 $ 240.0 $ 167.1 $ 14.6 Increases due to invoicing of new or existing contracts, associated contract acquisition costs, or other 594.6 508.4 17.7 Decrease due"
-      ]
-    },
-    "venue": "EPA:BB"
   },
   "Sonos, Inc.|NASDAQ:SONO": {
     "chars": 303362,
