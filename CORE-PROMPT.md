@@ -82,12 +82,13 @@ it re-reads the same rows.
 provider returns and compare. It is the only independent check available on whether a
 provider is serving real Amazon data.
 
-Two collection details, if it is used at all: `/dp/<ASIN>` returns 13 where the reviews
-page returns 8, but the extra 5 are the international block (UAE, Canada, Brazil, Egypt,
-Mexico), short and largely non-English — a different population for a US registrant's
-revenue, so `review_country` must be read. And the two surfaces render the same review
-with different paragraph whitespace, so mixing them makes every shared review look
-edited.
+**Use `/dp/<ASIN>`, not `/product-reviews/`.** The reviews page does not expose
+`parentAsin` at all, so the parent can only be asserted there and never confirmed — and
+Amazon serves reviews at the parent, pooled across variants. `/dp/` exposes it, and
+returns 13 rather than 8 besides. The extra 5 are the international block, short and
+largely non-English, so `review_country` must be read before any join to a single
+market's revenue. The two surfaces render the same review with different paragraph
+whitespace, so mixing them makes every shared review look edited.
 
 - The user logs in themselves. The assistant never enters credentials and never creates
   an account (see §9).

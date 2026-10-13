@@ -55,6 +55,27 @@ until it is known which.
 4. **Choose the collection set and the cadence**, declare both, start collecting.
 5. **Keep collecting.** Each run is one point in the series.
 
+## Pool size — measured, 2026-10-12
+
+| | count |
+|---|---|
+| US registrants SEC knows | 30 |
+| …with a disclosed revenue split to read | **25** |
+| Listed outside the US (evidence read by hand) | 15 |
+| Private (category controls, no revenue to read) | 26 |
+| US tickers SEC no longer lists | 6 |
+
+**Ceiling for revenue-readable companies in this pool: 45.** Only 25 have a readable
+split today. Reaching the upper end needs *more categories*, not more names inside these.
+
+Plan for **40–50 revenue-readable across 20–30 groups**, private peers as the rest.
+80 companies in total is reachable; 80 revenue-readable is not.
+
+The six delisted names — iRobot, Sleep Number, Skechers, Vista Outdoor, Voxx, Solo
+Brands — are the structural point: focused consumer companies are exactly the
+take-private targets, so the public half of this pool erodes while the private half does
+not.
+
 ## The concentration filter
 
 **A company belongs in a group only if one main product line dominates its revenue, and

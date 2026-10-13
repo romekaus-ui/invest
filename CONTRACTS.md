@@ -39,7 +39,8 @@ A component satisfies this file or the workflow cannot call it.
          "marketplace": "amazon.com", "name": "Roomba j7+"}
       ],
       "reporting": {"calendar": "quarterly", "currency": "USD",
-                    "fy_end": "1231",    // MMDD; "0102" for a 52/53-week year
+                    "fy_end": "1231",    // MMDD; "0102" for a 52/53-week year.
+                                         // EMPTY when no_public_report is true
                     "source": "SEC"}
       // source: SEC | companies-house | EDINET | TDnet | SIX | DART
       //       | other-national | none
@@ -62,10 +63,14 @@ Rules this encodes (CORE-PROMPT §2, PLAN.md concentration filter):
 - `venue: "private"` is valid and useful — a private competitor is a category control.
 - At least two members, or `members[0]` is explicitly flagged as having no peer.
 - Revising a group means a **new file with a new hash**, never an edit in place.
-- `fy_end` is required because CORE-PROMPT §5 forbids aligning two companies' figures as
-  if their calendars matched. Measured across six declared groups: `1231`, `0102`,
-  `1003`, `0930`, `0826`, `0331` — five of six are not 31 December and two are 52/53-week
-  years that move annually.
+- `fy_end` is required **for every member whose revenue will be read**, and must be
+  **empty** for one with `no_public_report: true`. CORE-PROMPT §5 forbids aligning two
+  companies' figures as if their calendars matched, so a readable member needs it — but
+  nothing publishes a year end for Bose or Stanley/PMI, and writing a plausible-looking
+  `1231` for them would be inventing provenance, the same class of error as inventing a
+  revenue share. Measured across six declared groups: `1231`, `0102`, `1003`, `0930`,
+  `0826`, `0331` — five of six are not 31 December and two are 52/53-week years that
+  move annually.
 
 ### `parent_asin`, and why it is required
 
@@ -86,6 +91,24 @@ Three consequences that have to be understood rather than worked around:
 
 A group where two members track children of the **same parent** is refused: they would
 be handed identical reviews and compared against each other.
+
+**Re-resolution, not just declaration.** That refusal happens at declaration time, but
+re-parenting happens afterwards. Two members declared under distinct parents can
+converge later with **no id anywhere changing**, and nothing currently rechecks. Stage G
+therefore re-resolves every declared parent on a cadence, not only when a group is
+first written, and a convergence found later is the same refusal as one found at
+declaration.
+
+### What pooling looks like in one real batch
+
+Measured 2026-10-12, a single batch collected under "Hydro Flask 32 oz Wide Mouth":
+
+- three of eight reviews were tagged `Style: 20 Oz`, `Style: 40 Oz` and `Style: 64 Oz` —
+  a different bottle
+- reviews came from Australia, Spain, Singapore, Canada and Italy
+
+**Both pooling axes, one product, one page.** This is why `parent_asin` and
+`review_country` are columns and not notes.
 
 ## 2. Collector → scorer
 
@@ -108,6 +131,19 @@ Columns, extending the existing contract in
 | `verified_purchase` | bool | |
 | `helpful_vote` | int | |
 | `batch_id` | str | joins to the batch record below |
+
+**The parent is captured from the page and verified — never copied from the group file.**
+A declared parent that no longer matches what Amazon serves **refuses the batch**. The
+repair belongs in stage G, and the group file must not simply be edited to match: two
+members may have converged on one parent, in which case the group no longer holds. A
+group file that was right when written can stop being right silently, and trusting §1
+would make that undetectable.
+
+**`/dp/<ASIN>` is the only defensible Route A surface.** The `/product-reviews/` page
+does not expose `parentAsin` at all, so on that surface the parent can only be asserted,
+never confirmed; `/dp/` exposes it and returns 13 reviews rather than 8. The two surfaces
+render identical reviews with **different paragraph whitespace**, so a collector must
+never mix them — the same review would look edited.
 
 `review_date` carries no `fiscal_quarter` column. Fresh collection is not organised on a
 company's fiscal calendar; aggregation assigns periods, and doing it here would bake one
@@ -165,7 +201,7 @@ never invents a stage's output and never skips a stage that is missing.
 
 | Stage | Does | Satisfied when |
 |---|---|---|
-| `G` | declare peer groups | ≥1 group file, hash verified, every member has concentration evidence |
+| `G` | declare peer groups | ≥1 group file, hash verified, every member whose revenue will be read has concentration evidence, **and every declared parent re-resolved within the cadence with nothing found** |
 | `C` | collect reviews | every tracked ASIN has a batch within the cadence declared in `collection-plan.json` |
 | `K` | calibrate the scorer | `data/calibration.json` exists, agreement recorded — **human step** |
 | `S` | score tone | `scores.csv` for every company with reviews |
@@ -177,6 +213,15 @@ reads a path it was not given. This single line is what was wrong last time.
 
 Exit codes: `0` ran or reported a clean stop · `2` an integrity violation, needs a human
 · `3` a stage is not built yet.
+
+**Re-resolution is a verb; the gate only reads its log.** `reresolve` does the network
+work and appends what it saw; stage G reads that log and **makes no network call**. A
+gate the runner evaluates on every pass must not itself be fifteen requests the
+marketplace can block, or the guard becomes a second point of failure standing in front
+of the thing it guards. Stage G refuses when the sweep is missing, stale, incomplete, of
+an older group version, or found something — so **"never checked" and "checked and
+clean" can never look alike**, and a blocked sweep reports parents as *unchecked* rather
+than passing them.
 
 **Stage C being satisfied does not mean the data supports a trend.** They are different
 conditions and the runner must never conflate them: `C` asks whether collection ran,
@@ -198,3 +243,62 @@ From CORE-PROMPT §1, repeated here because these are the ones broken by acciden
 - Write a review that Amazon did not serve.
 - Record a batch without its provenance.
 - Defeat, solve or route around a block. A refusal is recorded and the stage stops.
+- **Resolve a company by ticker symbol without its exchange.**
+- **Ship a guard that cannot fail.** This project has now produced three, and they are
+  the same bug wearing different clothes: a calibration gate reading a file the scorer
+  never wrote, so it could never be met however good the measurement; a window module
+  that restricted nothing while keeping the interface of one that did; and a test
+  asserting `a == b if hasattr(obj, "f") else True` where `f` did not exist, so it
+  passed without testing anything. **A check that always passes is indistinguishable
+  from a check that passes.** Every guard needs a case that demonstrably trips it, and
+  every mechanical check needs its awkward *near-misses* tested too — a verifier that
+  fires on `CHURCH & DWIGHT CO INC /DE/` vs `Church & Dwight Co., Inc. (Waterpik)` gets
+  switched off, and then it guards nothing at all.
+
+**This rule cannot be enforced by reading, so it is audited mechanically.** Pointed at
+the peer-group component, the audit found **24 of 70 refusal sites had never fired in
+any test**. The two that mattered were lexicons tested thoroughly at the unit level —
+innocent sentences, guilty sentences, the brand exemption — and **never once through the
+validator that calls them**. The lexicons could have been disconnected entirely, or
+wired to the wrong field, and every lexicon test would still have passed. A measurement
+that was fine and a wire that was not.
+
+The audit parses the component for its own refusal sites, spies on whatever returns the
+refusal list, runs the whole suite, and asserts each site produced a refusal at least
+once. It ports in about forty lines.
+
+**The audit is itself a check, so it carries its own negative controls**, run every time
+rather than remembered: a probe that cannot be in the output must be reported
+*uncovered* (catching a matcher that always says yes) and a probe taken from the output
+must be reported *covered* (catching one that always says no). It also refuses to pass
+below a floor of refusal sites, since a parser that stopped finding them would otherwise
+report full coverage of nothing.
+
+**What this does and does not establish.** Every refusal site having a test that trips
+it is not the same as every refusal being *correct*, and it is not line coverage — a
+site can fire for a reason other than the intended one and the audit is still satisfied.
+What it rules out is precisely the failure that has now occurred three times on this
+project: a guard that cannot fire at all.
+
+### Why that last one is a rule and not advice
+
+SEC's ticker index is keyed on **symbol alone**. So a lookup of `EPA:EL`
+(EssilorLuxottica, Paris) returns `EL` — Estée Lauder, New York. `EPA:BB` (Société BIC)
+returns `BB` — BlackBerry. Both then fetch a real 10-K and produce entirely plausible
+concentration evidence, carrying a genuine `sec.gov` URL, filed under the right
+company's name.
+
+**Nothing in the output looks wrong.** The entity name SEC returns is the only tell, and
+it is not read by anything that trusts the symbol. This is the worst shape a defect can
+take here: a different company's revenue attributed to the company you meant, with a
+real primary source beside it.
+
+It was caught in the peer-group pool screen, where it inflated the counts by two. A
+component that resolves a venue to a CIK **checks the exchange against a US set before
+looking up the symbol**, and records the entity name it got back so a mismatch is
+visible.
+
+`fetch_sec.py` is clear: it takes `TICKER CIK` positionally and keys every fetch on the
+**CIK**, using the ticker only as a directory name. That does not make the problem go
+away — it relocates it to whoever produces the CIK, which is now the peer-group
+declaration's `venue` field.
