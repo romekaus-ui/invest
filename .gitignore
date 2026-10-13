@@ -15,3 +15,7 @@ __pycache__/
 # requirements-dev.txt; see references/numeric-stack.md.
 .venv/
 venv/
+
+# Secrets. Never committed — API tokens live here, not in the repo.
+.env
+.env.*
