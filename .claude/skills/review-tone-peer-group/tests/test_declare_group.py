@@ -401,6 +401,104 @@ refuses("a resolved product that recorded no title at all",
                        member(company="PepsiCo")]),
         "recorded no title_seen")
 
+# Every refusal path below was found by tests/test_guard_coverage.py to have
+# never fired in any test - guards nobody had seen work (CONTRACTS.md §5).
+# The two that matter most are the lexicon ones: both were tested at the level
+# of `lexicon_hits` and never through `validate`, so the lexicons could have
+# been disconnected from the validator entirely and the suite would have passed.
+print("\nguards that had never been seen to fire")
+
+refuses("a reason that selects on performance, through validate",
+        group(members=[member(reason="Sells Coca-Cola, and the share price has "
+                                     "outperformed its peers for three years."),
+                       other()]),
+        "selects on performance, price or attractiveness")
+refuses("a continuity reason arguing from popularity, through validate",
+        group(members=[member(products=[dict(member()["products"][0],
+                                             continuity_reason="The bestseller in the "
+                                             "range since 2012, top rated by buyers.")]),
+                       other()]),
+        "argues from popularity")
+refuses("a solo reason that selects on performance",
+        group(members=[member()], solo=True, peer_relative_reading=False,
+              solo_reason="No peer sells anything comparable and the business looks "
+                          "undervalued against the wider sector right now."),
+        "selects on performance, not substitutability")
+
+refuses("a malformed group id", group(group_id="Soft Drinks!"), "must match")
+refuses("an empty seed", group(seed=""), "seed: empty")
+refuses("a declared_at carrying a wall clock",
+        group(declared_at="2026-10-12T19:00:00Z"), "requires a DATE")
+refuses("no members at all", group(members=[]), "members: none")
+refuses("solo set on a group of two", group(solo=True), "solo: set, but the group has")
+refuses("a member that is not an object", group(members=[member(), "PepsiCo"]),
+        "not an object")
+refuses("a member with an empty company name",
+        group(members=[member(company=""), other()]), ".company: empty")
+refuses("a CIK that is not ten digits",
+        group(members=[member(cik="21344"), other()]), "must be 10 digits")
+
+refuses("a reporting source outside the contract's enum",
+        group(members=[member(reporting=dict(member()["reporting"], source="Bloomberg")),
+                       other()]), "must be one of")
+refuses("an empty reporting regime",
+        group(members=[member(reporting=dict(member()["reporting"], regime=""))
+                       , other()]), ".reporting.regime: empty")
+refuses("an empty calendar source",
+        group(members=[member(reporting=dict(member()["reporting"], calendar_source="")),
+                       other()]), ".reporting.calendar_source: empty")
+refuses("a resolved_by outside the enum",
+        group(members=[member(reporting=dict(member()["reporting"], resolved_by="memory")),
+                       other()]), ".reporting.resolved_by")
+
+refuses("a share set alongside no_public_report",
+        group(members=[member(venue="private",
+                              concentration=dict(member()["concentration"],
+                                                 share_of_revenue=0.9,
+                                                 no_public_report=True,
+                                                 revenue_readable=False),
+                              reporting=dict(member()["reporting"], source="none",
+                                             fy_end="")),
+                       other()]),
+        "set alongside no_public_report")
+refuses("revenue_readable left true under no_public_report",
+        group(members=[member(venue="private",
+                              concentration=dict(member()["concentration"],
+                                                 share_of_revenue=None,
+                                                 no_public_report=True,
+                                                 revenue_readable=True),
+                              reporting=dict(member()["reporting"], source="none",
+                                             fy_end="")),
+                       other()]),
+        "must be false when no_public_report is set")
+refuses("a share that is not a number",
+        group(members=[member(concentration=dict(member()["concentration"],
+                                                 share_of_revenue="92%")), other()]),
+        "a fraction in (0, 1]")
+
+refuses("an empty reason",
+        group(members=[member(reason=""), other()]), ".reason: empty")
+refuses("a product that is not an object",
+        group(members=[member(products=["B000TNY0AM"]), other()]), "not an object")
+refuses("an empty product name",
+        group(members=[member(products=[dict(member()["products"][0], name="")]),
+                       other()]), ".name: empty")
+refuses("an empty product brand",
+        group(members=[member(products=[dict(member()["products"][0], brand="")]),
+                       other()]), ".brand: empty")
+refuses("a verification with no timestamp",
+        group(members=[member(products=[dict(
+            member()["products"][0],
+            verification=dict(member()["products"][0]["verification"],
+                              checked_at=""))]), other()]),
+        ".verification.checked_at: empty")
+refuses("a verification that cannot say how it was made",
+        group(members=[member(products=[dict(
+            member()["products"][0],
+            verification=dict(member()["products"][0]["verification"],
+                              route=""))]), other()]),
+        ".verification.route: empty")
+
 print("\nthe solo rule")
 solo_ok = group(members=[member()], solo=True, peer_relative_reading=False,
                 solo_reason=("Searched grocery and specialist retailers for a "

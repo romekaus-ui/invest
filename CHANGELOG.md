@@ -6,6 +6,64 @@ here.
 
 ---
 
+## 2026-10-13 — every guard now has a test that trips it
+
+`CONTRACTS.md` §5 gained the rule *a check that always passes is indistinguishable from
+a check that passes*, generalised from three instances on this project: a calibration
+gate that read a file the scorer never wrote, a window module that restricted nothing
+while keeping the interface of one that did, and this component's no-op assertion
+(defect 13). The rule is unenforceable by reading, because the failure looks exactly like
+success. So it is enforced mechanically.
+
+### `tests/test_guard_coverage.py`
+
+Parses `declare_group.py` for every refusal site in the validators — every
+`...append(<message>)` inside `validate`, its helpers and `parent_drift_state` — then
+runs the whole declare-group suite with `validate` and `parent_drift_state` spied on,
+recording every problem string any test produced, and asserts each site produced at
+least one of them.
+
+**It found 24 of 70 refusal sites had never fired in any test.** Guards nobody had seen
+work. All 24 now have a case that trips them; the suite went from 163 to 187 checks.
+
+**The two that mattered most were the lexicon ones.** The performance lexicon and the
+popularity lexicon were tested thoroughly at the level of `lexicon_hits` — innocent
+sentences, guilty sentences, the brand exemption — and **never once through `validate`**.
+So the lexicons could have been disconnected from the validator entirely, or the
+validator could have been calling them on the wrong field, and every lexicon test would
+still have passed. That is the same shape as the calibration gate: a measurement that was
+fine and a wire that was not.
+
+Others worth naming: a share of revenue set alongside `no_public_report`,
+`revenue_readable` left true under it, a reporting source outside the contract's enum, a
+`declared_at` carrying a wall clock, and a verification that cannot say how it was made
+(§1.4). Each was a rule written into the component and never observed holding.
+
+### The audit is itself a check, so §5 applies to it
+
+An audit whose matcher silently matched everything would report full coverage for ever
+and look exactly like one that passed. So it carries two negative controls, run every
+time rather than remembered from the day it was written: a probe that cannot be in the
+output must be reported *uncovered* (catching a matcher that always says yes), and a
+probe taken from the output must be reported *covered* (catching one that always says
+no). It also refuses to pass if it finds fewer than 50 refusal sites, since a parser that
+has stopped seeing them would otherwise report full coverage of nothing.
+
+And it was demonstrated to fail: a throwaway guard that no test exercises was added to
+`declare_group.py`, the audit reported `sites never tripped: 1` and named it at its line
+number, and the source was restored. A coverage tool that has never been seen to fail is
+the thing it exists to prevent.
+
+### Note on what this does and does not buy
+
+Every refusal site now has a test that trips it. That is **not** the same as every
+refusal being correct, and it is not line coverage — a site can fire for a reason other
+than the one intended, and this audit would be satisfied. What it rules out is the
+specific failure that has now happened three times on this project: a guard that cannot
+fire at all, which no amount of reading reliably catches.
+
+---
+
 ## 2026-10-12 (later still) — stage G re-resolves parents, because declaring is not enough
 
 A gap the collector session found, and it was mine. 163 + 27 tests; all six groups swept

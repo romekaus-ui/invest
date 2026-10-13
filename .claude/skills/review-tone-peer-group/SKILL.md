@@ -149,9 +149,16 @@ the contract is the same either way.
 ## Tests
 
 ```bash
-python3 .claude/skills/review-tone-peer-group/tests/test_declare_group.py   # 163
+python3 .claude/skills/review-tone-peer-group/tests/test_declare_group.py   # 187
 python3 .claude/skills/review-tone-peer-group/tests/test_evidence_log.py    # 27
+python3 .claude/skills/review-tone-peer-group/tests/test_guard_coverage.py  # audit
 ```
+
+`test_guard_coverage.py` enforces `CONTRACTS.md` §5 mechanically: it finds every refusal
+site in the validators and asserts each one is tripped by at least one test. A guard no
+test has ever seen fire is indistinguishable from a guard that works — it found 24 of 70
+in that position on the day it was written. It carries its own negative controls, because
+an audit that always passes is the thing it exists to prevent.
 
 Standard library only, no network. The lexicon tests are the ones that matter: a refusal
 lexicon that fires on an innocent sentence is worse than none, because it teaches the
