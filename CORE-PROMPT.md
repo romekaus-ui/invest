@@ -101,8 +101,13 @@ whitespace, so mixing them makes every shared review look edited.
 
 - No personal account at risk, and it scales. The cost is that sort options are
   provider-dependent and often helpfulness-ranked.
-- **The "10-page cap per filter combination, therefore ~500 per product" premise is
-  false on the current site, and was measured so on 2026-10-12.** Against
+- **Measured 2026-10-12 on ONE signed-in account with an Estonian delivery address.
+  Narrow the claim to that surface, not to Amazon.** A provider run on 2026-10-13
+  paginated the same `/product-reviews/` path (`pageNumber=5,6,7,8,9,10`, reviews on
+  each) and returned reviews in true date order. So pagination and recency sort are
+  **not** universally dead; they were dead on the surface served to that session. The
+  "~500 per product via a star fanout" premise may well hold through a provider.
+- On that account's surface: Against
   `B09HM94VDS` signed in: `sortBy=recent` page 1 and page 2, `filterByStar=five_star`
   and `filterByStar=one_star` all returned the **same 8 reviews** — and the `one_star`
   request returned a 4★ review, which proves the filter is ignored rather than merely
