@@ -277,6 +277,55 @@ would have to carry duplicate ids for every re-collection.
 
 ---
 
+## Refusal-site audit (CONTRACTS.md §5)
+
+```bash
+python3 .claude/skills/review-tone-signal/scripts/refusal_audit.py
+```
+
+§5 forbids shipping a guard that cannot fail, and that cannot be enforced by
+reading the code: **a check that always passes is indistinguishable from a check that
+passes.** So it is audited mechanically. The audit parses this collector for its own
+`die(...)` sites, runs the self-test suite with `COLLECT_REFUSAL_LOG` set so every
+refusal records the line it fired from — in subprocesses too, which is where most of the
+interesting ones live — and asserts each site fired at least once.
+
+**First run: 0 of 26 covered**, which was the audit catching itself. The instrumentation
+walked the stack to the wrong frame and recorded `die()`'s own line for every refusal:
+one distinct "site" for all 26, reported with the full confidence of a working tool. The
+fix is in `_record_refusal`, and it is the reason control 3 below exists.
+
+**Second run: 10 of 26.** What the remaining 16 turned up:
+
+- **`plan_product` was dead code** — left behind when the collection plan was replaced by
+  group files, never called, its refusal unreachable. Deleted rather than tested.
+- Two guards duplicated checks `argparse` already makes (`--cadence`, `--provider`
+  choices), so nothing reaching them through the CLI could trip them. Kept, because
+  argparse only protects the CLI path, and made reachable by calling the command
+  functions directly in the suite.
+- **`--require-recency` could not fire against the single-review fixture**, because one
+  review cannot be out of date order. It needed a two-review ascending batch. This is the
+  shape §5 is about: the guard was written, looked tested, and had never once run.
+
+The audit carries its own negative controls, run every time rather than remembered, and
+all three are verified by deliberately breaking them:
+
+| control | what it catches | verified by |
+|---|---|---|
+| floor on site count | a parser that stopped finding refusals and reports full coverage of nothing | raising `MIN_SITES` to 999 → refuses |
+| a probe that cannot be in the output must read *uncovered* | a matcher that says yes to everything | built in |
+| a probe taken from the output must read *covered* | a matcher that says no to everything | built in |
+
+And end to end: deleting the `--require-recency` test while leaving its guard in place
+drops the audit to 24 of 25 and names the site. Neutering a guard instead fails the
+self-test suite first, which is the right order — the suite is the defence, the audit is
+the backstop for guards nothing tests.
+
+**What it does not establish.** Not that any refusal is *correct*, and not line coverage:
+a site can fire for a reason other than the intended one and this still passes. It rules
+out one failure — a guard that cannot fire at all — which has now appeared three times on
+this project, plus `plan_product` here.
+
 ## What this stage does not do
 
 - **No tone number.** That is `score_reviews.py`'s job and the separation is the point

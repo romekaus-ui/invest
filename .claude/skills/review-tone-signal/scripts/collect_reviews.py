@@ -160,7 +160,39 @@ def ts_max_ms():
     return int(time.time() * 1000) + 86400000
 
 
+# Set by refusal_audit.py to the path of its log. When present, every refusal
+# records the source line it fired from, in this process AND in any subprocess
+# the suite spawns, which is how the audit sees refusals raised behind a
+# `subprocess.run`. Unset in normal use, where this costs nothing.
+REFUSAL_LOG_ENV = "COLLECT_REFUSAL_LOG"
+
+
+def _record_refusal():
+    path = os.environ.get(REFUSAL_LOG_ENV)
+    if not path:
+        return
+    try:
+        import traceback
+        # The frame that called die(), i.e. the line the refusal is written on,
+        # which is what refusal_audit.py parses out of this file.
+        st = traceback.extract_stack()
+        here = os.path.abspath(__file__)
+        for fr in reversed(st):
+            # Skip this helper AND die() itself, or every refusal records die()'s
+            # own line - one distinct "site" for all 26, which reads as a working
+            # audit finding nothing. The audit caught exactly that on its first run.
+            if fr.name in ("_record_refusal", "die"):
+                continue
+            if os.path.abspath(fr.filename) == here:
+                with open(path, "a", encoding="utf-8") as f:
+                    f.write("%d\n" % fr.lineno)
+                return
+    except Exception:            # noqa: BLE001 - never let auditing break a run
+        pass
+
+
 def die(msg, code=1):
+    _record_refusal()
     sys.stderr.write("collect_reviews: %s\n" % msg)
     sys.exit(code)
 
@@ -318,38 +350,6 @@ def load_cadence(root, group_id, required=True):
 
 def prog():
     return "python3 .claude/skills/review-tone-signal/scripts/collect_reviews.py"
-
-
-def plan_product(plan, product_id, ticker=None):
-    """The tracked series for this product, under this company if one is named.
-
-    Keyed on (ticker, product_id), not product_id alone. One ASIN can
-    legitimately belong to two entries over time: a product first tracked under
-    a brand and then re-attributed to the listed company that owns the brand is
-    the same object in the world but a different series, and the first series
-    is ENDED rather than edited (CORE-PROMPT §2). Keying on the ASIN alone made
-    that correction impossible to record - the only way to fix a mis-attributed
-    company was to erase the evidence that it had been wrong.
-    """
-    pid = product_id.upper()
-    live = [pr for pr in plan["products"]
-            if pr["product_id"].upper() == pid and not pr.get("ended_at")]
-    if ticker:
-        t = ticker.upper()
-        for pr in plan["products"]:
-            if pr["product_id"].upper() == pid and pr["ticker"].upper() == t:
-                return pr
-        return None
-    if len(live) == 1:
-        return live[0]
-    if len(live) > 1:
-        die("%s is tracked under %s. Say which with --ticker: they are separate\n"
-            "series and a batch has to belong to one of them."
-            % (pid, ", ".join(sorted(p["ticker"] for p in live))))
-    for pr in plan["products"]:
-        if pr["product_id"].upper() == pid:
-            return pr
-    return None
 
 
 def cmd_plan(args):
@@ -2042,6 +2042,116 @@ def cmd_selftest(args):
         check("every provider declares a free tier",
               all(c.free_tier for c in PROVIDERS.values()))
 
+        print("\n11b · every remaining refusal has a case that trips it (§5)")
+        # Written against refusal_audit.py's findings. §5: a check that always
+        # passes is indistinguishable from a check that passes, so each guard
+        # below needs a case that demonstrably fires it - not a case that
+        # merely exercises the function containing it.
+        def dies(fn, *a, **kw):
+            try:
+                fn(*a, **kw)
+                return False
+            except SystemExit as e:
+                return (e.code or 0) != 0
+
+        bad = os.path.join(tmp, "bad.jsonl")
+        open(bad, "w", encoding="utf-8").write("{not json\n")
+        check("malformed jsonl is refused, not skipped", dies(read_jsonl, bad))
+
+        r6 = os.path.join(tmp, "proj6")
+        write_json(os.path.join(r6, GROUPS_DIR, "g.json"),
+                   {"group_id": "g", "members": []})
+        check("a group with no members is refused", dies(load_group, r6, "g"))
+        check("a missing group file is refused", dies(load_group, r6, "nope"))
+
+        g = load_group(root, "testgroup")
+        check("--company naming a company not in the group is refused",
+              dies(group_member, g, "not-a-member", None))
+        check("an ASIN no member tracks is refused",
+              dies(group_member, g, None, "B0NOTHING1"))
+        two = json.loads(json.dumps({k: v for k, v in g.items() if k != "_path"}))
+        two["members"].append(json.loads(json.dumps(two["members"][0])))
+        two["members"][1]["company"] = "Other Co"
+        two["members"][1]["company_slug"] = "other-co"
+        two["_path"] = g["_path"]
+        check("an ASIN tracked by two members needs --company",
+              dies(group_member, two, None, "B000TEST01"))
+
+        r7 = os.path.join(tmp, "proj7")
+        _mkgroup(r7)
+        check("a group with no declared cadence is refused",
+              dies(load_cadence, r7, "testgroup"))
+        check("--show with no cadence declared is refused",
+              dies(cmd_plan, _args(root=r7, group="testgroup", cadence=None,
+                                   reason=None, show=True)))
+        check("an unknown cadence is refused even bypassing argparse",
+              dies(cmd_plan, _args(root=r7, group="testgroup", cadence="hourly",
+                                   reason=None, show=False)))
+        check("changing a declared cadence without a reason is refused",
+              dies(cmd_plan, _args(root=root, group="testgroup",
+                                   cadence="daily", reason=None, show=False)))
+        check("an unknown provider is refused even bypassing argparse",
+              dies(cmd_fetch, _args(provider="nosuch", group="testgroup",
+                                    root=root, outdir=outdir, plan="free",
+                                    actor=None, asin="B000TEST01")))
+
+        sr = SessionRoute(os.path.join(tmp, "does-not-exist.json"))
+        check("a missing capture file is refused",
+              dies(sr.collect, "B000TEST01", "recent", 10, {}))
+        lst = os.path.join(tmp, "list.json")
+        write_json(lst, [cap])
+        check("a capture file holding a LIST of pages is refused",
+              dies(SessionRoute(lst).collect, "B000TEST01", "recent", 10, {}))
+        v9 = os.path.join(tmp, "v9.json")
+        write_json(v9, dict(cap, capture_version="9"))
+        check("an unknown capture_version is refused",
+              dies(SessionRoute(v9).collect, "B000TEST01", "recent", 10, {}))
+        check("a capture for a different product than asked for is refused",
+              dies(SessionRoute(good).collect, "B0OTHERASN", "recent", 10, {}))
+
+        root8 = os.path.join(tmp, "proj8")
+        _mkgroup(root8)
+        _mkcadence(root8)
+        g8 = json.load(open(os.path.join(root8, GROUPS_DIR, "testgroup.json"),
+                            encoding="utf-8"))
+        g8["members"].append({"company": "Empty Co", "company_slug": "empty-co",
+                              "products": []})
+        write_json(os.path.join(root8, GROUPS_DIR, "testgroup.json"), g8)
+        rc = _subcall([sys.executable, os.path.abspath(__file__), "capture",
+                       "--group", "testgroup", "--root", root8,
+                       "--outdir", os.path.join(root8, "data"),
+                       "--capture", good, "--asin", "B000TEST01",
+                       "--company", "empty-co"], tmp)
+        check("an ASIN not listed under the named company is refused",
+              rc != 0, "exit %s" % rc)
+
+        # Two reviews, oldest FIRST, so the batch is demonstrably not in
+        # descending date order. One review cannot be out of order, which is
+        # why the single-review fixture above left this guard unreachable.
+        asc_pay = json.loads(json.dumps(pay))
+        asc_pay["reviews"].append(json.loads(json.dumps(pay["reviews"][0])))
+        asc_pay["reviews"][0]["review_id"] = "R1OLDEST000"
+        asc_pay["reviews"][0]["review_date_text"] = "January 2, 2020"
+        asc_pay["reviews"][1]["review_id"] = "R2NEWEST000"
+        asc_pay["reviews"][1]["review_date_text"] = "March 4, 2026"
+        asc = dict(cap, reviews=asc_pay["reviews"], returned=2,
+                   payload_sha256=payload_hash(asc_pay))
+        ascp = os.path.join(tmp, "ascending.json")
+        write_json(ascp, asc)
+        rc = _subcall([sys.executable, os.path.abspath(__file__), "capture",
+                       "--group", "testgroup", "--root", root3,
+                       "--outdir", os.path.join(root3, "data"),
+                       "--capture", ascp, "--asin", "B000TEST01"], tmp)
+        check("an ascending batch is still WRITTEN by default, flagged not refused",
+              rc == 0, "exit %s" % rc)
+        rc = _subcall([sys.executable, os.path.abspath(__file__), "capture",
+                       "--group", "testgroup", "--root", root3,
+                       "--outdir", os.path.join(root3, "data"),
+                       "--capture", ascp, "--asin", "B000TEST01",
+                       "--require-recency"], tmp)
+        check("--require-recency refuses a batch whose dates are not descending",
+              rc != 0, "exit %s" % rc)
+
         print("\n12 · this stage computes no tone (§1.2, §5)")
         import ast
         tree = ast.parse(open(os.path.abspath(__file__), encoding="utf-8").read())
@@ -2102,6 +2212,20 @@ def _fakebatch(rows, sort_observed="Most recent"):
                  reviews=rows, claimed={"reviews_total": 1000}, requested=10,
                  requested_at="2026-10-12T12:00:00Z",
                  parent_asin="B000PARENT", parent_asin_via="page parentAsin")
+
+
+class _args(object):
+    """A bare argv stand-in, for tripping guards argparse would catch first.
+
+    Those guards are not redundant - argparse only protects the CLI path, and a
+    guard nothing can reach is exactly what §5 forbids shipping. Calling the
+    command functions directly is what makes them testable instead of either
+    unreachable or deleted.
+    """
+
+    def __init__(self, **kw):
+        for k, v in kw.items():
+            setattr(self, k, v)
 
 
 def _mkgroup(root):
