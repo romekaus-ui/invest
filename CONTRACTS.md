@@ -255,6 +255,31 @@ From CORE-PROMPT §1, repeated here because these are the ones broken by acciden
   fires on `CHURCH & DWIGHT CO INC /DE/` vs `Church & Dwight Co., Inc. (Waterpik)` gets
   switched off, and then it guards nothing at all.
 
+**This rule cannot be enforced by reading, so it is audited mechanically.** Pointed at
+the peer-group component, the audit found **24 of 70 refusal sites had never fired in
+any test**. The two that mattered were lexicons tested thoroughly at the unit level —
+innocent sentences, guilty sentences, the brand exemption — and **never once through the
+validator that calls them**. The lexicons could have been disconnected entirely, or
+wired to the wrong field, and every lexicon test would still have passed. A measurement
+that was fine and a wire that was not.
+
+The audit parses the component for its own refusal sites, spies on whatever returns the
+refusal list, runs the whole suite, and asserts each site produced a refusal at least
+once. It ports in about forty lines.
+
+**The audit is itself a check, so it carries its own negative controls**, run every time
+rather than remembered: a probe that cannot be in the output must be reported
+*uncovered* (catching a matcher that always says yes) and a probe taken from the output
+must be reported *covered* (catching one that always says no). It also refuses to pass
+below a floor of refusal sites, since a parser that stopped finding them would otherwise
+report full coverage of nothing.
+
+**What this does and does not establish.** Every refusal site having a test that trips
+it is not the same as every refusal being *correct*, and it is not line coverage — a
+site can fire for a reason other than the intended one and the audit is still satisfied.
+What it rules out is precisely the failure that has now occurred three times on this
+project: a guard that cannot fire at all.
+
 ### Why that last one is a rule and not advice
 
 SEC's ticker index is keyed on **symbol alone**. So a lookup of `EPA:EL`
