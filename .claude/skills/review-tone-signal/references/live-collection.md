@@ -230,6 +230,50 @@ response shape without spending anything:
   is checked *after* this. Rainforest's reviews endpoint is **down independently of
   credentials**. A free tier would not have tested it either.
 
+### Measured on the free tier, 2026-10-13
+
+One product, properly: YETI Rambler (NYSE:YETI), declared variant `B07FM5HLMF`, collected
+at parent `B07SGPJBZ6` via `junglee/amazon-reviews-scraper`, `sort=recent`.
+
+| | Route A (logged-in session) | Route B (apify, free) |
+|---|---|---|
+| returned per product | 8 | **10** (free-plan cap, not Amazon's) |
+| dates descending | **no** — 4 inversions | **yes — 0 inversions** |
+| newest review age | 47 days (Logitech) | **2 days** |
+| claimed total basis | ratings (8,672) | **reviews (10,000)** |
+| pagination | dead — page 2 = page 1 | **works** — actor walked pages 5–10 |
+| cost | none | $0.06 per run of 10 ($0.006/review) |
+
+**This overturns part of the Route A verdict.** The actor's log reports
+`[REVIEWS] - Total reviews 10000, scraped 10` while requesting
+`/product-reviews/B0CT68X4NR?pageNumber=5…10`, and each page returned reviews. So
+pagination and recency sort are **not** universally dead on Amazon — they were dead on
+the surface served to this signed-in account, which has an Estonian delivery address.
+The §3 "~500 per product via a star fanout" premise may well hold through a provider; it
+does not hold through Route A as measured.
+
+**The 10-review ceiling is the actor's free plan, not Amazon.** Its own log says so:
+*"as a free user, you are limited to only 1 start URL and you'll get only 10 Amazon
+reviews per run … To access more reviews in a single run, upgrade to the Starter plan."*
+This is a pricing limit with a known price, which is a different kind of problem from a
+platform limit with no way round it.
+
+Two cautions on the numbers above. `claimed_total` of exactly 10,000 is suspiciously
+round and is very likely Amazon's display cap rather than a true count, so the 0.1%
+coverage figure is a **lower bound on the denominator and therefore an upper bound on
+coverage**. And `helpful_vote` is 0 for all ten because they are three days old — the
+provider returns `reviewReaction: null`, checked, not assumed.
+
+### What the first live run cost in defects
+
+The parent-mismatch guard fired on its first real provider data — correctly, against a
+wrong input of mine. junglee returns `productOriginalAsin` (the asin requested, i.e. the
+parent) alongside `productAsin`/`variantAsin` (the variant the reviewer bought); mapping
+the variant as the parent produced a confident, fully-evidenced false mismatch. The
+guard did its job, and the answer was still wrong. A second defect hid behind it: series
+coverage counted on `asin`, so once rows carried the reviewer's variant it read
+**0 of 10,000 with ten reviews on disk**.
+
 Route B's sort is **not trusted from the documentation** — providers advertise sort
 options that do not always arrive. The observed sort is read back off the response where
 the provider returns one, and the same date-monotonicity check is applied to what comes

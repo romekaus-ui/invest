@@ -818,12 +818,18 @@ class ProviderRoute(Route):
 
 
 class ApifyRoute(ProviderRoute):
-    """Apify. $5/month of platform credit on the free plan.
+    """Apify. $5-6/month of platform credit on the free plan.
 
-    Uses the synchronous dataset endpoint so one call is one batch with one
-    recorded cost. The actor id is an argument rather than a constant: Apify's
-    Amazon-reviews actors come and go, their pricing differs, and a hardcoded
-    one would quietly start billing differently.
+    Charged PER REVIEW, so the cost of a batch is known before it is run and is
+    recorded with it. `junglee/amazon-reviews-scraper` is the default because
+    its input schema documents a `sort` of `helpful|recent` - which is the
+    question this route exists to answer - and because an actor whose input
+    shape has to be guessed can burn the budget returning nothing.
+
+    EVERY RUN CARRIES A HARD SPEND CAP. `maxTotalChargeUsd` is sent to Apify,
+    which stops the run rather than billing past it. The budget is the user's
+    and it is small; an actor that decided to return 10,000 reviews would
+    otherwise spend the month in one call.
     """
 
     name = "apify"
@@ -833,44 +839,80 @@ class ApifyRoute(ProviderRoute):
     signup_note = "https://console.apify.com/account/integrations -> API token"
     default_actor = "junglee~amazon-reviews-scraper"
 
-    def __init__(self, token=None, plan_tier="free", actor=None, timeout=180):
+    def __init__(self, token=None, plan_tier="free", actor=None, timeout=600,
+                 max_charge_usd=1.0, price_per_review=None):
         ProviderRoute.__init__(self, token, plan_tier, timeout)
-        self.actor = actor or self.default_actor
+        self.actor = (actor or self.default_actor).replace("/", "~")
+        self.max_charge_usd = max_charge_usd
+        self.price_per_review = price_per_review
+
+    # The collector speaks Amazon's own URL vocabulary for star filters
+    # (`all_stars`, `five_star`), because that is what the site uses and what a
+    # Route A batch records. Each provider has its own spelling, and mapping it
+    # here keeps the filter comparable across routes instead of leaking one
+    # vendor's enum into the contract.
+    STARS = {"all_stars": "allStars", "five_star": "fiveStar",
+             "four_star": "fourStar", "three_star": "threeStar",
+             "two_star": "twoStar", "one_star": "oneStar",
+             "positive": "positive", "critical": "critical"}
 
     def sort_param(self, sort):
         return {"recent": "recent", "helpful": "helpful"}[sort]
 
+    def star_param(self, star):
+        v = self.STARS.get(star or "all_stars")
+        if v is None:
+            die("apify does not accept star filter %r; one of %s"
+                % (star, ", ".join(sorted(self.STARS))))
+        return v
+
     def collect(self, product_id, sort, limit, filters=None):
+        f = filters or {}
+        body = {
+            "productUrls": [{"url": "https://www.amazon.com/dp/%s" % product_id}],
+            "maxReviews": limit,
+            "sort": self.sort_param(sort),
+            "filterByRatings": [self.star_param(f.get("star"))],
+            # False means "do not restrict to one variant", i.e. take the
+            # parent's pooled reviews - which is the population Amazon actually
+            # serves and the one CONTRACTS.md §2 keys on.
+            "reviewsUseProductVariantFilter": False,
+            "includeGdprSensitive": False,
+        }
         url = ("https://api.apify.com/v2/acts/%s/run-sync-get-dataset-items"
-               "?token=%s" % (self.actor.replace("/", "~"), self.token))
-        body = {"productUrls": [{"url": "https://www.amazon.com/dp/%s" % product_id}],
-                "maxReviews": limit, "sort": self.sort_param(sort),
-                "filterByRatings": [(filters or {}).get("star", "allStars")]}
+               "?token=%s&maxTotalChargeUsd=%s"
+               % (self.actor, self.token, self.max_charge_usd))
         at = utcnow()
         code, text, secs = self._http(url, "POST", body)
-        if code != 201 and code != 200:
-            return Batch(route="apify", sort_observed=None,
-                         filters=filters, reviews=[], claimed={}, requested=limit,
-                         blocked=True, requested_at=at,
-                         block_reason="apify_http_%s" % code,
+        meta = {"actor": self.actor, "seconds": round(secs, 1),
+                "max_total_charge_usd": self.max_charge_usd,
+                "input": {k: v for k, v in body.items() if k != "productUrls"}}
+
+        if code not in (200, 201):
+            return Batch(route="apify", sort_observed=None, filters=f, reviews=[],
+                         claimed={}, requested=limit, blocked=True,
+                         block_reason="apify_http_%s" % code, requested_at=at,
                          provider="apify", plan_tier=self.plan_tier,
-                         raw_meta={"body": text[:2000], "seconds": round(secs, 1)})
+                         raw_meta=dict(meta, body=text[:2000]))
         try:
             items = json.loads(text)
         except ValueError:
-            return Batch(route="apify", sort_observed=None,
-                         filters=filters, reviews=[], claimed={}, requested=limit,
-                         blocked=True, block_reason="apify_bad_json",
-                         requested_at=at, provider="apify",
-                         plan_tier=self.plan_tier, raw_meta={"body": text[:2000]})
-        rows, claimed, obs = normalise_provider(items, product_id, "apify")
-        return Batch(route="apify", sort_observed=obs,
-                     filters=filters, reviews=rows, claimed=claimed,
-                     requested=limit, requested_at=at, provider="apify",
-                     plan_tier=self.plan_tier,
-                     raw_meta={"actor": self.actor, "seconds": round(secs, 1),
-                               "n_items": len(items)},
-                     review_id_scheme="provider_review_id")
+            return Batch(route="apify", sort_observed=None, filters=f, reviews=[],
+                         claimed={}, requested=limit, blocked=True,
+                         block_reason="apify_bad_json", requested_at=at,
+                         provider="apify", plan_tier=self.plan_tier,
+                         raw_meta=dict(meta, body=text[:2000]))
+
+        rows, claimed, obs, par = normalise_provider(items, product_id, "apify")
+        cost = (round(len(items) * self.price_per_review, 4)
+                if self.price_per_review else None)
+        meta["n_items"] = len(items)
+        meta["price_per_review_usd"] = self.price_per_review
+        return Batch(route="apify", sort_observed=obs, filters=f, reviews=rows,
+                     claimed=claimed, requested=limit, requested_at=at,
+                     provider="apify", plan_tier=self.plan_tier, cost=cost,
+                     parent_asin=par, parent_asin_via="provider field",
+                     raw_meta=meta, review_id_scheme="provider_review_id")
 
 
 class OxylabsRoute(ProviderRoute):
@@ -910,7 +952,7 @@ class OxylabsRoute(ProviderRoute):
         results = obj.get("results") or []
         content = (results[0].get("content") if results else {}) or {}
         items = content.get("reviews") or []
-        rows, claimed, obs = normalise_provider(items, product_id, "oxylabs")
+        rows, claimed, obs, _p = normalise_provider(items, product_id, "oxylabs")
         if content.get("ratings_count") and not claimed.get("ratings_total"):
             claimed["ratings_total"] = content["ratings_count"]
             claimed["ratings_source_text"] = "oxylabs content.ratings_count"
@@ -964,7 +1006,7 @@ class RainforestRoute(ProviderRoute):
                          raw_meta={"body": text[:2000], "seconds": round(secs, 1)})
         obj = json.loads(text)
         items = obj.get("reviews") or []
-        rows, claimed, obs = normalise_provider(items, product_id, "rainforest")
+        rows, claimed, obs, _p = normalise_provider(items, product_id, "rainforest")
         summary = obj.get("summary") or {}
         if summary.get("total_reviews") and not claimed.get("reviews_total"):
             claimed["reviews_total"] = summary["total_reviews"]
@@ -1000,11 +1042,12 @@ def normalise_provider(items, product_id, provider):
     rows = []
     claimed = {}
     sorts = Counter()
+    parents = Counter()
     tmax = ts_max_ms()
     for i, it in enumerate(items):
         if not isinstance(it, dict):
             continue
-        rid = (it.get("id") or it.get("review_id") or it.get("reviewId") or
+        rid = (it.get("reviewId") or it.get("id") or it.get("review_id") or
                it.get("reviewUrl") or "")
         m = re.search(r"(R[A-Z0-9]{8,})", str(rid))
         scheme = "provider_review_id"
@@ -1018,12 +1061,12 @@ def normalise_provider(items, product_id, provider):
         date, ts = _provider_date(str(date_raw), tmax)
         if date is None:
             continue
-        text = (it.get("text") or it.get("reviewDescription") or it.get("body") or
+        text = (it.get("reviewDescription") or it.get("text") or it.get("body") or
                 it.get("content") or "")
-        title = (it.get("title") or it.get("reviewTitle") or "")
+        title = (it.get("reviewTitle") or it.get("title") or "")
         if not str(text).strip() and not str(title).strip():
             continue
-        rating = it.get("rating") or it.get("ratingScore") or it.get("stars")
+        rating = it.get("ratingScore") or it.get("rating") or it.get("stars")
         try:
             rating = float(str(rating).split()[0])
         except (TypeError, ValueError, IndexError):
@@ -1036,33 +1079,66 @@ def normalise_provider(items, product_id, provider):
         for k in ("sortBy", "sort_by", "sort"):
             if it.get(k):
                 sorts[str(it[k])] += 1
-        for k, dest in (("countRatings", "ratings_total"),
+        for k, dest in (("totalCategoryRatings", "ratings_total"),
+                        ("countRatings", "ratings_total"),
                         ("totalRatings", "ratings_total"),
+                        ("totalCategoryReviews", "reviews_total"),
                         ("reviewsCount", "reviews_total"),
                         ("totalReviews", "reviews_total")):
             if it.get(k) and not claimed.get(dest):
                 claimed[dest] = int(it[k])
                 claimed[dest.replace("_total", "_source_text")] = "%s item.%s" % (provider, k)
+        # junglee: `productOriginalAsin` is the asin that was REQUESTED (the
+        # parent), while `productAsin`/`variantAsin` are the variant the
+        # reviewer actually bought. Reading the variant as the parent produced
+        # a false PARENT ASIN MISMATCH on the first live run - the guard fired
+        # correctly against a wrong input, which is the right failure but still
+        # a wrong answer. Parent first, variant never.
+        pa = (it.get("productOriginalAsin") or it.get("parent_asin") or
+              it.get("parentAsin") or "")
+        if pa:
+            parents[pa.upper()] += 1
         rows.append({
             "review_id": str(rid),
-            "asin": (it.get("asin") or product_id or "").upper(),
-            "parent_asin": (it.get("parent_asin") or "").upper(),
+            "asin": (it.get("variantAsin") or it.get("productAsin") or
+                     it.get("asin") or product_id or "").upper(),
+            "parent_asin": pa.upper(),
             "review_date": date,
             "title": str(title).replace("\x00", ""),
             "text": str(text).replace("\x00", ""),
             "rating": "" if rating is None else rating,
-            "verified_purchase": bool(it.get("verified") or
-                                      it.get("verified_purchase") or
-                                      it.get("isVerified")),
-            "helpful_vote": int(it.get("helpful") or it.get("helpfulVotes") or
-                                it.get("helpful_votes") or 0),
+            "verified_purchase": bool(it.get("isVerified") or it.get("verified") or
+                                      it.get("verified_purchase")),
+            "helpful_vote": _provider_votes(it),
             "review_country": str(it.get("country") or it.get("reviewCountry") or ""),
-            "vine_voice": bool(it.get("vine") or it.get("isVine")),
+            "vine_voice": bool(it.get("isAmazonVine") or it.get("vine") or
+                               it.get("isVine")),
             "review_id_scheme": scheme,
             "position_on_page": i,
         })
     obs = sorts.most_common(1)[0][0] if sorts else None
-    return rows, claimed, obs
+    par = parents.most_common(1)[0][0] if parents else None
+    return rows, claimed, obs, par
+
+
+def _provider_votes(it):
+    """Helpful votes, from a count or from the sentence providers return.
+
+    junglee gives `reviewReaction` as "3 people found this helpful" and nothing
+    numeric, so a plain int() would silently record 0 for every review that has
+    votes - the field the degradation test reads.
+    """
+    for k in ("helpfulVotes", "helpful_votes", "helpful"):
+        v = it.get(k)
+        if isinstance(v, int):
+            return v
+        if isinstance(v, str) and v.strip().isdigit():
+            return int(v)
+    s = str(it.get("reviewReaction") or "")
+    if re.match(r"^one person", s, re.I):
+        return 1
+    m = re.search(r"([0-9][0-9,.]*)", s)
+    return int(m.group(1).replace(",", "").replace(".", "")) if m else 0
 
 
 def _provider_date(s, tmax):
@@ -1303,8 +1379,13 @@ def record_batch(outdir, group_id, member, asin, batch, cadence, batch_id,
     knows §3 is unaffected by it.
     """
     slug = member["company_slug"]
+    # Counted on parent_asin, which is the join key (§2). Counting on `asin`
+    # returned zero the moment a provider started reporting the VARIANT each
+    # reviewer bought, because none of those equal the declared variant - the
+    # series coverage silently read 0 of 10,000 while ten reviews sat on disk.
+    pkey = (declared_parent or asin).upper()
     on_product = sum(1 for r in load_reviews(outdir, group_id, slug).values()
-                     if (r.get("asin") or "").upper() == asin.upper())
+                     if (r.get("parent_asin") or r.get("asin") or "").upper() == pkey)
     ratio_batch, claimed_total, basis = coverage(batch.returned, batch.claimed)
     ratio_series, _c, _b = coverage(on_product, batch.claimed)
 
@@ -1530,12 +1611,6 @@ def cmd_collect(args, route, stage_note):
     slug = member["company_slug"]
     marketplace = product.get("marketplace") or "amazon.com"
 
-    batch = route.collect(asin, args.sort, args.limit,
-                          {"star": args.star, "page_number": args.page})
-    batch_id = "b-" + hashlib.sha1(
-        ("%s|%s|%s|%s" % (slug, asin, batch.requested_at,
-                          batch.route)).encode()).hexdigest()[:10]
-
     declared_parent = (product.get("parent_asin") or "").upper() or None
     if declared_parent is None:
         die("%s in %s carries no parent_asin.\n"
@@ -1544,6 +1619,21 @@ def cmd_collect(args, route, stage_note):
             "reviews are of - and dedup by review_id will not catch the\n"
             "mislabelling, because those are genuine reviews of a wider\n"
             "product. §1 requires parent_asin per product." % (asin, group["_path"]))
+
+    # Amazon serves reviews at the PARENT, so that is what a provider is asked
+    # for. Route A asks for the declared variant instead, because the operator
+    # navigates to that product's own page and the extractor reads the parent
+    # back off it - which is what makes the declared parent checkable rather
+    # than merely asserted.
+    request_asin = declared_parent if route.route_kind == "provider" else asin
+    if request_asin != asin:
+        print("requesting          %s (the parent; reviews are served there)"
+              % request_asin)
+    batch = route.collect(request_asin, args.sort, args.limit,
+                          {"star": args.star, "page_number": args.page})
+    batch_id = "b-" + hashlib.sha1(
+        ("%s|%s|%s|%s" % (slug, asin, batch.requested_at,
+                          batch.route)).encode()).hexdigest()[:10]
 
     print("group / company    %s / %s" % (args.group, slug))
     print("route              %s" % batch.route)
@@ -1696,8 +1786,11 @@ def cmd_fetch(args):
         die("unknown provider %r; one of %s"
             % (args.provider, "/".join(sorted(PROVIDERS))))
     kw = {"plan_tier": args.plan}
-    if args.provider == "apify" and args.actor:
-        kw["actor"] = args.actor
+    if args.provider == "apify":
+        kw["max_charge_usd"] = args.max_charge_usd
+        kw["price_per_review"] = args.price_per_review
+        if args.actor:
+            kw["actor"] = args.actor
     return cmd_collect(args, cls(**kw),
                        "Route B: %s on the %s tier" % (args.provider, args.plan))
 
@@ -1908,6 +2001,10 @@ def cmd_selftest(args):
               "review_country" in cols[:len(REVIEW_FIELDS)])
         check("the parent is carried on every row, not just the batch",
               all(r["parent_asin"] == "B000PARENT" for r in rows.values()))
+        check("series coverage counts on the parent, not the declared variant",
+              sum(1 for r in rows.values()
+                  if (r.get("parent_asin") or "").upper() == "B000PARENT")
+              == len(rows))
         check("batch_id joins a review to its batch record", "batch_id" in cols)
         check("route is per review, not per file", "collection_route" in cols)
         check("deterministic order (review_date, review_id)",
@@ -2090,6 +2187,8 @@ def cmd_selftest(args):
         check("changing a declared cadence without a reason is refused",
               dies(cmd_plan, _args(root=root, group="testgroup",
                                    cadence="daily", reason=None, show=False)))
+        check("an unknown star filter is refused before the run is paid for",
+              dies(ApifyRoute(token="x").star_param, "six_star"))
         check("an unknown provider is refused even bypassing argparse",
               dies(cmd_fetch, _args(provider="nosuch", group="testgroup",
                                     root=root, outdir=outdir, plan="free",
@@ -2310,6 +2409,12 @@ def main():
     sp.add_argument("--provider", required=True, choices=sorted(PROVIDERS))
     sp.add_argument("--plan", default="free", help="recorded with the batch")
     sp.add_argument("--actor", help="apify actor id")
+    sp.add_argument("--max-charge-usd", type=float, default=1.0,
+                    help="hard spend cap sent to the provider; the run is "
+                         "stopped rather than billed past it")
+    sp.add_argument("--price-per-review", type=float,
+                    help="the actor's per-review price, recorded with the batch "
+                         "so the budget can be reasoned about")
 
     sp = sub.add_parser("status", help="coverage and batch history per product")
     common(sp, collecting=False)
