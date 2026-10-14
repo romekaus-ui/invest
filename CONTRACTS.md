@@ -63,6 +63,21 @@ Rules this encodes (CORE-PROMPT §2, PLAN.md concentration filter):
 - `venue: "private"` is valid and useful — a private competitor is a category control.
 - At least two members, or `members[0]` is explicitly flagged as having no peer.
 - Revising a group means a **new file with a new hash**, never an edit in place.
+- **`reviews_per_day` is recorded per product, and it decides what the product can be
+  used for.** Amazon caps depth at ~100 reviews per pass, so velocity alone determines
+  how many days those 100 buy. Measured 2026-10-14:
+
+  | product | reviews/day | 100 reviews span | coverage |
+  |---|---|---|---|
+  | YETI Rambler (flagship) | 5.00 | 20 days, all 2026 | 1.0% |
+  | C&Berg tumbler lids (slow) | 0.0987 | **1,013 days — 2023-12 to 2026-10** | 18.0% |
+
+  **Reaching 2024-01-01 in one pass requires ≤ ~0.10 reviews/day.** A flagship product
+  reaches back three weeks; a slow one reaches back three years. The trade is not
+  budget and not the route — it is that a slow product is weakly representative of the
+  company's revenue, which is the thing the concentration filter exists to secure. A
+  group declares which it is optimising for, per product, and never mixes the two in
+  one series.
 - `fy_end` is required **for every member whose revenue will be read**, and must be
   **empty** for one with `no_public_report: true`. CORE-PROMPT §5 forbids aligning two
   companies' figures as if their calendars matched, so a readable member needs it — but
@@ -189,6 +204,20 @@ sort control, the parameter is ignored, returned dates are not in date order, an
 unreadable and a sort taken from the request is a claim about Amazon that is false.
 `sort_verified` is therefore **derived from the collected dates** — the only evidence
 that cannot be mislabelled.
+
+**Never re-run a provider to fix a parser.** Apify charges per result *produced*, not
+per read, so `--dataset-id` re-parses a stored run for $0. Two real misses, and the
+second is the dangerous one:
+
+- a 100-review run parsed to **zero rows** because the actor capitalises its field
+  names. An empty result announces itself.
+- a run recorded **0% verified purchases** because the field is `Verified`, not
+  `VerifiedPurchase`. Re-reading gave **100%**. A plausible wrong number does not
+  announce itself — 0% verified is entirely believable, and it would have reached the
+  verified-share check and been read as evidence about the *review population* rather
+  than about the parser.
+
+The second is what this rule actually protects against.
 
 `coverage_ratio` travels with every tone number downstream (CORE-PROMPT §4). A tone mean
 over 0.6% of a product's reviews is not that product's tone and must never be rendered
