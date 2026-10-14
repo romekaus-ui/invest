@@ -1,0 +1,158 @@
+{
+  "declared_at": "2026-10-11T20:09:10Z",
+  "declared_by": {
+    "code_commit": "3b46b87becd9244956e53ae870cb75bd83186ce8-dirty",
+    "tool": "declare_group.py"
+  },
+  "group_id": "carbonated-soft-drinks",
+  "members": [
+    {
+      "brands": [
+        "Coca-Cola",
+        "Sprite",
+        "Fanta"
+      ],
+      "company": "The Coca-Cola Company",
+      "country_of_domicile": "US",
+      "listing": {
+        "cik": "0000021344",
+        "exchange": "NYSE",
+        "status": "listed",
+        "ticker": "KO"
+      },
+      "products": [
+        {
+          "asin": "B01KHRNMQ4",
+          "brand": "Coca-Cola",
+          "continuity_reason": "The 12-ounce glass bottle of regular Coca-Cola is a permanent range format rather than a seasonal or promotional pack, and the formula and pack size are unchanged, so the listing is not expected to be retired when a promotion ends.",
+          "marketplace": "amazon.com",
+          "title_at_declare": "Coca-Cola Bottle, 12 Ounce, Pack of 24",
+          "verification": {
+            "asin_on_page": true,
+            "availability_seen": "buy box not rendered in the static HTML (loaded by script); availability not established",
+            "checked_at": "2026-10-11T20:08:39Z",
+            "http_status": 200,
+            "is_variant_child": false,
+            "marketplace": "amazon.com",
+            "parent_asin_seen": "B01KHRNMQ4",
+            "route": "http-direct",
+            "status": "resolved",
+            "title_seen": "Coca-Cola Bottle, 12 Ounce, Pack of 24",
+            "url": "https://www.amazon.com/dp/B01KHRNMQ4"
+          }
+        }
+      ],
+      "reason": "Sells regular cola in multipack bottles and cans under Coca-Cola, and flavoured soda under Sprite and Fanta, which a shopper buying a case of soft drinks takes instead of a case of Pepsi or Dr Pepper from the same shelf.",
+      "reporting": {
+        "calendar": "quarterly",
+        "currency": "USD",
+        "fy_end": "1231",
+        "regime": "SEC 10-Q / 10-K",
+        "resolved_by": "edgar",
+        "source": "SEC EDGAR submissions CIK0000021344, forms seen: 10-K, 10-Q"
+      }
+    },
+    {
+      "brands": [
+        "Pepsi",
+        "Mountain Dew"
+      ],
+      "company": "PepsiCo, Inc.",
+      "country_of_domicile": "US",
+      "listing": {
+        "cik": "0000077476",
+        "exchange": "NASDAQ",
+        "status": "listed",
+        "ticker": "PEP"
+      },
+      "products": [
+        {
+          "asin": "B00FCMBLL8",
+          "brand": "Pepsi",
+          "continuity_reason": "The 16.9-ounce bottle multipack of regular Pepsi is a standard pack in the permanent range, carried year-round rather than as a limited edition, so the item is expected to still be sold in a year.",
+          "marketplace": "amazon.com",
+          "title_at_declare": "Pepsi, Bottles, 16.9 Fl Oz (Pack of 6)",
+          "verification": {
+            "asin_on_page": true,
+            "availability_seen": "buy box not rendered in the static HTML (loaded by script); availability not established",
+            "checked_at": "2026-10-11T20:08:42Z",
+            "http_status": 200,
+            "is_variant_child": false,
+            "marketplace": "amazon.com",
+            "parent_asin_seen": "B00FCMBLL8",
+            "route": "http-direct",
+            "status": "resolved",
+            "title_seen": "Pepsi, Bottles, 16.9 Fl Oz (Pack of 6)",
+            "url": "https://www.amazon.com/dp/B00FCMBLL8"
+          }
+        }
+      ],
+      "reason": "Sells regular cola in multipack bottles under Pepsi and citrus soda under Mountain Dew, the direct alternative a shopper reaches for instead of a Coca-Cola multipack at the same point of purchase.",
+      "reporting": {
+        "calendar": "quarterly",
+        "currency": "USD",
+        "fy_end": "1226",
+        "regime": "SEC 10-Q / 10-K",
+        "resolved_by": "edgar",
+        "source": "SEC EDGAR submissions CIK0000077476, forms seen: 10-K, 10-Q"
+      }
+    },
+    {
+      "brands": [
+        "Dr Pepper",
+        "7UP",
+        "Canada Dry",
+        "A&W"
+      ],
+      "company": "Keurig Dr Pepper Inc.",
+      "country_of_domicile": "US",
+      "listing": {
+        "cik": "0001418135",
+        "exchange": "NASDAQ",
+        "status": "listed",
+        "ticker": "KDP"
+      },
+      "products": [
+        {
+          "asin": "B0BR8FCGM5",
+          "brand": "Dr Pepper",
+          "continuity_reason": "The 20-ounce bottle multipack of regular Dr Pepper is a core range format with no successor announced, carried year-round rather than as a seasonal flavour, which is what a series needs to survive.",
+          "marketplace": "amazon.com",
+          "title_at_declare": "Dr. Pepper Soda, 20 oz Bottle - Pack of 12",
+          "verification": {
+            "asin_on_page": true,
+            "availability_seen": "buy box not rendered in the static HTML (loaded by script); availability not established",
+            "checked_at": "2026-10-11T20:08:45Z",
+            "http_status": 200,
+            "is_variant_child": false,
+            "marketplace": "amazon.com",
+            "parent_asin_seen": "B0BR8FCGM5",
+            "route": "http-direct",
+            "status": "resolved",
+            "title_seen": "Dr. Pepper Soda, 20 oz Bottle - Pack of 12",
+            "url": "https://www.amazon.com/dp/B0BR8FCGM5"
+          }
+        }
+      ],
+      "reason": "Sells flavoured carbonated soda under Dr Pepper, 7UP, Canada Dry and A&W, bought instead of a cola multipack by the same shopper filling the same need at the same shelf.",
+      "reporting": {
+        "calendar": "quarterly",
+        "currency": "USD",
+        "fy_end": "1231",
+        "regime": "SEC 10-Q / 10-K",
+        "resolved_by": "edgar",
+        "source": "SEC EDGAR submissions CIK0001418135, forms seen: 10-K, 10-Q"
+      }
+    }
+  ],
+  "peer_relative_reading": true,
+  "post_collection": false,
+  "readings_at_declare": 0,
+  "seed": {
+    "kind": "category",
+    "value": "carbonated soft drinks (regular cola and flavoured soda, sold as a multipack)"
+  },
+  "solo": false,
+  "substitutability_test": "Would a consumer shopping for this seed's product consider this company's product instead of it, as a direct alternative for the same need, at the same point of purchase? If yes, it is a peer. Size, country, listing venue and currency are irrelevant to the answer.",
+  "version": 1
+}
