@@ -413,9 +413,44 @@ together — a promotion ending, a seasonal pattern, a review-solicitation campa
 pooling does not smooth at all and the thin quarters stay thin however many products are
 added.
 
-That is testable for about $1.30: collect two or three slow products of **one** company
-and correlate their per-quarter counts. It is the question that decides whether a history
-series is affordable, and it cannot be answered from one product.
+**Tested (2026-10-14, $1.07):** three YETI products from different sub-lines with
+distinct parents — Tundra 105 (`B003V51GUE`), Tundra 110 (`B0DXKXJNYZ`), TANK 45
+(`B07PNC9HBZ`) — 180 reviews spanning 2014–2026.
+
+**Correlation is low.** Over the 45 quarters any of them covers, pairwise `r` runs
+**+0.07 to +0.23**. Quiet quarters do not coincide, so pooling does smooth. (Over the
+2024–2026 window alone the estimates swing to −0.20…+0.67, but those quarters hold 0–3
+reviews each and the estimate is noise; the 45-quarter figures are the ones to read.)
+
+**But the pooled quarters still cleared nothing — 0 of 12 — and the reason is not
+correlation.** It is that these products are far too slow:
+
+| product | reviews in window | per quarter | v/day | vs ideal | products needed |
+|---|---|---|---|---|---|
+| Tundra 105 | 8 | 0.7 | 0.0079 | 0.08× | 42 |
+| TANK 45 | 10 | 0.9 | 0.0098 | 0.10× | 34 |
+| Tundra 110 | 12 | 1.1 | 0.0118 | 0.12× | 28 |
+| **C&Berg lids** | **99** | **8.9** | **0.0973** | **0.99×** | **4** |
+
+**"Slow" was the wrong target, and that is the correction this test produced.** The ideal
+is a *specific rate*, not a minimum: `v ≈ 100/D` — for this window **0.098 reviews/day**,
+about 9 per quarter, about 100 inside the window. It is a **two-sided band**:
+
+> **too fast** → the 100-review pass does not reach back far enough
+> **too slow** → the quarters inside the window are empty
+> C&Berg sits at 0.99× the ideal; the YETI picks at 0.08–0.12×, needing 28–42 products
+> each instead of 4.
+
+So the §1 screen is not "find slow products". It is **velocity within roughly 0.5×–1.0×
+of `100/D`**, which for a 2024 window means products accumulating **~50–100 reviews
+inside 2024→today**. At that rate, and given the low correlation measured here, **4
+products per company** pool past the 30-review floor.
+
+**What this test does not establish.** The correlation was measured on products ~10×
+below the target rate, so the per-quarter counts (0–3) are too sparse to pin `r` tightly.
+It points to independence rather than proving it. A clean test needs two or three
+products near 0.10/day — where counts are ~9 per quarter — and C&Berg is the only such
+product found so far.
 
 **One caution on reading per-year counts from this collector.** Outside the `all_stars`
 reach, coverage is whatever the rare-star passes happened to supply:
