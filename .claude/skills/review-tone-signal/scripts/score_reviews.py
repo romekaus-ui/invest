@@ -108,6 +108,19 @@ TONE_VALUES = (-2, -1, 0, 1, 2)
 TAGS = ("seller_or_shipping_only", "defect", "price_complaint")
 RESPONSE_KEYS = frozenset(("review_id", "tone") + TAGS)
 
+# The same contract as the rubric's "Output format" section, in the shape the
+# API enforces. Kept beside RESPONSE_KEYS so the two cannot drift apart - the
+# parser checks exactly these keys, and a schema that allowed others would make
+# the parser the only thing catching it.
+RESPONSE_SCHEMA = {
+    "type": "object",
+    "properties": dict({"review_id": {"type": "string"},
+                        "tone": {"type": "integer", "enum": list(TONE_VALUES)}},
+                       **{t: {"type": "boolean"} for t in TAGS}),
+    "required": sorted(RESPONSE_KEYS),
+    "additionalProperties": False,
+}
+
 DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 DEFAULT_BASE_URL = "https://api.anthropic.com"
 MAX_TEXT_CHARS = 6000
@@ -306,6 +319,16 @@ class ApiBackend(object):
             "system": self.system,
             # Exactly one user message. No assistant turns, no prior reviews.
             "messages": [{"role": "user", "content": prompt}],
+            # The rubric's output contract, enforced by the API rather than
+            # asked for in prose. Measured 2026-10-14: without it the model
+            # wrapped correct JSON in a ```json fence on 10 of 10 reviews,
+            # despite the system prompt saying "no code fences", and the strict
+            # parser rejected every one. Loosening the parser to strip fences
+            # was the alternative and is worse: it starts the slide toward
+            # rescuing JSON out of prose, which is guessing. This makes the
+            # malformed case impossible instead of recoverable.
+            "output_config": {"format": {"type": "json_schema",
+                                         "schema": RESPONSE_SCHEMA}},
         }).encode("utf-8")
         assert json.loads(body)["messages"].__len__() == 1
 

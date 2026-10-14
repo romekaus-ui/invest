@@ -1,0 +1,39 @@
+{
+  "backend": "api",
+  "conversation_history": false,
+  "failure_rate": 0.0,
+  "n_attempted": 10,
+  "n_defect": 2,
+  "n_failed": 0,
+  "n_failed_malformed": 0,
+  "n_failed_transport": 0,
+  "n_in_tone_aggregate": 10,
+  "n_ok_after_retry": 0,
+  "n_price_complaint": 2,
+  "n_scored": 10,
+  "n_seller_or_shipping_only": 0,
+  "per_quarter": {
+    "(none)": {
+      "failed": 0,
+      "failure_rate": 0.0,
+      "flagged_over_10pct": false,
+      "n": 10,
+      "seller_only": 0
+    }
+  },
+  "reviews_path": "data/insulated-drinkware/yeti-holdings-inc/reviews.csv",
+  "reviews_per_call": 1,
+  "rubric_sha256": "4ce22feb1c52b4b4f2063a774fd542abfc59211667c2c5c349af30a9bdc48b14",
+  "rubric_version": "v1",
+  "scored_at": "2026-10-14T20:47:50+00:00",
+  "scorer_model_id": "claude-haiku-4-5-20251001",
+  "scores_path": "data/insulated-drinkware/yeti-holdings-inc/scores.csv",
+  "temperature": 0,
+  "tone_distribution": {
+    "-2": 2,
+    "1": 2,
+    "2": 6
+  },
+  "tone_star_pearson": 0.9157015435010394,
+  "tone_star_pearson_n": 10
+}
