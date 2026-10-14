@@ -73,11 +73,33 @@ Rules this encodes (CORE-PROMPT §2, PLAN.md concentration filter):
   | C&Berg tumbler lids (slow) | 0.0987 | **1,013 days — 2023-12 to 2026-10** | 18.0% |
 
   **Reaching 2024-01-01 in one pass requires ≤ ~0.10 reviews/day.** A flagship product
-  reaches back three weeks; a slow one reaches back three years. The trade is not
-  budget and not the route — it is that a slow product is weakly representative of the
-  company's revenue, which is the thing the concentration filter exists to secure. A
-  group declares which it is optimising for, per product, and never mixes the two in
-  one series.
+  reaches back three weeks; a slow one reaches back three years.
+
+  **Depth is not capped at 100 — that was wrong when first written here.** The ~100 is
+  per *filter combination*, and each star rating gets its own 10-page window. A rare
+  rating reaches much further back at the same depth: on C&Berg, `all_stars` returned
+  100 reviews over 2.8 years for $0.63 while `one_star` returned 49 over **6.0 years
+  for $0.03**. The union was 143 reviews across 7.2 years for $0.66.
+
+  **The quarter floor is on the COMPANY-quarter, not the product.** `aggregate.py`
+  keys its buckets on the quarter alone and pools every ASIN in a company's
+  `scores.csv` — which is why the within-ASIN/mix decomposition exists at all. So no
+  single slow product clearing 30 reviews in a quarter is not a structural barrier; it
+  is an argument for collecting several products per company.
+
+  For a window `D` days deep: a pass reaches back `100/v` days at `v` reviews/day, so
+  reaching `D` needs `v ≤ 100/D`; each such product contributes `v × 91.3` reviews per
+  quarter, and clearing a floor of 30 needs `N ≥ 30 / (91.3 × 100/D)`. For
+  2024-01-01 → today that is **≤ 0.098 reviews/day and N ≥ 4 products**.
+
+  **Open, and it decides whether this works: is review lumpiness independent across a
+  company's products?** C&Berg inside the window ran 16, 13, 15, 13, 4, 6, 6, 2, 1, 4,
+  17, 2 per quarter — mean 8.2, close to the predicted 9.0, but the thinnest quarter is
+  **1**. Sized on the mean, 4 products suffice; sized on the thinnest, 30. If products
+  go quiet independently, pooling smooths and 4–7 works. If a company's products go
+  quiet together — a promotion ending, seasonality, a review-solicitation campaign —
+  pooling does not smooth at all and thin quarters stay thin however many are added.
+  **Unmeasured. One product cannot answer it.**
 - `fy_end` is required **for every member whose revenue will be read**, and must be
   **empty** for one with `no_public_report: true`. CORE-PROMPT §5 forbids aligning two
   companies' figures as if their calendars matched, so a readable member needs it — but
@@ -204,6 +226,13 @@ sort control, the parameter is ignored, returned dates are not in date order, an
 unreadable and a sort taken from the request is a claim about Amazon that is false.
 `sort_verified` is therefore **derived from the collected dates** — the only evidence
 that cannot be mislabelled.
+
+**A per-period count is a property of which filters were run, not of the product.**
+Outside an `all_stars` pass's reach, only the filters actually requested contribute. On
+C&Berg, `all_stars` returned 0 reviews for 2019–2022 and `one_star` returned 30 — the
+pre-2024 history looks sparse only because one-star reviews were the only ones reaching
+there. **Any distribution read off collected data must say which side of the `all_stars`
+boundary it sits on**, or it reports the sampling as the product's history.
 
 **Never re-run a provider to fix a parser.** Apify charges per result *produced*, not
 per read, so `--dataset-id` re-parses a stored run for $0. Two real misses, and the
