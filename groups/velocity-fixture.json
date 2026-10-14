@@ -1,0 +1,27 @@
+{
+  "group_id": "velocity-fixture",
+  "declared_at": "2026-10-14",
+  "seed": "NOT A PEER GROUP — a single low-velocity product used to test how far back a 100-review pass reaches",
+  "hash": "UNVERIFIED-fixture",
+  "_note": "Fixture for the depth measurement only. It has ONE member, no concentration evidence, and no peer. It does not satisfy stage G and no tone, peer-relative or revenue reading may ever be taken from it. The product was chosen for low review velocity and a long listing history, and because it is its OWN parent, so the measured date span is not confounded by variant pooling.",
+  "members": [
+    {
+      "company": "FIXTURE — not a tracked company",
+      "venue": "private",
+      "brands": ["C&Berg"],
+      "concentration": {
+        "dominant_line": "n/a — fixture",
+        "share_of_revenue": null,
+        "evidence": "NONE — this is a fixture and must never be read as a declaration",
+        "source_url": null,
+        "no_public_report": true,
+        "revenue_readable": false
+      },
+      "products": [
+        {"asin": "B07PLW68CM", "parent_asin": "B07PLW68CM", "marketplace": "amazon.com",
+         "name": "C&Berg 30 oz Tumbler Lids, 3 pcs (2,173 ratings, listed ~2019)"}
+      ],
+      "reporting": {"calendar": "none", "currency": "USD", "source": "none"}
+    }
+  ]
+}

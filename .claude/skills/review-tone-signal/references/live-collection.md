@@ -305,13 +305,55 @@ One caveat that belongs with any history collected this way: what is scraped tod
 the reviews that **survived**. Deleted and edited ones are not recoverable, so a 2024
 slice is a survivor sample, not a contemporaneous record.
 
+### The positive case: low-velocity products DO reach 2024
+
+The ≤0.10 reviews/day rule above was arithmetic. It was then tested on a deliberately
+slow product — C&Berg 30 oz tumbler lids (`B07PLW68CM`), 2,173 ratings, listed ~2019, and
+**its own parent**, so the span is not confounded by variant pooling. One pass, $0.63:
+
+| | YETI Rambler (busy) | C&Berg lids (slow) |
+|---|---|---|
+| returned | 100 | 100 |
+| span | 2026-09-22 → 2026-10-12 | **2023-12-30 → 2026-10-08** |
+| | 20 days | **1,013 days (2.77 years)** |
+| by year | 2026: 100 | **2024: 57 · 2025: 18 · 2026: 24** |
+| reviews/day | 5.00 | **0.0987** |
+| claimed total | 10,000 reviews | 555 reviews |
+| coverage | 1.0% | **18.0%** |
+| newest | 2 days old | 6 days old |
+
+**The requested 2024–2025–2026 window is covered, in one $0.63 pass, at 18% coverage.**
+The measured velocity is 0.0987/day against a predicted threshold of ≤0.10 — the
+arithmetic held.
+
+So the constraint is **product velocity, not budget and not the route**. Depth per pass
+is fixed at ~100 by Amazon's page cap; what varies is how many days those 100 reviews
+buy. The selection rule for anything that needs history:
+
+> **reviews/day ≤ 100 / (days of history wanted)**
+>
+> For 2024-01-01 → today that is ≤ ~0.10/day. A product above it cannot reach back,
+> at any price, through any of these actors.
+
+This cuts directly against ordinary peer-group selection, which favours flagship
+products — exactly the ones that are too busy. A group whose members are all
+heavily-reviewed can have **recency but no history**; one built from slower products can
+have history but may be less representative of the company's revenue. That tension is
+real and belongs in the peer-group component's criteria, not here.
+
 ### Re-parsing costs nothing — use it
 
 Apify charges per result produced, not per read. `--dataset-id` re-reads a stored
-dataset through the same normaliser for $0. The 100-review run above was initially parsed
-to **zero rows**, because `delicious_zebu` capitalises its field names (`ReviewId`,
-`ReviewDate`, `ReviewContent`); re-reading recovered all 100 without a second run. On a
-$6 budget that is the difference between a fixable bug and a spent month.
+dataset through the same normaliser for $0. It has now paid for itself twice:
+
+- the YETI run parsed to **zero rows**, because `delicious_zebu` capitalises its field
+  names (`ReviewId`, `ReviewDate`, `ReviewContent`);
+- the C&Berg run recorded **0% verified purchases**, because the actor's field is
+  `Verified` and the mapping looked for `VerifiedPurchase`. Re-reading gave 100%.
+
+Neither cost a second run. The second is the more instructive: it was not an empty
+result that announces itself, it was a plausible wrong number that would have reached
+the F12 verified-share check as evidence.
 
 It also demonstrated cross-provider dedup: 10 of the 100 were already held from the
 `junglee` batch and merged as one review, and two came back with different text from the

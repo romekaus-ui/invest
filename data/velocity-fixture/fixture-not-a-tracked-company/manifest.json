@@ -1,0 +1,28 @@
+{
+  "company": "FIXTURE — not a tracked company",
+  "company_slug": "fixture-not-a-tracked-company",
+  "coverage_method": "collected/555 claimed (reviews basis), route apify, sort recent",
+  "coverage_ratio": 0.18018,
+  "group_id": "velocity-fixture",
+  "live_collection": {
+    "any_sort_verified": true,
+    "cadence": "weekly",
+    "cadence_days": 7,
+    "cadence_declared_at": "2026-10-14T07:21:36Z",
+    "collector_version": "d1-collect-v1",
+    "last_batch_id": "b-42956c6459",
+    "last_collected_at": "2026-10-14T07:22:53Z",
+    "n_batches": 2,
+    "review_date_precision": "day",
+    "review_id_schemes": [
+      "provider_review_id"
+    ],
+    "routes_used": [
+      "apify"
+    ],
+    "sorts_requested": [
+      "recent"
+    ]
+  },
+  "source": "live Amazon collection (CORE-PROMPT §3), not the 2023 corpus"
+}

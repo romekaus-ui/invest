@@ -1212,8 +1212,9 @@ def normalise_provider(items, product_id, provider):
             parents[pa.upper()] += 1
         rows.append({
             "review_id": str(rid),
-            "asin": (it.get("variantAsin") or it.get("productAsin") or
-                     it.get("asin") or product_id or "").upper(),
+            "asin": (it.get("variantAsin") or it.get("VariantASIN") or
+                     it.get("productAsin") or it.get("asin") or
+                     product_id or "").upper(),
             "parent_asin": pa.upper(),
             "review_date": date,
             "title": str(title).replace("\x00", ""),
@@ -1221,6 +1222,7 @@ def normalise_provider(items, product_id, provider):
             "rating": "" if rating is None else rating,
             "verified_purchase": bool(it.get("isVerified") or it.get("verified") or
                                       it.get("verified_purchase") or
+                                      it.get("Verified") or
                                       it.get("VerifiedPurchase")),
             "helpful_vote": _provider_votes(it),
             "review_country": str(it.get("country") or it.get("ReviewCountry") or
