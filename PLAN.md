@@ -43,6 +43,68 @@ not the route's, and the project needs a **different premise**, not a different
 provider. Do not wire stage C's cadence, and do not let the dashboard promise a trend,
 until it is known which.
 
+## History mode: fails on product availability, 2026-10-14
+
+**Not on budget, and not on the route.** Measured across six groups and twelve companies.
+
+Reaching 2024 needs products in a narrow velocity band (~0.098 reviews/day, ~50-100
+reviews inside the window), and **four such products per company** to clear the
+30-review quarter floor. The candidates that exist:
+
+| company | product | ratings | verdict |
+|---|---|---|---|
+| Dyson | V12 Detect Slim | 132 | in band |
+| Dyson | V15 Detect TCE | 59 | band edge |
+| Arlo | Pro 2K HDR | 50 | in band |
+| GoPro | HERO13 | 1,046 | ~10x too fast |
+| Casper | Element | 3 | far too slow |
+
+**Dyson is the only one of twelve companies with two plausible in-band products, and the
+plan needs four.** Worse for the purpose: **Dyson is private** — no revenue to predict —
+and Arlo was already dropped on concentration. So of the in-band products found, **none
+belongs to a company whose revenue could be read.**
+
+**Two corrections that removed the cheap screen:**
+
+1. **`reviews_per_day` cannot be estimated from a page fetch.** *Date First Available* is
+   absent from most `/dp/` static HTML (present for 1 of 3 sampled directly, 0 of ~20
+   resolved earlier). Where present it is the **child's** listing date while
+   `total_ratings` is the **parent's** pooled count — goodr `B0GFSJZ5DH` reads as
+   108/day from a 89-day-old child against a family's 9,662 ratings. Ratings are free;
+   age is not; and they are not measured at the same level. "Screening is free" was
+   wrong, and it was what made four-products-per-company cheap.
+2. **The screen is only meaningful where `parent_asin == asin`.** Only **7 of ~25**
+   resolved products are their own parent; for the rest the count is the family's.
+
+**Caveat, since the conclusion rests on it:** those listing ages are inferred from product
+generation, not read from the page. Indicative, not measured. Settling it needs the
+parent's first-available date (not exposed) or one collection pass per candidate — the
+cost the band screen existed to avoid.
+
+**Consequence: do not buy a plan tier for history.** Forward collection is unaffected —
+flagship products are exactly what recency mode wants.
+
+## The sensor selects the universe, and it has a bias
+
+The 10x asymmetry rule works, and applying it exposed something about what this project
+can ever see. Results on six groups:
+
+- `clogs-and-sandals` — **refused at 225.71x**. Crocs Classic Clog 489,107 ratings
+  against Birkenstock's largest findable listing at 1,877; Birkenstock is 62% B2B by its
+  own 20-F. Not rescuable: it would need 48,911.
+- `athletic-footwear` — **the rule improved it**. 18.05x as drafted (Skechers 44,728 vs
+  On 2,478); dropping Skechers gives **1.09x** with two revenue-readable members.
+- `upright-and-stick-vacuums` — 15.24x → **2.92x** once Dyson tracks three stick vacuums
+  across its range. Legitimate: adding products to a company Amazon genuinely sees is not
+  what Birkenstock would have needed.
+- `action-cameras` 4.59x · `sunglasses` 6.66x · `mattresses` 1.10x — pass.
+
+**The healthiest groups are the two all-private ones.** DTC brands meet their customers on
+Amazon symmetrically; retail-floor brands do not. So the sensor sees DTC brands well and
+retail brands poorly, **and that bias now selects the universe** — the rule killed the
+group holding the biggest brand name. Worth weighing against the chosen 10x, which remains
+arguable.
+
 ## Providers evaluated, so they are not re-litigated
 
 | provider | verdict | why |
