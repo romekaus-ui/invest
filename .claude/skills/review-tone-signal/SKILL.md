@@ -59,6 +59,11 @@ Load these as needed; do not load them all up front.
 - `references/failure-modes.md` — the blocking checks, each with how it fails silently.
   Read when a result looks good; that is when it matters.
 - `references/data-contracts.md` — exact schemas for every CSV and JSONL in the pipeline.
+- `references/live-collection.md` — stage C, fresh collection from Amazon. **Read before
+  collecting anything.** Route A runs through the user's own logged-in session and the
+  account carrying the risk is theirs, so the pacing rules there are not advisory. It also
+  records what Amazon actually served on 2026-10-11, which decides what the data can be
+  used for: ~0.1% coverage, no working sort, no pagination.
 - `references/weekly-routine.md` — the scheduled weekly run: cron, config and its
   verbatim prompt. Read before changing the schedule.
 - `scripts/window.py` — the `--window {dev,full}` contract every stage shares.
