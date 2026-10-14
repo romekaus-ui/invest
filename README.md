@@ -28,7 +28,8 @@ dashboard           the chart, with coverage and volume shown beside every numbe
 | Component | Status |
 |---|---|
 | Peer-group finder (`review-tone-peer-group`) | built — 6 groups, 15 companies declared |
-| Fresh review collector | being built |
+| Fresh review collector | built — Route B measured working through Apify |
+| Workflow (`/tone-run`) | built — walks the stages, stops at the first unmet |
 | Tone scorer (`score_reviews.py`) | built, carried over |
 | Aggregation (`aggregate.py`) | built, carried over — needs rework for live cadence |
 | US revenue (`fetch_sec.py`) | built, carried over |
