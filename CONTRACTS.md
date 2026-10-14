@@ -100,6 +100,47 @@ Rules this encodes (CORE-PROMPT §2, PLAN.md concentration filter):
   quiet together — a promotion ending, seasonality, a review-solicitation campaign —
   pooling does not smooth at all and thin quarters stay thin however many are added.
   **Unmeasured. One product cannot answer it.**
+### Amazon presence is a membership criterion, not a detail
+
+**Amazon is the only sensor this project has.** A company Amazon barely sees cannot be
+measured at all, and a group that mixes a company Amazon sees well with one it barely
+sees is not comparing two companies — it is comparing a core channel against a marginal
+one and calling the difference tone.
+
+The case that forced this: in the declared `energy-drinks` group, **Celsius's flagship
+carries 28,121 ratings and the largest Monster listing findable carries 553** — a 50×
+gap. Monster sells through convenience retail. No amount of collection fixes that, and a
+peer-relative reading across the two would be an artefact of channel mix.
+
+Every member therefore records:
+
+```jsonc
+"amazon_presence": {
+  "total_ratings": 28121,          // summed across the products tracked
+  "reviews_per_day": 5.0,          // from a pass, or estimated from ratings + listing age
+  "channel_evidence": "FY2024 10-K: e-commerce 22% of revenue",  // or null
+  "material": true                 // false disqualifies the member
+}
+```
+
+Three distinct failures, and all three disqualify:
+
+1. **Absolute** — too few reviews to clear the floors however many products are tracked.
+2. **Relative to the company** — Amazon is a marginal channel for it, so its Amazon tone
+   is not evidence about its revenue even when the counts are sufficient.
+3. **Asymmetric within the group** — the comparison itself is invalid, which is the
+   Monster/Celsius failure and the one most easily missed, because each member can look
+   acceptable alone.
+
+**A group is refused when its largest and smallest member differ by more than 10× in
+`total_ratings`.** That factor is **chosen, not measured** — recorded here as the second
+most arguable constant in the project after the 0.60 concentration floor. It should be
+revisited once several groups have been declared against it. 50× is plainly too much;
+where the real line sits is not known.
+
+A private member is held to the same standard. It has no revenue to read, but it is a
+category control, and a control Amazon cannot see controls for nothing.
+
 - `fy_end` is required **for every member whose revenue will be read**, and must be
   **empty** for one with `no_public_report: true`. CORE-PROMPT §5 forbids aligning two
   companies' figures as if their calendars matched, so a readable member needs it — but
