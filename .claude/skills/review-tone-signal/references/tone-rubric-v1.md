@@ -69,6 +69,6 @@ Calibration is re-run whenever the rubric version or scorer model changes.
 
 ## Scorer
 
-Default: `claude-haiku-4-5-20251001`, temperature 0, one review per call, no conversation
+Default: `claude-haiku-4-5`, temperature 0, one review per call, no conversation
 history between reviews. Reviews are scored independently so that batch ordering cannot
 leak context from one review into another.
