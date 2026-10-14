@@ -493,6 +493,48 @@ guard did its job, and the answer was still wrong. A second defect hid behind it
 coverage counted on `asin`, so once rows carried the reviewer's variant it read
 **0 of 10,000 with ten reviews on disk**.
 
+### ScrapingBee: evaluated 2026-10-14, no reviews endpoint
+
+Proposed because it bills **per request** rather than per result, implying ~47× cheaper
+reviews. **It does not sell review access, so the comparison is void.** From its own API
+documentation, not its marketing page:
+
+> We provide three endpoints: Search (`/api/v1/amazon/search`), Product
+> (`/api/v1/amazon/product`), Pricing (`/api/v1/amazon/pricing`).
+
+There is no reviews endpoint. The product endpoint's **own documented response example**
+carries `"reviews": []` with `"reviews_count": 114` and
+`"rating_stars_distribution": null` — the count, not the reviews. Its `sort_by`
+(`most_recent`, `average_review`, …) sorts **search results**, i.e. products, not reviews.
+The marketing page's "Customer reviews" bullet is not backed by an endpoint.
+
+One qualifier, in its favour: the docs say to disable `light_request` "if you're looking
+to get reviews or other dynamic content", so `reviews` may populate with full JS
+rendering. That would be the **product page's** handful — the same 8–13 public reviews
+`/dp/` already serves, which Route A gets for nothing. It is not paginated review access
+and cannot reach the ~100 per filter that the depth measurements depend on.
+
+The remaining path would be its generic HTML API against `/product-reviews/` URLs, which
+raises three problems and solves none of the important ones:
+
+1. **The login wall.** Anonymous requests to `/product-reviews/` redirect to sign-in with
+   zero review blocks. Beating that through a third-party proxy means **sending the
+   user's Amazon session cookies to that third party** — which is not a trade to make for
+   a cheaper price per review, and is not something to set up on the user's behalf.
+2. **You own the parser.** Apify's actor parses and its author fixes the selectors when
+   Amazon changes its markup. This collector has already been bitten twice by
+   *field-name* mismatches on actors that did the parsing (`Verified` vs
+   `VerifiedPurchase`; capitalised keys returning zero rows). Owning the selectors means
+   owning that failure permanently, against a site that changes markup deliberately to
+   break scrapers.
+3. **It buys breadth, never depth.** The 10-page-per-filter cap is Amazon's. A cheaper
+   request price buys *more products*, and nothing about the velocity band or the
+   ~100-per-filter ceiling moves.
+
+**Not tested, and not testable here:** whether it defeats the bot challenge. Evaluating
+that needs an account, and signing up for one is the user's decision, not this
+assistant's. Given that there is no reviews endpoint, the question is moot regardless.
+
 Route B's sort is **not trusted from the documentation** — providers advertise sort
 options that do not always arrive. The observed sort is read back off the response where
 the provider returns one, and the same date-monotonicity check is applied to what comes
