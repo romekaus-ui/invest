@@ -125,15 +125,31 @@ is their explicit, informed decision — never a config change made for them.
 
 ## Next
 
-1. **Peer-group finder** — in build. Target **at least 80 companies** in however many
-   groups fall out naturally (not 40 forced pairs — bigger groups are a better control),
-   **subject to the concentration filter below, which outranks the count.**
-2. **Fresh review collector** — in build. Both routes behind one interface.
-3. **Calibrate the tone scorer** — the user labels ~100 reviews by hand so the scorer's
-   agreement can be measured. Nobody else can do this step, and the scorer's output is
-   not a measurement until it is done.
-4. **Choose the collection set and the cadence**, declare both, start collecting.
-5. **Keep collecting.** Each run is one point in the series.
+Stages G and C are built and `/tone-run` walks them. Every declared group currently
+stops at **stage C**, because nothing has been collected. Four things stand between
+here and a chart:
+
+1. **Find a route that is not Amazon's capped surface** — in progress. Amazon gives 8
+   reviews publicly and ~100 per filter commercially, and that cap is Amazon's, not a
+   provider's. Brand sites run review widgets (Yotpo, Bazaarvoice, PowerReviews, Okendo)
+   with public JSON APIs, and syndication may put the same text on retailer pages with
+   no login wall. **If one of these holds, it changes the project more than any plan
+   tier would** — and it carries a structural objection Amazon does not: these reviews
+   are moderated by the company being measured, which is a problem in exactly the
+   direction that matters.
+2. **Decide the collection set and cadence**, declare both, start collecting. Flagship
+   products, since history mode failed on availability.
+3. **Calibrate the tone scorer** — the user labels ~100 reviews by hand against
+   `references/tone-rubric-v1.md`. **Nobody else can do this step**, and the scorer
+   produces numbers rather than measurements until it is done. It needs reviews on disk
+   first.
+4. **Keep collecting.** Each run is one point in the series; the first real test of
+   prediction is several reporting periods away (`CORE-PROMPT.md` §8).
+
+Open and not blocking: `energy-drinks` needs re-declaring for the Monster asymmetry
+(553 ratings against Celsius's 28,121); `premium-everyday-carry` is a draft that fails
+stage G and should be declared or deleted; stages S, A and D still take `--tickers`
+rather than `--group`.
 
 ## Pool size — measured, 2026-10-12
 
