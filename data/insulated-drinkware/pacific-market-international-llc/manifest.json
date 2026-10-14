@@ -1,8 +1,8 @@
 {
   "company": "Pacific Market International, LLC",
   "company_slug": "pacific-market-international-llc",
-  "coverage_method": "collected/None claimed (unavailable basis), route apify, sort recent",
-  "coverage_ratio": null,
+  "coverage_method": "collected/10000 claimed (reviews basis), route apify, sort recent",
+  "coverage_ratio": 0.01,
   "group_id": "insulated-drinkware",
   "live_collection": {
     "any_sort_verified": true,
@@ -10,9 +10,9 @@
     "cadence_days": 7,
     "cadence_declared_at": "2026-10-13T11:45:32Z",
     "collector_version": "d1-collect-v1",
-    "last_batch_id": "b-d616d83c9e",
-    "last_collected_at": "2026-10-14T20:51:21Z",
-    "n_batches": 3,
+    "last_batch_id": "b-16f464398d",
+    "last_collected_at": "2026-10-14T20:51:51Z",
+    "n_batches": 4,
     "review_date_precision": "day",
     "review_id_schemes": [
       "amazon_review_id",

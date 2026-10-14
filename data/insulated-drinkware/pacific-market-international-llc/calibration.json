@@ -1,0 +1,18 @@
+{
+  "drawn_at": "2026-10-14T20:53:02+00:00",
+  "gate": "pending_human_labels",
+  "n": 100,
+  "pool_size": 100,
+  "rubric_sha256": "4ce22feb1c52b4b4f2063a774fd542abfc59211667c2c5c349af30a9bdc48b14",
+  "rubric_version": "v1",
+  "scorer_model_id": "claude-haiku-4-5-20251001",
+  "seed": 20261011,
+  "strata_absent_from_pool": [],
+  "stratum_composition": {
+    "-1": 15,
+    "-2": 14,
+    "0": 3,
+    "1": 22,
+    "2": 46
+  }
+}
