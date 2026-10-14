@@ -365,6 +365,16 @@ All 49 were genuinely 1-star and the page URL confirmed `filterByStar=one_star`.
 
 Best single quarter across all three: 16 reviews. The floor is 30.
 
+**Correction (2026-10-14): the floor is per COMPANY-quarter, not per product.**
+`aggregate.py` keys its buckets on the quarter alone and `included` holds
+`(parent_asin, tone)` pairs pooled across every ASIN in the company's `scores.csv`; the
+within/mix decomposition exists precisely because a company has several products in one
+quarter. So the table above shows that no *single* product clears the floor — which is
+true and much weaker than the conflict originally claimed here. Pooling several products
+per company is the intended design, and it changes this from a structural impossibility
+to an arithmetic requirement. What follows is kept because the per-product numbers are
+still what a selection rule has to work from:
+
 **This is the real constraint, and it is a direct conflict:**
 
 > Reaching back needs a **slow** product — depth per pass is capped at ~100, so fewer
@@ -372,19 +382,53 @@ Best single quarter across all three: 16 reviews. The floor is 30.
 > 30 reviews per quarter is ≥0.33/day sustained. **A product slow enough to reach 2024 is
 > by construction too slow to fill its quarters.**
 
-The escape is narrow and not yet demonstrated: a product whose reviews are **numerous but
-concentrated in the window** — roughly **400–600 reviews inside 2024→today** (~0.4–0.6
-per day), few enough for a full 5-star fanout to retrieve nearly all of them, many enough
-that each quarter clears 30. C&Berg fails this not on total (555) but on distribution:
-only ~99 of its reviews fall in 2024–2026.
+### How many products per company, then?
 
-So the selection criterion for a *history* series is not velocity alone:
+With pooling, the requirement becomes a count. For a window `D` days deep:
 
-> **≥30 reviews in every quarter of the window, AND a total small enough that a
-> 5–6 filter fanout retrieves nearly all of them (~600 ceiling).**
+- an `all_stars` pass returns ~100 and reaches back `100/v` days at `v` reviews/day, so
+  reaching `D` needs `v ≤ 100/D`;
+- such a product contributes `v × 91.3` reviews per quarter;
+- clearing 30 needs `N ≥ 30 / (91.3 × 100/D)`.
 
-A flagship fails the second test; a slow mover fails the first. The band between them is
-real but narrow, and no product tested here sits in it.
+For `D` = 1,017 days (2024-01-01 → 2026-10-14) that is `v ≤ 0.098/day`, ~9.0 reviews per
+quarter each, and **N ≥ 3.3, so 4 products per company** — *if reviews arrive uniformly*.
+
+**They do not.** C&Berg inside the window, where the `all_stars` pass is complete
+(it reached 2023-12-30):
+
+```
+2024Q1:16 2024Q2:13 2024Q3:15 2024Q4:13 2025Q1:4 2025Q2:6
+2025Q3:6  2025Q4:2  2026Q1:1  2026Q2:4  2026Q3:17 2026Q4:2
+```
+
+Mean 8.2/quarter — close to the predicted 9.0, so the model is right on average. But the
+**thinnest quarter is 2026Q1 with 1 review**, and 2026Q3 has 17. Sized on the mean, 4
+products. Sized on the thinnest, 30.
+
+**Which of those is right depends on something not yet measured: whether lumpiness is
+independent across a company's products.** If one product's quiet quarter is another's
+busy one, pooling smooths it and ~4–7 products suffice. If a company's products go quiet
+together — a promotion ending, a seasonal pattern, a review-solicitation campaign — then
+pooling does not smooth at all and the thin quarters stay thin however many products are
+added.
+
+That is testable for about $1.30: collect two or three slow products of **one** company
+and correlate their per-quarter counts. It is the question that decides whether a history
+series is affordable, and it cannot be answered from one product.
+
+**One caution on reading per-year counts from this collector.** Outside the `all_stars`
+reach, coverage is whatever the rare-star passes happened to supply:
+
+| filter | 2019 | 2020 | 2021 | 2022 | 2023 | 2024 | 2025 | 2026 |
+|---|---|---|---|---|---|---|---|---|
+| `all_stars` | 0 | 0 | 0 | 0 | 1 | 57 | 18 | 24 |
+| `one_star` | 11 | 11 | 5 | 3 | 13 | 0 | 0 | 0 |
+
+Pre-2024 looks sparse because only 1-star reviews reach there, not because the product
+was quiet. **Inside** the `all_stars` window the counts are the product's real density;
+outside it they are a property of which filters were run. Any distribution read off this
+data has to say which side of that line it sits on.
 
 ### Re-parsing costs nothing — use it
 
