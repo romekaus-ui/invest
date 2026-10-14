@@ -69,6 +69,12 @@ class Window(object):
     def __init__(self, mode, root):
         self.mode, self.root = mode, root
         self.dropped = 0
+        # Callers record the window they ran under in their manifests. There is
+        # no bound to record, and None says that honestly where a tuple would
+        # imply a restriction that is not applied.
+        self.bounds = None
+        self.source = "no window (forward-only collection)"
+        self.frozen = False
 
     @property
     def restricts(self):

@@ -112,6 +112,41 @@ TONE_MIN, TONE_MAX = -2, 2
 # fiscal quarter arithmetic
 # ---------------------------------------------------------------------------
 
+def period_label(row):
+    """The quarter a review belongs to.
+
+    Live collection does not carry `fiscal_quarter`: the collector drops it
+    deliberately, because fresh reviews are not organised on any company's
+    fiscal calendar and stamping one company's calendar onto another's data in
+    the collector would be a methodology choice made in the wrong place
+    (CONTRACTS.md s2). Assigning the period is this stage's job.
+
+    **Calendar quarters, from the review's own date.** This is provisional and
+    the limitation is load-bearing: a revenue join needs the company's FISCAL
+    quarter, and five of six declared members do not end their year on 31
+    December (CONTRACTS.md s1 `fy_end`). Until that mapping exists, a tone
+    series produced here may be charted and compared across companies, and must
+    NOT be joined to reported revenue - the quarters would not line up and the
+    mismatch would be invisible in the output.
+
+    A pre-existing `fiscal_quarter` column still wins where one is present, so
+    archived data aggregates exactly as before.
+    """
+    fq = (row.get("fiscal_quarter") or "").strip()
+    if fq:
+        return fq
+    d = (row.get("review_date") or "").strip()[:10]
+    if len(d) < 7 or d[4] != "-":
+        return ""
+    try:
+        y, m = int(d[:4]), int(d[5:7])
+    except ValueError:
+        return ""
+    if not 1 <= m <= 12:
+        return ""
+    return "FY%04dQ%d" % (y, (m - 1) // 3 + 1)
+
+
 def q_index(label):
     """FY2021Q3 -> a dense integer so quarters can be ordered and differenced."""
     m = QUARTER_RE.match((label or "").strip())
@@ -237,12 +272,13 @@ def load_quarters(ticker, datadir, win=None):
     bad_quarter = defaultdict(int)
     with open(rpath, newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):
-            if win is not None and not win.allows(row.get("fiscal_quarter")):
+            label = period_label(row)
+            if win is not None and not win.allows(label):
                 out_of_window += 1
                 continue
-            qi = q_index(row.get("fiscal_quarter"))
+            qi = q_index(label)
             if qi is None:
-                bad_quarter[row.get("fiscal_quarter", "")] += 1
+                bad_quarter[label or ""] += 1
                 continue
             s = scores.get(row["review_id"])
             if s is None:
