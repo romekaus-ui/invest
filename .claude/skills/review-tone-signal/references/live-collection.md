@@ -341,6 +341,51 @@ heavily-reviewed can have **recency but no history**; one built from slower prod
 have history but may be less representative of the company's revenue. That tension is
 real and belongs in the peer-group component's criteria, not here.
 
+### The star fanout works — and it still cannot fill a quarter
+
+A star filter gets its own 10-page window, so a **rare** rating reaches much further back
+than a common one. Measured on C&Berg (`B07PLW68CM`):
+
+| filter | returned | span | cost |
+|---|---|---|---|
+| `all_stars` | 100 | 2023-12-30 → 2026-10-08 (2.8 yr) | $0.63 |
+| `one_star` | 49 | **2019-08-04 → 2026-… (6.0 yr)** | $0.03 |
+
+All 49 were genuinely 1-star and the page URL confirmed `filterByStar=one_star`. Union:
+143 reviews over **7.2 years**, 26 quarters, for $0.66.
+
+**And it is still not enough.** `aggregate.py` sets `MIN_REVIEWS_PER_QUARTER = 30` and
+`MIN_QUARTERS = 12`, and refuses a tone number below the floor:
+
+| | reviews | span | quarters | **quarters ≥30** |
+|---|---|---|---|---|
+| C&Berg (slow + fanout) | 143 | 7.2 yr | 26 | **0** |
+| CELSIUS Grape Rush family | 12 | 7.6 yr | 9 | **0** |
+| Monster Ultra Blue 4ct | 5 | 4.7 yr | 5 | **0** |
+
+Best single quarter across all three: 16 reviews. The floor is 30.
+
+**This is the real constraint, and it is a direct conflict:**
+
+> Reaching back needs a **slow** product — depth per pass is capped at ~100, so fewer
+> reviews per day buys more days. Computing a quarterly tone needs a **busy** one —
+> 30 reviews per quarter is ≥0.33/day sustained. **A product slow enough to reach 2024 is
+> by construction too slow to fill its quarters.**
+
+The escape is narrow and not yet demonstrated: a product whose reviews are **numerous but
+concentrated in the window** — roughly **400–600 reviews inside 2024→today** (~0.4–0.6
+per day), few enough for a full 5-star fanout to retrieve nearly all of them, many enough
+that each quarter clears 30. C&Berg fails this not on total (555) but on distribution:
+only ~99 of its reviews fall in 2024–2026.
+
+So the selection criterion for a *history* series is not velocity alone:
+
+> **≥30 reviews in every quarter of the window, AND a total small enough that a
+> 5–6 filter fanout retrieves nearly all of them (~600 ceiling).**
+
+A flagship fails the second test; a slow mover fails the first. The band between them is
+real but narrow, and no product tested here sits in it.
+
 ### Re-parsing costs nothing — use it
 
 Apify charges per result produced, not per read. `--dataset-id` re-reads a stored

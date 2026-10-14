@@ -1,0 +1,28 @@
+{
+  "company": "Monster Beverage Corporation",
+  "company_slug": "monster-beverage-corporation",
+  "coverage_method": "collected/5 claimed (reviews basis), route apify, sort recent",
+  "coverage_ratio": 1.0,
+  "group_id": "energy-drinks-modes-fixture",
+  "live_collection": {
+    "any_sort_verified": true,
+    "cadence": "weekly",
+    "cadence_days": 7,
+    "cadence_declared_at": "2026-10-14T07:35:33Z",
+    "collector_version": "d1-collect-v1",
+    "last_batch_id": "b-8bd327c7f8",
+    "last_collected_at": "2026-10-14T07:36:03Z",
+    "n_batches": 2,
+    "review_date_precision": "day",
+    "review_id_schemes": [
+      "provider_review_id"
+    ],
+    "routes_used": [
+      "apify"
+    ],
+    "sorts_requested": [
+      "recent"
+    ]
+  },
+  "source": "live Amazon collection (CORE-PROMPT §3), not the 2023 corpus"
+}

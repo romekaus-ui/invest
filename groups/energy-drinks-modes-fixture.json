@@ -1,0 +1,49 @@
+{
+  "group_id": "energy-drinks-modes-fixture",
+  "declared_at": "2026-10-14",
+  "seed": "MEASUREMENT FIXTURE — derived from the declared energy-drinks group, to compare history mode against recency mode on one pair",
+  "hash": "UNVERIFIED-fixture",
+  "_note": "NOT a peer-group declaration. It exists to answer one question: does a company's slow-moving product tell the same story as its flagship? The slow products were chosen for low review velocity, not for revenue relevance, and are therefore selection-biased: a slow SKU is slow for a reason (unpopular flavour, awkward pack size) and its tone may reflect that rather than the brand. Stage G owns groups/energy-drinks.json; this file must never be read as a declaration and no peer-relative or revenue reading may be taken from it.",
+  "members": [
+    {
+      "company": "Celsius Holdings, Inc.",
+      "venue": "NASDAQ:CELH",
+      "brands": ["CELSIUS"],
+      "concentration": {
+        "dominant_line": "energy drinks",
+        "share_of_revenue": null,
+        "evidence": "FIXTURE — see groups/energy-drinks.json for the declared evidence",
+        "source_url": null,
+        "no_public_report": false,
+        "revenue_readable": true
+      },
+      "products": [
+        {"asin": "B0H5F1SG6J", "parent_asin": "B0H5F1SG6J", "marketplace": "amazon.com",
+         "name": "FLAGSHIP — CELSIUS Assorted Variety Pack 12ct (28,121 ratings, own parent)"},
+        {"asin": "B0D1G6TK7V", "parent_asin": "B0D1GMF8BG", "marketplace": "amazon.com",
+         "name": "SLOW — Celsius RTD Sparkling Grape Rush 4ct (60 ratings; parent pools other flavours)"}
+      ],
+      "reporting": {"calendar": "quarterly", "currency": "USD", "fy_end": "1231", "source": "SEC"}
+    },
+    {
+      "company": "Monster Beverage Corporation",
+      "venue": "NASDAQ:MNST",
+      "brands": ["Monster Energy"],
+      "concentration": {
+        "dominant_line": "energy drinks",
+        "share_of_revenue": null,
+        "evidence": "FIXTURE — see groups/energy-drinks.json for the declared evidence",
+        "source_url": null,
+        "no_public_report": false,
+        "revenue_readable": true
+      },
+      "products": [
+        {"asin": "B0GVG9K1HY", "parent_asin": "B0FJCLL93S", "marketplace": "amazon.com",
+         "name": "FLAGSHIP(ish) — Monster Ultra Red White & Blue Razz 15ct (553 ratings, the largest Monster listing found)"},
+        {"asin": "B01MQX4P7V", "parent_asin": "B01MQX4P7V", "marketplace": "amazon.com",
+         "name": "SLOW — Monster Ultra Blue 4ct (27 ratings, own parent, reviews 2021-2026)"}
+      ],
+      "reporting": {"calendar": "quarterly", "currency": "USD", "fy_end": "1231", "source": "SEC"}
+    }
+  ]
+}

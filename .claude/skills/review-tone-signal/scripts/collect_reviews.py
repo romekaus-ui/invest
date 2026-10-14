@@ -841,7 +841,7 @@ class ApifyRoute(ProviderRoute):
 
     def __init__(self, token=None, plan_tier="free", actor=None, timeout=900,
                  max_charge_usd=1.0, price_per_review=None, max_pages=10,
-                 date_from=None, date_to=None):
+                 date_from=None, date_to=None, min_charge_usd=None):
         ProviderRoute.__init__(self, token, plan_tier, timeout)
         self.actor = (actor or self.default_actor).replace("/", "~")
         self.max_charge_usd = max_charge_usd
@@ -849,6 +849,9 @@ class ApifyRoute(ProviderRoute):
         self.max_pages = max_pages
         self.date_from = date_from
         self.date_to = date_to
+        # junglee publishes minimalMaxTotalChargeUsd 0.5; others have none.
+        self.min_charge_usd = (min_charge_usd if min_charge_usd is not None
+                               else (0.5 if self.actor.startswith("junglee~") else None))
 
     # The collector speaks Amazon's own URL vocabulary for star filters
     # (`all_stars`, `five_star`), because that is what the site uses and what a
@@ -885,8 +888,13 @@ class ApifyRoute(ProviderRoute):
                     "country": "United States",
                     "max_reviews": limit,
                     "sort_reviews_by": ["recent"],
-                    "filter_by_ratings": ["all_stars", "five_star", "four_star",
-                                          "three_star", "two_star", "one_star"],
+                    # Honours --star. This was hardcoded to the full list and
+                    # ignored --star entirely, so a `one_star` request silently
+                    # ran as `all_stars` and returned 61 reviews already held,
+                    # for $0.396. A filter the caller asked for and the adapter
+                    # dropped is worse than one the provider rejects: the
+                    # provider's 400 costs nothing and says so.
+                    "filter_by_ratings": [f.get("star") or "all_stars"],
                     "filter_by_verified_purchase_only": ["all_reviews"],
                     "filter_by_mediaType": ["all_contents"],
                     "variant_scope": "all_variants",
@@ -943,6 +951,15 @@ class ApifyRoute(ProviderRoute):
     def collect(self, product_id, sort, limit, filters=None):
         f = filters or {}
         body = self._input_for(product_id, sort, limit, f)
+        # Apify refuses a cap below the actor's own minimum (junglee's is
+        # $0.50). Caught here rather than as a 400, so the message names the
+        # actor's floor instead of the operator guessing.
+        if self.min_charge_usd and self.max_charge_usd < self.min_charge_usd:
+            die("--max-charge-usd %.2f is below %s's minimum of $%.2f, so the\n"
+                "run would be refused. Raise the cap or choose a cheaper actor;\n"
+                "do not assume the floor is what you will be billed - this actor\n"
+                "charges per result and the cap is only a ceiling."
+                % (self.max_charge_usd, self.actor, self.min_charge_usd))
         url = ("https://api.apify.com/v2/acts/%s/run-sync-get-dataset-items"
                "?token=%s&maxTotalChargeUsd=%s"
                % (self.actor, self.token, self.max_charge_usd))
@@ -1286,6 +1303,17 @@ def _provider_date(s, tmax):
 # Coverage (CORE-PROMPT §4)
 # --------------------------------------------------------------------------
 
+def _is_unfiltered(filters):
+    """Was this batch taken over the whole review population?
+
+    Only an unfiltered batch's claimed total describes the population a series
+    is a fraction OF. A star-filtered batch counts that star alone.
+    """
+    f = filters or {}
+    star = f.get("star") or "all_stars"
+    return str(star) in ("all_stars", "allStars", "all", "")
+
+
 def coverage(collected_total, claimed):
     """(ratio, claimed_total, basis). None rather than a guess.
 
@@ -1503,7 +1531,26 @@ def record_batch(outdir, group_id, member, asin, batch, cadence, batch_id,
     on_product = sum(1 for r in load_reviews(outdir, group_id, slug).values()
                      if (r.get("parent_asin") or r.get("asin") or "").upper() == pkey)
     ratio_batch, claimed_total, basis = coverage(batch.returned, batch.claimed)
-    ratio_series, _c, _b = coverage(on_product, batch.claimed)
+
+    # The SERIES denominator must be the unfiltered population, not this
+    # batch's. A star-filtered batch reports the count for that star only (49
+    # one-star reviews), and dividing the whole series by it gave "143 of 49"
+    # - a coverage ratio of 292%. §4 requires this number beside every tone
+    # number, so a ratio that can exceed 1 is not a rounding problem.
+    widest = dict(batch.claimed)
+    wmax = (claimed_total or 0) if _is_unfiltered(batch.filters) else 0
+    wsrc = "this batch" if wmax else None
+    for b in read_jsonl(batches_path(outdir, group_id, slug)):
+        if (b.get("asin") or "").upper() != asin.upper():
+            continue
+        if not _is_unfiltered(b.get("filters")):
+            continue
+        ct = b.get("claimed_total") or 0
+        if ct > wmax:
+            wmax, wsrc = ct, b.get("batch_id")
+    if wmax:
+        widest = {"reviews_total": wmax} if basis == "reviews" else {"ratings_total": wmax}
+    ratio_series, series_denom, series_basis = coverage(on_product, widest)
 
     rec = OrderedDict([
         # --- CONTRACTS.md §3, in its order and with its spellings ---
@@ -1549,6 +1596,8 @@ def record_batch(outdir, group_id, member, asin, batch, cadence, batch_id,
          else declared_parent.upper() == (batch.parent_asin or "").upper()),
         ("sort_order_observed", batch.sort_observed),
         ("coverage_ratio_series", ratio_series),
+        ("coverage_series_denominator", series_denom),
+        ("coverage_series_denominator_from", wsrc),
         ("reviews_on_product_after", on_product),
         ("group_id", group_id),
         ("company", member.get("company")),
@@ -1860,9 +1909,9 @@ def cmd_collect(args, route, stage_note):
         print("coverage_ratio     %.6f  (%.4f%% of %d, %s basis)"
               % (rec["coverage_ratio"], 100.0 * rec["coverage_ratio"],
                  rec["claimed_total"], rec["claimed_total_basis"]))
-        print("coverage of series %.6f  (%d of %d)"
+        print("coverage of series %.6f  (%d of %s, the unfiltered population)"
               % (rec["coverage_ratio_series"], rec["reviews_on_product_after"],
-                 rec["claimed_total"]))
+                 rec["coverage_series_denominator"]))
     print("\nnew                %d" % rec["merge"]["new"])
     print("already held       %d  (deduped by review identifier)"
           % rec["merge"]["duplicates"])
@@ -2110,6 +2159,11 @@ def cmd_selftest(args):
         check("re-collection never duplicates a row score_reviews would collide on",
               len({r["review_id"] for r in rows.values()}) == len(rows))
 
+        check("an unfiltered batch is recognised as the population",
+              _is_unfiltered({"star": "all_stars"}) and _is_unfiltered({}))
+        check("a star-filtered batch is NOT treated as the population",
+              not _is_unfiltered({"star": "one_star"}))
+
         print("\n6 · reviews.csv satisfies CONTRACTS.md §2")
         cols = open(reviews_path(outdir, "testgroup", "test-co"),
                     encoding="utf-8").readline().strip().split(",")
@@ -2311,6 +2365,9 @@ def cmd_selftest(args):
         check("changing a declared cadence without a reason is refused",
               dies(cmd_plan, _args(root=root, group="testgroup",
                                    cadence="daily", reason=None, show=False)))
+        check("a spend cap below the actor's floor is refused before the run",
+              dies(ApifyRoute(token="x", actor="junglee~amazon-reviews-scraper",
+                              max_charge_usd=0.2).collect, "B0", "recent", 10, {}))
         check("an unknown star filter is refused before the run is paid for",
               dies(ApifyRoute(token="x").star_param, "six_star"))
         check("an unknown provider is refused even bypassing argparse",
