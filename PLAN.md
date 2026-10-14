@@ -43,6 +43,24 @@ not the route's, and the project needs a **different premise**, not a different
 provider. Do not wire stage C's cadence, and do not let the dashboard promise a trend,
 until it is known which.
 
+## Providers evaluated, so they are not re-litigated
+
+| provider | verdict | why |
+|---|---|---|
+| **Apify** | **in use** | `junglee` and `delicious_zebu` both return real reviews. $0.006/review free tier, tiering down on paid. 100/filter, star fanout multiplies reach |
+| Rainforest | no | reviews endpoint returns `503 "temporarily unavailable"` independent of credentials |
+| **ScrapingBee** | **no reviews endpoint at all** | Its API documents exactly three: Search, Product, Pricing. The Product response carries `"reviews": [], "reviews_count": 114` — the count, not the reviews. Its `sort_by: most_recent` sorts **search results**, i.e. products, not reviews. The "Customer reviews" bullet on the features page is not backed by an endpoint |
+| `scrapehero-code/amazon-review-scraper` (GitHub) | no | Tutorial-grade `requests` + Selectorlib, no pagination, no filters, no anti-bot handling. Its target URL now redirects anonymous requests to Amazon's `/ax/claim` challenge: **0 review blocks returned**, verified 2026-10-14 |
+
+**A cheaper request price would buy breadth, never depth.** The ~100-per-filter ceiling is
+Amazon's. No provider moves it, so the velocity band stands whatever is paid.
+
+**One path is refused on principle, not on price.** Fetching `/product-reviews/` through a
+third party's raw-HTML endpoint means beating the login wall, which means **sending the
+user's Amazon session cookies to that third party**. That is not a trade to make for a
+lower price per review, and it is not set up on the user's behalf. If it is ever wanted it
+is their explicit, informed decision — never a config change made for them.
+
 ## Next
 
 1. **Peer-group finder** — in build. Target **at least 80 companies** in however many
