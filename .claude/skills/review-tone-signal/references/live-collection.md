@@ -264,6 +264,225 @@ coverage figure is a **lower bound on the denominator and therefore an upper bou
 coverage**. And `helpful_vote` is 0 for all ten because they are three days old — the
 provider returns `reviewReaction: null`, checked, not assumed.
 
+### Depth: can the 2024–2026 window be reached? (measured 2026-10-14)
+
+No, for a busy product, at any price. The limit is Amazon's pagination, not the budget.
+
+Four actors tried against YETI Rambler, parent `B07SGPJBZ6`, `sort=recent`:
+
+| actor | $/review | result |
+|---|---|---|
+| `junglee` | 0.006 | **10 per run** — free-plan cap, stated in its own log |
+| `axesso_data` | 0.0009 | **refused**: *"Actor usage only allowed for paying user"* ($0) |
+| `memo23` | 0.004 | `dateFrom`/`dateTo` is a **post-filter**: harvested 13, kept 0 ($0.015) |
+| `delicious_zebu` | 0.006 | **100 reviews, 10 pages** ($0.63) |
+
+The best result, 100 reviews, spans **2026-09-22 → 2026-10-12: twenty days**. All 2026.
+None from 2024 or 2025.
+
+**The arithmetic that settles it.** This product runs ~5.0 reviews/day. Reaching
+2024-01-01 is 1,017 days back, so ~5,085 reviews ≈ $31 — five times the whole monthly
+budget for one product. But money is not the binding constraint: **Amazon caps pagination
+at 10 pages of ~10 per filter combination**, so ~100 is the ceiling per pass however much
+is spent. `delicious_zebu` used exactly 10 pages and stopped.
+
+So the requirement is a **velocity** test, not a budget test:
+
+> a product can span 2024-01-01 → today inside one 100-review pass only if it averages
+> **≤ 0.10 reviews/day** — roughly 100 reviews in three years.
+
+A star fanout multiplies this, because each star rating has its own 10-page window and a
+rare rating reaches much further back at the same page depth. It was requested here and
+the actor served only `all_stars`, so the multiplier is **unverified**; at best it raises
+the bar to ~0.6 reviews/day, still far below a flagship consumer product.
+
+**`dateFrom`/`dateTo` does not help**, and that is the most useful negative result:
+`memo23` harvested the public page's 13 reviews and then discarded the ones outside the
+window. The date range filters what was fetched; it does not ask Amazon for older
+reviews. Nothing in these actors reaches past the newest ~100.
+
+One caveat that belongs with any history collected this way: what is scraped today is
+the reviews that **survived**. Deleted and edited ones are not recoverable, so a 2024
+slice is a survivor sample, not a contemporaneous record.
+
+### The positive case: low-velocity products DO reach 2024
+
+The ≤0.10 reviews/day rule above was arithmetic. It was then tested on a deliberately
+slow product — C&Berg 30 oz tumbler lids (`B07PLW68CM`), 2,173 ratings, listed ~2019, and
+**its own parent**, so the span is not confounded by variant pooling. One pass, $0.63:
+
+| | YETI Rambler (busy) | C&Berg lids (slow) |
+|---|---|---|
+| returned | 100 | 100 |
+| span | 2026-09-22 → 2026-10-12 | **2023-12-30 → 2026-10-08** |
+| | 20 days | **1,013 days (2.77 years)** |
+| by year | 2026: 100 | **2024: 57 · 2025: 18 · 2026: 24** |
+| reviews/day | 5.00 | **0.0987** |
+| claimed total | 10,000 reviews | 555 reviews |
+| coverage | 1.0% | **18.0%** |
+| newest | 2 days old | 6 days old |
+
+**The requested 2024–2025–2026 window is covered, in one $0.63 pass, at 18% coverage.**
+The measured velocity is 0.0987/day against a predicted threshold of ≤0.10 — the
+arithmetic held.
+
+So the constraint is **product velocity, not budget and not the route**. Depth per pass
+is fixed at ~100 by Amazon's page cap; what varies is how many days those 100 reviews
+buy. The selection rule for anything that needs history:
+
+> **reviews/day ≤ 100 / (days of history wanted)**
+>
+> For 2024-01-01 → today that is ≤ ~0.10/day. A product above it cannot reach back,
+> at any price, through any of these actors.
+
+This cuts directly against ordinary peer-group selection, which favours flagship
+products — exactly the ones that are too busy. A group whose members are all
+heavily-reviewed can have **recency but no history**; one built from slower products can
+have history but may be less representative of the company's revenue. That tension is
+real and belongs in the peer-group component's criteria, not here.
+
+### The star fanout works — and it still cannot fill a quarter
+
+A star filter gets its own 10-page window, so a **rare** rating reaches much further back
+than a common one. Measured on C&Berg (`B07PLW68CM`):
+
+| filter | returned | span | cost |
+|---|---|---|---|
+| `all_stars` | 100 | 2023-12-30 → 2026-10-08 (2.8 yr) | $0.63 |
+| `one_star` | 49 | **2019-08-04 → 2026-… (6.0 yr)** | $0.03 |
+
+All 49 were genuinely 1-star and the page URL confirmed `filterByStar=one_star`. Union:
+143 reviews over **7.2 years**, 26 quarters, for $0.66.
+
+**And it is still not enough.** `aggregate.py` sets `MIN_REVIEWS_PER_QUARTER = 30` and
+`MIN_QUARTERS = 12`, and refuses a tone number below the floor:
+
+| | reviews | span | quarters | **quarters ≥30** |
+|---|---|---|---|---|
+| C&Berg (slow + fanout) | 143 | 7.2 yr | 26 | **0** |
+| CELSIUS Grape Rush family | 12 | 7.6 yr | 9 | **0** |
+| Monster Ultra Blue 4ct | 5 | 4.7 yr | 5 | **0** |
+
+Best single quarter across all three: 16 reviews. The floor is 30.
+
+**Correction (2026-10-14): the floor is per COMPANY-quarter, not per product.**
+`aggregate.py` keys its buckets on the quarter alone and `included` holds
+`(parent_asin, tone)` pairs pooled across every ASIN in the company's `scores.csv`; the
+within/mix decomposition exists precisely because a company has several products in one
+quarter. So the table above shows that no *single* product clears the floor — which is
+true and much weaker than the conflict originally claimed here. Pooling several products
+per company is the intended design, and it changes this from a structural impossibility
+to an arithmetic requirement. What follows is kept because the per-product numbers are
+still what a selection rule has to work from:
+
+**This is the real constraint, and it is a direct conflict:**
+
+> Reaching back needs a **slow** product — depth per pass is capped at ~100, so fewer
+> reviews per day buys more days. Computing a quarterly tone needs a **busy** one —
+> 30 reviews per quarter is ≥0.33/day sustained. **A product slow enough to reach 2024 is
+> by construction too slow to fill its quarters.**
+
+### How many products per company, then?
+
+With pooling, the requirement becomes a count. For a window `D` days deep:
+
+- an `all_stars` pass returns ~100 and reaches back `100/v` days at `v` reviews/day, so
+  reaching `D` needs `v ≤ 100/D`;
+- such a product contributes `v × 91.3` reviews per quarter;
+- clearing 30 needs `N ≥ 30 / (91.3 × 100/D)`.
+
+For `D` = 1,017 days (2024-01-01 → 2026-10-14) that is `v ≤ 0.098/day`, ~9.0 reviews per
+quarter each, and **N ≥ 3.3, so 4 products per company** — *if reviews arrive uniformly*.
+
+**They do not.** C&Berg inside the window, where the `all_stars` pass is complete
+(it reached 2023-12-30):
+
+```
+2024Q1:16 2024Q2:13 2024Q3:15 2024Q4:13 2025Q1:4 2025Q2:6
+2025Q3:6  2025Q4:2  2026Q1:1  2026Q2:4  2026Q3:17 2026Q4:2
+```
+
+Mean 8.2/quarter — close to the predicted 9.0, so the model is right on average. But the
+**thinnest quarter is 2026Q1 with 1 review**, and 2026Q3 has 17. Sized on the mean, 4
+products. Sized on the thinnest, 30.
+
+**Which of those is right depends on something not yet measured: whether lumpiness is
+independent across a company's products.** If one product's quiet quarter is another's
+busy one, pooling smooths it and ~4–7 products suffice. If a company's products go quiet
+together — a promotion ending, a seasonal pattern, a review-solicitation campaign — then
+pooling does not smooth at all and the thin quarters stay thin however many products are
+added.
+
+**Tested (2026-10-14, $1.07):** three YETI products from different sub-lines with
+distinct parents — Tundra 105 (`B003V51GUE`), Tundra 110 (`B0DXKXJNYZ`), TANK 45
+(`B07PNC9HBZ`) — 180 reviews spanning 2014–2026.
+
+**Correlation is low.** Over the 45 quarters any of them covers, pairwise `r` runs
+**+0.07 to +0.23**. Quiet quarters do not coincide, so pooling does smooth. (Over the
+2024–2026 window alone the estimates swing to −0.20…+0.67, but those quarters hold 0–3
+reviews each and the estimate is noise; the 45-quarter figures are the ones to read.)
+
+**But the pooled quarters still cleared nothing — 0 of 12 — and the reason is not
+correlation.** It is that these products are far too slow:
+
+| product | reviews in window | per quarter | v/day | vs ideal | products needed |
+|---|---|---|---|---|---|
+| Tundra 105 | 8 | 0.7 | 0.0079 | 0.08× | 42 |
+| TANK 45 | 10 | 0.9 | 0.0098 | 0.10× | 34 |
+| Tundra 110 | 12 | 1.1 | 0.0118 | 0.12× | 28 |
+| **C&Berg lids** | **99** | **8.9** | **0.0973** | **0.99×** | **4** |
+
+**"Slow" was the wrong target, and that is the correction this test produced.** The ideal
+is a *specific rate*, not a minimum: `v ≈ 100/D` — for this window **0.098 reviews/day**,
+about 9 per quarter, about 100 inside the window. It is a **two-sided band**:
+
+> **too fast** → the 100-review pass does not reach back far enough
+> **too slow** → the quarters inside the window are empty
+> C&Berg sits at 0.99× the ideal; the YETI picks at 0.08–0.12×, needing 28–42 products
+> each instead of 4.
+
+So the §1 screen is not "find slow products". It is **velocity within roughly 0.5×–1.0×
+of `100/D`**, which for a 2024 window means products accumulating **~50–100 reviews
+inside 2024→today**. At that rate, and given the low correlation measured here, **4
+products per company** pool past the 30-review floor.
+
+**What this test does not establish.** The correlation was measured on products ~10×
+below the target rate, so the per-quarter counts (0–3) are too sparse to pin `r` tightly.
+It points to independence rather than proving it. A clean test needs two or three
+products near 0.10/day — where counts are ~9 per quarter — and C&Berg is the only such
+product found so far.
+
+**One caution on reading per-year counts from this collector.** Outside the `all_stars`
+reach, coverage is whatever the rare-star passes happened to supply:
+
+| filter | 2019 | 2020 | 2021 | 2022 | 2023 | 2024 | 2025 | 2026 |
+|---|---|---|---|---|---|---|---|---|
+| `all_stars` | 0 | 0 | 0 | 0 | 1 | 57 | 18 | 24 |
+| `one_star` | 11 | 11 | 5 | 3 | 13 | 0 | 0 | 0 |
+
+Pre-2024 looks sparse because only 1-star reviews reach there, not because the product
+was quiet. **Inside** the `all_stars` window the counts are the product's real density;
+outside it they are a property of which filters were run. Any distribution read off this
+data has to say which side of that line it sits on.
+
+### Re-parsing costs nothing — use it
+
+Apify charges per result produced, not per read. `--dataset-id` re-reads a stored
+dataset through the same normaliser for $0. It has now paid for itself twice:
+
+- the YETI run parsed to **zero rows**, because `delicious_zebu` capitalises its field
+  names (`ReviewId`, `ReviewDate`, `ReviewContent`);
+- the C&Berg run recorded **0% verified purchases**, because the actor's field is
+  `Verified` and the mapping looked for `VerifiedPurchase`. Re-reading gave 100%.
+
+Neither cost a second run. The second is the more instructive: it was not an empty
+result that announces itself, it was a plausible wrong number that would have reached
+the F12 verified-share check as evidence.
+
+It also demonstrated cross-provider dedup: 10 of the 100 were already held from the
+`junglee` batch and merged as one review, and two came back with different text from the
+two providers, which was flagged rather than silently overwritten.
+
 ### What the first live run cost in defects
 
 The parent-mismatch guard fired on its first real provider data — correctly, against a
@@ -273,6 +492,48 @@ the variant as the parent produced a confident, fully-evidenced false mismatch. 
 guard did its job, and the answer was still wrong. A second defect hid behind it: series
 coverage counted on `asin`, so once rows carried the reviewer's variant it read
 **0 of 10,000 with ten reviews on disk**.
+
+### ScrapingBee: evaluated 2026-10-14, no reviews endpoint
+
+Proposed because it bills **per request** rather than per result, implying ~47× cheaper
+reviews. **It does not sell review access, so the comparison is void.** From its own API
+documentation, not its marketing page:
+
+> We provide three endpoints: Search (`/api/v1/amazon/search`), Product
+> (`/api/v1/amazon/product`), Pricing (`/api/v1/amazon/pricing`).
+
+There is no reviews endpoint. The product endpoint's **own documented response example**
+carries `"reviews": []` with `"reviews_count": 114` and
+`"rating_stars_distribution": null` — the count, not the reviews. Its `sort_by`
+(`most_recent`, `average_review`, …) sorts **search results**, i.e. products, not reviews.
+The marketing page's "Customer reviews" bullet is not backed by an endpoint.
+
+One qualifier, in its favour: the docs say to disable `light_request` "if you're looking
+to get reviews or other dynamic content", so `reviews` may populate with full JS
+rendering. That would be the **product page's** handful — the same 8–13 public reviews
+`/dp/` already serves, which Route A gets for nothing. It is not paginated review access
+and cannot reach the ~100 per filter that the depth measurements depend on.
+
+The remaining path would be its generic HTML API against `/product-reviews/` URLs, which
+raises three problems and solves none of the important ones:
+
+1. **The login wall.** Anonymous requests to `/product-reviews/` redirect to sign-in with
+   zero review blocks. Beating that through a third-party proxy means **sending the
+   user's Amazon session cookies to that third party** — which is not a trade to make for
+   a cheaper price per review, and is not something to set up on the user's behalf.
+2. **You own the parser.** Apify's actor parses and its author fixes the selectors when
+   Amazon changes its markup. This collector has already been bitten twice by
+   *field-name* mismatches on actors that did the parsing (`Verified` vs
+   `VerifiedPurchase`; capitalised keys returning zero rows). Owning the selectors means
+   owning that failure permanently, against a site that changes markup deliberately to
+   break scrapers.
+3. **It buys breadth, never depth.** The 10-page-per-filter cap is Amazon's. A cheaper
+   request price buys *more products*, and nothing about the velocity band or the
+   ~100-per-filter ceiling moves.
+
+**Not tested, and not testable here:** whether it defeats the bot challenge. Evaluating
+that needs an account, and signing up for one is the user's decision, not this
+assistant's. Given that there is no reviews endpoint, the question is moot regardless.
 
 Route B's sort is **not trusted from the documentation** — providers advertise sort
 options that do not always arrive. The observed sort is read back off the response where

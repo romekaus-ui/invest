@@ -839,12 +839,19 @@ class ApifyRoute(ProviderRoute):
     signup_note = "https://console.apify.com/account/integrations -> API token"
     default_actor = "junglee~amazon-reviews-scraper"
 
-    def __init__(self, token=None, plan_tier="free", actor=None, timeout=600,
-                 max_charge_usd=1.0, price_per_review=None):
+    def __init__(self, token=None, plan_tier="free", actor=None, timeout=900,
+                 max_charge_usd=1.0, price_per_review=None, max_pages=10,
+                 date_from=None, date_to=None, min_charge_usd=None):
         ProviderRoute.__init__(self, token, plan_tier, timeout)
         self.actor = (actor or self.default_actor).replace("/", "~")
         self.max_charge_usd = max_charge_usd
         self.price_per_review = price_per_review
+        self.max_pages = max_pages
+        self.date_from = date_from
+        self.date_to = date_to
+        # junglee publishes minimalMaxTotalChargeUsd 0.5; others have none.
+        self.min_charge_usd = (min_charge_usd if min_charge_usd is not None
+                               else (0.5 if self.actor.startswith("junglee~") else None))
 
     # The collector speaks Amazon's own URL vocabulary for star filters
     # (`all_stars`, `five_star`), because that is what the site uses and what a
@@ -866,9 +873,70 @@ class ApifyRoute(ProviderRoute):
                 % (star, ", ".join(sorted(self.STARS))))
         return v
 
-    def collect(self, product_id, sort, limit, filters=None):
-        f = filters or {}
-        body = {
+    # Apify actors share an API and share nothing else: each defines its own
+    # input object. One adapter per actor, rather than one vendor's schema
+    # hardcoded as if it were Apify's - which is what sent the first run into a
+    # 400 and would send every new actor into another one.
+    def _input_for(self, product_id, sort, limit, f):
+        if self.actor.startswith("delicious_zebu~"):
+            # Fans out over every star filter in one run. That matters for
+            # DEPTH, not just count: Amazon caps pagination per filter
+            # combination, so each star rating has its own ~10-page window, and
+            # a rare rating reaches much further back in time than a common one
+            # at the same page depth.
+            return {"ASIN_or_URL": [product_id],
+                    "country": "United States",
+                    "max_reviews": limit,
+                    "sort_reviews_by": ["recent"],
+                    # Honours --star. This was hardcoded to the full list and
+                    # ignored --star entirely, so a `one_star` request silently
+                    # ran as `all_stars` and returned 61 reviews already held,
+                    # for $0.396. A filter the caller asked for and the adapter
+                    # dropped is worse than one the provider rejects: the
+                    # provider's 400 costs nothing and says so.
+                    "filter_by_ratings": [f.get("star") or "all_stars"],
+                    "filter_by_verified_purchase_only": ["all_reviews"],
+                    "filter_by_mediaType": ["all_contents"],
+                    "variant_scope": "all_variants",
+                    "unique_only": True,
+                    "get_customers_say": False,
+                    "include_personal_data": False,
+                    "End_date": self.date_from or "1990-01-01"}
+        if self.actor.startswith("memo23~"):
+            # The only adapter with a real DATE RANGE. dateFrom/dateTo bound
+            # the window directly, rather than paging from the newest review
+            # backwards - which is what decides whether reaching 2024 costs
+            # what is inside the window or everything newer than it.
+            b = {"products": [product_id],
+                 "marketplaces": ["com"],
+                 "maxReviewsPerProduct": limit,
+                 "sort": self.sort_param(sort),
+                 "includeVariantReviews": True,
+                 "includeProductSummary": True,
+                 "verifiedOnly": False}
+            if self.date_from:
+                b["dateFrom"] = self.date_from
+            if self.date_to:
+                b["dateTo"] = self.date_to
+            star = f.get("star")
+            if star and star != "all_stars":
+                b["filterByStars"] = [star.replace("_star", "").replace("_", "")]
+            return b
+        if self.actor.startswith("axesso_data~"):
+            # Depth comes from maxPages here, not from a row count: Amazon
+            # serves ~10 reviews a page and caps pagination, so pages are the
+            # unit that actually bounds how far back a run reaches.
+            return {"input": [{
+                "asin": product_id,
+                "domainCode": "com",
+                "sortBy": self.sort_param(sort),
+                "maxPages": self.max_pages,
+                "filterByStar": f.get("star") or "all_stars",
+                "reviewerType": "all_reviews",
+                "formatType": "all_formats",
+                "mediaType": "all_contents",
+            }]}
+        return {
             "productUrls": [{"url": "https://www.amazon.com/dp/%s" % product_id}],
             "maxReviews": limit,
             "sort": self.sort_param(sort),
@@ -879,6 +947,19 @@ class ApifyRoute(ProviderRoute):
             "reviewsUseProductVariantFilter": False,
             "includeGdprSensitive": False,
         }
+
+    def collect(self, product_id, sort, limit, filters=None):
+        f = filters or {}
+        body = self._input_for(product_id, sort, limit, f)
+        # Apify refuses a cap below the actor's own minimum (junglee's is
+        # $0.50). Caught here rather than as a 400, so the message names the
+        # actor's floor instead of the operator guessing.
+        if self.min_charge_usd and self.max_charge_usd < self.min_charge_usd:
+            die("--max-charge-usd %.2f is below %s's minimum of $%.2f, so the\n"
+                "run would be refused. Raise the cap or choose a cheaper actor;\n"
+                "do not assume the floor is what you will be billed - this actor\n"
+                "charges per result and the cap is only a ceiling."
+                % (self.max_charge_usd, self.actor, self.min_charge_usd))
         url = ("https://api.apify.com/v2/acts/%s/run-sync-get-dataset-items"
                "?token=%s&maxTotalChargeUsd=%s"
                % (self.actor, self.token, self.max_charge_usd))
@@ -886,6 +967,8 @@ class ApifyRoute(ProviderRoute):
         code, text, secs = self._http(url, "POST", body)
         meta = {"actor": self.actor, "seconds": round(secs, 1),
                 "max_total_charge_usd": self.max_charge_usd,
+                "max_pages": self.max_pages,
+                "date_from": self.date_from, "date_to": self.date_to,
                 "input": {k: v for k, v in body.items() if k != "productUrls"}}
 
         if code not in (200, 201):
@@ -912,6 +995,48 @@ class ApifyRoute(ProviderRoute):
                      claimed=claimed, requested=limit, requested_at=at,
                      provider="apify", plan_tier=self.plan_tier, cost=cost,
                      parent_asin=par, parent_asin_via="provider field",
+                     raw_meta=meta, review_id_scheme="provider_review_id")
+
+
+class ApifyDatasetRoute(ApifyRoute):
+    """Re-read a dataset an earlier run already produced. Costs nothing.
+
+    Apify charges per result produced, not per read, so a parsing mistake
+    should never cost a second run - and on this budget that is the difference
+    between a fixable bug and a spent month. The first delicious_zebu run
+    returned 100 good reviews that the normaliser dropped because the actor
+    capitalises its field names; this re-read them for free.
+
+    Recorded as the same route and provider as the run that produced them,
+    with the dataset id, because the reviews ARE that batch - re-parsed, not
+    re-collected.
+    """
+
+    def __init__(self, dataset_id, **kw):
+        ApifyRoute.__init__(self, **kw)
+        self.dataset_id = dataset_id
+
+    def collect(self, product_id, sort, limit, filters=None):
+        at = utcnow()
+        code, text, secs = self._http(
+            "https://api.apify.com/v2/datasets/%s/items?token=%s"
+            % (self.dataset_id, self.token))
+        meta = {"actor": self.actor, "dataset_id": self.dataset_id,
+                "seconds": round(secs, 1), "reparse_of_stored_dataset": True,
+                "cost_note": "no actor run; reading a stored dataset is free"}
+        if code != 200:
+            return Batch(route="apify", sort_observed=None, filters=filters or {},
+                         reviews=[], claimed={}, requested=limit, blocked=True,
+                         block_reason="apify_dataset_http_%s" % code,
+                         requested_at=at, provider="apify",
+                         plan_tier=self.plan_tier, raw_meta=dict(meta, body=text[:800]))
+        items = json.loads(text)
+        rows, claimed, obs, par = normalise_provider(items, product_id, "apify")
+        meta["n_items"] = len(items)
+        return Batch(route="apify", sort_observed=obs, filters=filters or {},
+                     reviews=rows, claimed=claimed, requested=limit,
+                     requested_at=at, provider="apify", plan_tier=self.plan_tier,
+                     cost=0.0, parent_asin=par, parent_asin_via="provider field",
                      raw_meta=meta, review_id_scheme="provider_review_id")
 
 
@@ -1047,26 +1172,28 @@ def normalise_provider(items, product_id, provider):
     for i, it in enumerate(items):
         if not isinstance(it, dict):
             continue
-        rid = (it.get("reviewId") or it.get("id") or it.get("review_id") or
-               it.get("reviewUrl") or "")
+        rid = (it.get("reviewId") or it.get("ReviewId") or it.get("id") or
+               it.get("review_id") or it.get("reviewUrl") or "")
         m = re.search(r"(R[A-Z0-9]{8,})", str(rid))
         scheme = "provider_review_id"
         if m:
             rid = m.group(1)
             scheme = "amazon_review_id"
-        date_raw = (it.get("date") or it.get("reviewedAt") or it.get("timestamp") or
-                    it.get("reviewDate") or "")
+        date_raw = (it.get("date") or it.get("ReviewDate") or it.get("reviewedAt") or
+                    it.get("timestamp") or it.get("reviewDate") or "")
         if isinstance(date_raw, dict):
             date_raw = date_raw.get("utc") or date_raw.get("raw") or ""
         date, ts = _provider_date(str(date_raw), tmax)
         if date is None:
             continue
-        text = (it.get("reviewDescription") or it.get("text") or it.get("body") or
-                it.get("content") or "")
-        title = (it.get("reviewTitle") or it.get("title") or "")
+        text = (it.get("reviewDescription") or it.get("ReviewContent") or
+                it.get("text") or it.get("body") or it.get("content") or "")
+        title = (it.get("reviewTitle") or it.get("ReviewTitle") or
+                 it.get("title") or "")
         if not str(text).strip() and not str(title).strip():
             continue
-        rating = it.get("ratingScore") or it.get("rating") or it.get("stars")
+        rating = (it.get("ratingScore") or it.get("ReviewScore") or
+                  it.get("rating") or it.get("stars"))
         try:
             rating = float(str(rating).split()[0])
         except (TypeError, ValueError, IndexError):
@@ -1079,7 +1206,9 @@ def normalise_provider(items, product_id, provider):
         for k in ("sortBy", "sort_by", "sort"):
             if it.get(k):
                 sorts[str(it[k])] += 1
-        for k, dest in (("totalCategoryRatings", "ratings_total"),
+        for k, dest in (("TotalRatings", "ratings_total"),
+                        ("RatingTypeTotalReviewsCount", "reviews_total"),
+                        ("totalCategoryRatings", "ratings_total"),
                         ("countRatings", "ratings_total"),
                         ("totalRatings", "ratings_total"),
                         ("totalCategoryReviews", "reviews_total"),
@@ -1095,22 +1224,26 @@ def normalise_provider(items, product_id, provider):
         # correctly against a wrong input, which is the right failure but still
         # a wrong answer. Parent first, variant never.
         pa = (it.get("productOriginalAsin") or it.get("parent_asin") or
-              it.get("parentAsin") or "")
+              it.get("parentAsin") or it.get("ASIN") or "")
         if pa:
             parents[pa.upper()] += 1
         rows.append({
             "review_id": str(rid),
-            "asin": (it.get("variantAsin") or it.get("productAsin") or
-                     it.get("asin") or product_id or "").upper(),
+            "asin": (it.get("variantAsin") or it.get("VariantASIN") or
+                     it.get("productAsin") or it.get("asin") or
+                     product_id or "").upper(),
             "parent_asin": pa.upper(),
             "review_date": date,
             "title": str(title).replace("\x00", ""),
             "text": str(text).replace("\x00", ""),
             "rating": "" if rating is None else rating,
             "verified_purchase": bool(it.get("isVerified") or it.get("verified") or
-                                      it.get("verified_purchase")),
+                                      it.get("verified_purchase") or
+                                      it.get("Verified") or
+                                      it.get("VerifiedPurchase")),
             "helpful_vote": _provider_votes(it),
-            "review_country": str(it.get("country") or it.get("reviewCountry") or ""),
+            "review_country": str(it.get("country") or it.get("ReviewCountry") or
+                                  it.get("reviewCountry") or ""),
             "vine_voice": bool(it.get("isAmazonVine") or it.get("vine") or
                                it.get("isVine")),
             "review_id_scheme": scheme,
@@ -1128,7 +1261,7 @@ def _provider_votes(it):
     numeric, so a plain int() would silently record 0 for every review that has
     votes - the field the degradation test reads.
     """
-    for k in ("helpfulVotes", "helpful_votes", "helpful"):
+    for k in ("helpfulVotes", "HelpfulVotes", "helpful_votes", "helpful"):
         v = it.get(k)
         if isinstance(v, int):
             return v
@@ -1169,6 +1302,17 @@ def _provider_date(s, tmax):
 # --------------------------------------------------------------------------
 # Coverage (CORE-PROMPT §4)
 # --------------------------------------------------------------------------
+
+def _is_unfiltered(filters):
+    """Was this batch taken over the whole review population?
+
+    Only an unfiltered batch's claimed total describes the population a series
+    is a fraction OF. A star-filtered batch counts that star alone.
+    """
+    f = filters or {}
+    star = f.get("star") or "all_stars"
+    return str(star) in ("all_stars", "allStars", "all", "")
+
 
 def coverage(collected_total, claimed):
     """(ratio, claimed_total, basis). None rather than a guess.
@@ -1387,7 +1531,26 @@ def record_batch(outdir, group_id, member, asin, batch, cadence, batch_id,
     on_product = sum(1 for r in load_reviews(outdir, group_id, slug).values()
                      if (r.get("parent_asin") or r.get("asin") or "").upper() == pkey)
     ratio_batch, claimed_total, basis = coverage(batch.returned, batch.claimed)
-    ratio_series, _c, _b = coverage(on_product, batch.claimed)
+
+    # The SERIES denominator must be the unfiltered population, not this
+    # batch's. A star-filtered batch reports the count for that star only (49
+    # one-star reviews), and dividing the whole series by it gave "143 of 49"
+    # - a coverage ratio of 292%. §4 requires this number beside every tone
+    # number, so a ratio that can exceed 1 is not a rounding problem.
+    widest = dict(batch.claimed)
+    wmax = (claimed_total or 0) if _is_unfiltered(batch.filters) else 0
+    wsrc = "this batch" if wmax else None
+    for b in read_jsonl(batches_path(outdir, group_id, slug)):
+        if (b.get("asin") or "").upper() != asin.upper():
+            continue
+        if not _is_unfiltered(b.get("filters")):
+            continue
+        ct = b.get("claimed_total") or 0
+        if ct > wmax:
+            wmax, wsrc = ct, b.get("batch_id")
+    if wmax:
+        widest = {"reviews_total": wmax} if basis == "reviews" else {"ratings_total": wmax}
+    ratio_series, series_denom, series_basis = coverage(on_product, widest)
 
     rec = OrderedDict([
         # --- CONTRACTS.md §3, in its order and with its spellings ---
@@ -1433,6 +1596,8 @@ def record_batch(outdir, group_id, member, asin, batch, cadence, batch_id,
          else declared_parent.upper() == (batch.parent_asin or "").upper()),
         ("sort_order_observed", batch.sort_observed),
         ("coverage_ratio_series", ratio_series),
+        ("coverage_series_denominator", series_denom),
+        ("coverage_series_denominator_from", wsrc),
         ("reviews_on_product_after", on_product),
         ("group_id", group_id),
         ("company", member.get("company")),
@@ -1744,9 +1909,9 @@ def cmd_collect(args, route, stage_note):
         print("coverage_ratio     %.6f  (%.4f%% of %d, %s basis)"
               % (rec["coverage_ratio"], 100.0 * rec["coverage_ratio"],
                  rec["claimed_total"], rec["claimed_total_basis"]))
-        print("coverage of series %.6f  (%d of %d)"
+        print("coverage of series %.6f  (%d of %s, the unfiltered population)"
               % (rec["coverage_ratio_series"], rec["reviews_on_product_after"],
-                 rec["claimed_total"]))
+                 rec["coverage_series_denominator"]))
     print("\nnew                %d" % rec["merge"]["new"])
     print("already held       %d  (deduped by review identifier)"
           % rec["merge"]["duplicates"])
@@ -1789,8 +1954,16 @@ def cmd_fetch(args):
     if args.provider == "apify":
         kw["max_charge_usd"] = args.max_charge_usd
         kw["price_per_review"] = args.price_per_review
+        kw["max_pages"] = args.max_pages
+        kw["date_from"] = args.date_from
+        kw["date_to"] = args.date_to
         if args.actor:
             kw["actor"] = args.actor
+    if args.provider == "apify" and getattr(args, "dataset_id", None):
+        route = ApifyDatasetRoute(args.dataset_id, **kw)
+        return cmd_collect(args, route,
+                           "Route B: re-parse of stored Apify dataset %s (free)"
+                           % args.dataset_id)
     return cmd_collect(args, cls(**kw),
                        "Route B: %s on the %s tier" % (args.provider, args.plan))
 
@@ -1985,6 +2158,11 @@ def cmd_selftest(args):
               len(obs) == 1 and obs[0]["diffs"]["helpful_vote"]["now"] == "99")
         check("re-collection never duplicates a row score_reviews would collide on",
               len({r["review_id"] for r in rows.values()}) == len(rows))
+
+        check("an unfiltered batch is recognised as the population",
+              _is_unfiltered({"star": "all_stars"}) and _is_unfiltered({}))
+        check("a star-filtered batch is NOT treated as the population",
+              not _is_unfiltered({"star": "one_star"}))
 
         print("\n6 · reviews.csv satisfies CONTRACTS.md §2")
         cols = open(reviews_path(outdir, "testgroup", "test-co"),
@@ -2187,6 +2365,9 @@ def cmd_selftest(args):
         check("changing a declared cadence without a reason is refused",
               dies(cmd_plan, _args(root=root, group="testgroup",
                                    cadence="daily", reason=None, show=False)))
+        check("a spend cap below the actor's floor is refused before the run",
+              dies(ApifyRoute(token="x", actor="junglee~amazon-reviews-scraper",
+                              max_charge_usd=0.2).collect, "B0", "recent", 10, {}))
         check("an unknown star filter is refused before the run is paid for",
               dies(ApifyRoute(token="x").star_param, "six_star"))
         check("an unknown provider is refused even bypassing argparse",
@@ -2412,6 +2593,14 @@ def main():
     sp.add_argument("--max-charge-usd", type=float, default=1.0,
                     help="hard spend cap sent to the provider; the run is "
                          "stopped rather than billed past it")
+    sp.add_argument("--dataset-id",
+                    help="re-parse a stored Apify dataset instead of running "
+                         "the actor again; costs nothing")
+    sp.add_argument("--date-from", help="window start (actors that support it)")
+    sp.add_argument("--date-to", help="window end (actors that support it)")
+    sp.add_argument("--max-pages", type=int, default=10,
+                    help="depth in Amazon review pages (~10 reviews each); "
+                         "what actually bounds how far back a run reaches")
     sp.add_argument("--price-per-review", type=float,
                     help="the actor's per-review price, recorded with the batch "
                          "so the budget can be reasoned about")

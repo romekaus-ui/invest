@@ -1,0 +1,31 @@
+{
+  "group_id": "yeti-lumpiness-fixture",
+  "declared_at": "2026-10-14",
+  "seed": "MEASUREMENT FIXTURE — three slow YETI products from different sub-lines, to test whether review lumpiness is correlated across one company's products",
+  "hash": "UNVERIFIED-fixture",
+  "_note": "NOT a peer-group declaration: one member, no peer, concentration evidence is a placeholder. It answers one question — when a company's products pool into one company-quarter (aggregate.py buckets across ASINs), do their quiet quarters coincide? Products were chosen for low velocity, old listings alive across 2024-2026, and distinct parent ASINs. LIMITATION: two of the three are Tundra hard coolers of different sizes, so a shock to the hard-cooler category would hit them together; this is a partial independence test, not a clean one.",
+  "members": [
+    {
+      "company": "YETI Holdings, Inc.",
+      "venue": "NYSE:YETI",
+      "brands": ["YETI"],
+      "concentration": {
+        "dominant_line": "insulated drinkware and coolers",
+        "share_of_revenue": null,
+        "evidence": "FIXTURE — see groups/insulated-drinkware.json for the declared evidence",
+        "source_url": null,
+        "no_public_report": false,
+        "revenue_readable": true
+      },
+      "products": [
+        {"asin": "B003V51GUE", "parent_asin": "B003V51GUE", "marketplace": "amazon.com",
+         "name": "Tundra 105 Cooler (146 ratings, listed ~2010, own parent)"},
+        {"asin": "B004CG9QU8", "parent_asin": "B0DXKXJNYZ", "marketplace": "amazon.com",
+         "name": "Tundra 110 Cooler (277 ratings, listed ~2011)"},
+        {"asin": "B00SU9AL52", "parent_asin": "B07PNC9HBZ", "marketplace": "amazon.com",
+         "name": "TANK 45 Bucket Cooler (325 ratings, listed ~2015, different sub-line)"}
+      ],
+      "reporting": {"calendar": "quarterly", "currency": "USD", "fy_end": "1231", "source": "SEC"}
+    }
+  ]
+}
