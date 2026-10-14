@@ -92,14 +92,37 @@ Rules this encodes (CORE-PROMPT §2, PLAN.md concentration filter):
   quarter, and clearing a floor of 30 needs `N ≥ 30 / (91.3 × 100/D)`. For
   2024-01-01 → today that is **≤ 0.098 reviews/day and N ≥ 4 products**.
 
-  **Open, and it decides whether this works: is review lumpiness independent across a
-  company's products?** C&Berg inside the window ran 16, 13, 15, 13, 4, 6, 6, 2, 1, 4,
-  17, 2 per quarter — mean 8.2, close to the predicted 9.0, but the thinnest quarter is
-  **1**. Sized on the mean, 4 products suffice; sized on the thinnest, 30. If products
-  go quiet independently, pooling smooths and 4–7 works. If a company's products go
-  quiet together — a promotion ending, seasonality, a review-solicitation campaign —
-  pooling does not smooth at all and thin quarters stay thin however many are added.
-  **Unmeasured. One product cannot answer it.**
+  **The screen is a velocity BAND, not a minimum — "find slow products" was wrong.**
+  Measured 2026-10-14 across three YETI sub-lines and C&Berg:
+
+  | product | reviews in window | per quarter | vs ideal | products needed |
+  |---|---|---|---|---|
+  | Tundra 105 | 8 | 0.7 | 0.08× | 42 |
+  | TANK 45 | 10 | 0.9 | 0.10× | 34 |
+  | Tundra 110 | 12 | 1.1 | 0.12× | 28 |
+  | **C&Berg lids** | **99** | **8.9** | **0.99×** | **4** |
+
+  The ideal is a *specific rate*, `v ≈ 100/D` — for the 2024 window, **0.098/day**,
+  ~9 reviews per quarter, ~100 inside the window. Both edges bite:
+
+  > **too fast** → the 100-review pass cannot reach back far enough
+  > **too slow** → the quarters inside the window are empty
+
+  **§1 screens for velocity within ~0.5×–1.0× of `100/D`** — products accumulating
+  **~50–100 reviews inside the target window**. This is computable for free from a
+  listing's ratings count and age; no collection is needed to apply it.
+
+  **Lumpiness: measured low, so pooling smooths.** Across the 45 quarters the three
+  YETI products jointly cover, pairwise correlation ran **r = +0.07 to +0.23** — quiet
+  quarters do not coincide. At band velocity with that independence, **4 products per
+  company** clears the 30-review floor.
+
+  **The caveat, stated because the 4 depends on it:** that correlation was measured on
+  products ~10× below the band, where quarters hold 0–3 reviews and `r` cannot be pinned
+  tightly. It **points to** independence; it does not prove it. A clean test needs two
+  or three products near 0.10/day, and C&Berg is the only one found so far. **The risk
+  is therefore not the pooling — it is picking products outside the band**, which costs
+  28–42 products instead of 4. That is a screening failure, and screening is free.
 ### Amazon presence is a membership criterion, not a detail
 
 **Amazon is the only sensor this project has.** A company Amazon barely sees cannot be
