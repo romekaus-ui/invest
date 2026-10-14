@@ -264,6 +264,59 @@ coverage figure is a **lower bound on the denominator and therefore an upper bou
 coverage**. And `helpful_vote` is 0 for all ten because they are three days old — the
 provider returns `reviewReaction: null`, checked, not assumed.
 
+### Depth: can the 2024–2026 window be reached? (measured 2026-10-14)
+
+No, for a busy product, at any price. The limit is Amazon's pagination, not the budget.
+
+Four actors tried against YETI Rambler, parent `B07SGPJBZ6`, `sort=recent`:
+
+| actor | $/review | result |
+|---|---|---|
+| `junglee` | 0.006 | **10 per run** — free-plan cap, stated in its own log |
+| `axesso_data` | 0.0009 | **refused**: *"Actor usage only allowed for paying user"* ($0) |
+| `memo23` | 0.004 | `dateFrom`/`dateTo` is a **post-filter**: harvested 13, kept 0 ($0.015) |
+| `delicious_zebu` | 0.006 | **100 reviews, 10 pages** ($0.63) |
+
+The best result, 100 reviews, spans **2026-09-22 → 2026-10-12: twenty days**. All 2026.
+None from 2024 or 2025.
+
+**The arithmetic that settles it.** This product runs ~5.0 reviews/day. Reaching
+2024-01-01 is 1,017 days back, so ~5,085 reviews ≈ $31 — five times the whole monthly
+budget for one product. But money is not the binding constraint: **Amazon caps pagination
+at 10 pages of ~10 per filter combination**, so ~100 is the ceiling per pass however much
+is spent. `delicious_zebu` used exactly 10 pages and stopped.
+
+So the requirement is a **velocity** test, not a budget test:
+
+> a product can span 2024-01-01 → today inside one 100-review pass only if it averages
+> **≤ 0.10 reviews/day** — roughly 100 reviews in three years.
+
+A star fanout multiplies this, because each star rating has its own 10-page window and a
+rare rating reaches much further back at the same page depth. It was requested here and
+the actor served only `all_stars`, so the multiplier is **unverified**; at best it raises
+the bar to ~0.6 reviews/day, still far below a flagship consumer product.
+
+**`dateFrom`/`dateTo` does not help**, and that is the most useful negative result:
+`memo23` harvested the public page's 13 reviews and then discarded the ones outside the
+window. The date range filters what was fetched; it does not ask Amazon for older
+reviews. Nothing in these actors reaches past the newest ~100.
+
+One caveat that belongs with any history collected this way: what is scraped today is
+the reviews that **survived**. Deleted and edited ones are not recoverable, so a 2024
+slice is a survivor sample, not a contemporaneous record.
+
+### Re-parsing costs nothing — use it
+
+Apify charges per result produced, not per read. `--dataset-id` re-reads a stored
+dataset through the same normaliser for $0. The 100-review run above was initially parsed
+to **zero rows**, because `delicious_zebu` capitalises its field names (`ReviewId`,
+`ReviewDate`, `ReviewContent`); re-reading recovered all 100 without a second run. On a
+$6 budget that is the difference between a fixable bug and a spent month.
+
+It also demonstrated cross-provider dedup: 10 of the 100 were already held from the
+`junglee` batch and merged as one review, and two came back with different text from the
+two providers, which was flagged rather than silently overwritten.
+
 ### What the first live run cost in defects
 
 The parent-mismatch guard fired on its first real provider data — correctly, against a
