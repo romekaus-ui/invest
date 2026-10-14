@@ -108,7 +108,7 @@ TONE_VALUES = (-2, -1, 0, 1, 2)
 TAGS = ("seller_or_shipping_only", "defect", "price_complaint")
 RESPONSE_KEYS = frozenset(("review_id", "tone") + TAGS)
 
-DEFAULT_MODEL = "claude-haiku-4-5"
+DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 DEFAULT_BASE_URL = "https://api.anthropic.com"
 MAX_TEXT_CHARS = 6000
 RETRY_STATUS = frozenset((408, 409, 429, 500, 502, 503, 504, 529))
