@@ -1,0 +1,312 @@
+{
+ "measured_at": "2026-10-15",
+ "question": "Is there a public company with >= 2 years of reachable dated review text?",
+ "answer": "Yes. Traeger (NYSE:COOK) carries 28 consecutive quarters above the 30-text-review floor via the Bazaarvoice public display API. YETI (NYSE:YETI), BellRing (NYSE:BRBR), Simply Good Foods (NASDAQ:SMPL), Olaplex (NASDAQ:OLPX) and Turtle Beach (NASDAQ:TBCH) also clear 2 years.",
+
+ "correction_made_during_this_session": {
+  "what_went_wrong": "The first sweep of the Bazaarvoice CDN fetched bv.js WITHOUT accepting gzip. Bazaarvoice gzips some zones regardless of Accept-Encoding, so those bodies decoded to binary and the displayCode / legacyScoutUrl regexes silently found nothing. Five zones were recorded as 'unprovisioned stubs' on that basis.",
+  "it_was_wrong_for": ["monsterenergy", "redbull", "owala", "simplygoodfoods", "logitech"],
+  "all_five_in_fact_publish_a_display_key": true,
+  "caught_by": "re-running the same check through measure_widget_route.py, which requests gzip. Traeger's zone had always worked because curl --compressed was used for it, so the discrepancy only showed when both paths were compared.",
+  "the_lesson_worth_keeping": "A regex finding nothing is evidence only once the body is known to be text. A negative from a parser is not a negative from the server. Four of five companies written off on 2026-10-15 were written off by a bug in the measuring instrument, not by the thing being measured - and three of them turned out to matter.",
+  "what_it_changed": "Red Bull (7.8 years, 100% text, newest 1 day old) and Owala (14,029 reviews) went from unreachable to reachable. Monster and Logitech went from 'stub' to the more precise and more useful 'route works, catalog empty' - which is a different fact with a different remedy."
+ },
+
+ "how_the_route_works": {
+  "summary": "Three review platforms (Bazaarvoice, PowerReviews, Yotpo) each expose a documented DISPLAY API whose key is published, in the clear, by the platform's own CDN to every visitor's browser. Reading that published key and calling the display endpoint is the same thing the page itself does. No account, no login, no cost, no header spoofing.",
+  "bazaarvoice": {
+   "step_1": "GET the brand page, read the deployment zone: apps.bazaarvoice.com/deployments/<client>/<site>/production/<locale>/bv.js",
+   "step_2": "That file carries displayCode and legacyScoutUrl (display.ugc.bazaarvoice.com/static/<Client>/<site>/<locale>/bvapi.js). Fetch BOTH bv.js AND the scout file WITH gzip accepted - Bazaarvoice gzips some zones regardless of Accept-Encoding, and decoding that as text gives a binary blob in which every regex silently fails. This produced five false negatives in this very session; see correction_made_during_this_session.",
+   "step_3": "The scout file publishes passkey:\"ca...\". Ignore b8d57893b7754e2d390348dc172b7c76, which is Bazaarvoice's own and appears in every scout file.",
+   "step_4": "GET https://api.bazaarvoice.com/data/products.json?apiversion=5.4&passkey=<KEY>&Limit=100&Sort=TotalReviewCount:desc&Stats=Reviews to find ProductIds.",
+   "step_5": "GET https://api.bazaarvoice.com/data/reviews.json?apiversion=5.4&passkey=<KEY>&Filter=ProductId:eq:<PID>&Limit=100&Offset=<N>&Sort=SubmissionTime:desc&Include=Products&Stats=Reviews",
+   "notes": [
+    "Limit max is 100. Offset paginates to exhaustion; there is NO cap.",
+    "A query with no ProductId/AuthorId/CategoryAncestorId/SubmissionId/Id EQ filter is refused (ERROR_PARAM_INVALID_FILTER_ATTRIBUTE), so the catalog must be walked product by product.",
+    "Sort=SubmissionTime:desc was verified against the dates, not trusted: 0 inversions across every collection taken."
+   ]
+  },
+  "powerreviews": {
+   "step_1": "GET the brand PDP, read merchant_id and the api_key UUID from the page source, plus page_id.",
+   "step_2": "GET https://display.powerreviews.com/m/<MERCHANT>/l/en_US/product/<PAGE_ID>/reviews?paging.from=<N>&paging.size=25&filters=&search=&sort=Newest&image_only=false&apikey=<KEY>",
+   "notes": [
+    "paging.size max is 25 - 100 returns HTTP 400.",
+    "rating lives at metrics.rating, NOT details.rating (details.rating is always null).",
+    "created_date is epoch milliseconds.",
+    "paging.total_results gives the true total; pagination runs to exhaustion with no cap."
+   ]
+  },
+  "yotpo": {
+   "step_1": "Read the Yotpo app key from the brand's bundle and the platform product id from data-yotpo-product-id on the PDP.",
+   "step_2": "GET https://api-cdn.yotpo.com/v1/widget/<APP_KEY>/products/<PID>/reviews?per_page=100&page=<N>&sort=date&direction=desc",
+   "notes": [
+    "A wrong app key returns HTTP 200 with pagination.page=0 and total=0 rather than an error, so the key must be confirmed against a non-zero total.",
+    "Several 40-char strings in a bundle look like app keys; 3 of 6 candidates worked for Turtle Beach and returned the same product, differing by 2 reviews."
+   ]
+  }
+ },
+
+ "measurements": [
+  {
+   "company": "Traeger, Inc.", "venue": "NYSE:COOK", "public": true,
+   "platform": "bazaarvoice", "client": "traegerservice", "display_code": "17661",
+   "catalog_products": 5472,
+   "products_measured": ["TFB57GLE", "TFB78GLE", "TFB89BLF", "TFB88PZB", "TFB97JLH", "TBB01RLG", "TFB93RLG", "TFB01WLE", "TFB65BLF"],
+   "single_product_TFB57GLE": {
+    "total_claimed": 1215, "collected": 1215, "unique_ids": 1215,
+    "pagination_caps": false, "exhausted_at_offset": 1200,
+    "dates_descending_verified": true, "date_inversions": 0,
+    "oldest": "2019-03-20", "newest": "2026-10-11", "reach_years": 7.6,
+    "with_text": 1183, "with_text_pct": 97.4,
+    "newest_review_age_days": 4,
+    "star_spread": {"1": 149, "2": 56, "3": 62, "4": 106, "5": 842}
+   },
+   "aggregate_across_7_distinct_families": {
+    "unique_text_bearing_reviews": 3917,
+    "id_overlap_between_families": 0,
+    "quarters_clearing_30_text_floor": "30 of 44",
+    "consecutive_run": "2019Q2 through 2026Q1 inclusive - 28 consecutive quarters",
+    "gap": "2026Q2 fell to 27, one quarter below the floor; 2026Q3 recovered to 36",
+    "MIN_QUARTERS_12_cleared": true
+   },
+   "cost": "free", "account_needed": false
+  },
+  {
+   "company": "Weber Inc.", "venue": "private", "public": false,
+   "platform": "bazaarvoice", "client": "weber", "display_code": "11600",
+   "catalog_products": 4263,
+   "product": "44010001 Spirit II E-210",
+   "total_claimed": 18772, "pagination_caps": false, "exhausted_at_offset": 18700,
+   "oldest": "2018-03-23", "newest": "2026-09-12", "reach_years": 8.5,
+   "with_text_pct_by_era": {"2026": 34, "2024": 35, "2023": 45, "2021": 32, "2019": 100},
+   "cost": "free", "account_needed": false,
+   "role": "category control for barbecue-grills - tone only, never revenue (references/signal.md)"
+  },
+  {
+   "company": "YETI Holdings, Inc.", "venue": "NYSE:YETI", "public": true,
+   "platform": "bazaarvoice", "client": "yeti", "display_code": "18290",
+   "note": "TWO deployment zones exist and BOTH publish a key: yeti/yeticom_sfra/en_US and yeti/main_site/en_US. The passkey measured here came from yeticom_sfra, which is the one www.yeti.com loads.",
+   "catalog_products": 26945,
+   "product": "rambler-20oz 20 oz Tumbler",
+   "total_claimed": 35516, "collected_first_pass": 3000,
+   "pagination_caps": false, "exhausted_at_offset": 35500,
+   "dates_descending_verified": true, "date_inversions": 0,
+   "oldest": "2014-04-17", "newest": "2026-10-15", "reach_years": 12.5,
+   "newest_review_age_days": 0,
+   "with_text_pct_overall_first_3000": 24.3,
+   "with_text_pct_by_era": {"2026Q4": 6, "2026Q2": 36, "2021": 35, "2018": 96, "2014": 98},
+   "quarters_clearing_30_text_floor_on_ONE_product": "7 of 9 in the first 3000 reviews",
+   "caveat": "YETI collects mostly star-only ratings now. Text fraction fell from ~97% in 2018 to 6-36% in 2026. Volume is high enough that the floor is still cleared, but the text-bearing population is a SHRINKING and possibly self-selecting minority, and that shift is itself a confound across the series.",
+   "cost": "free", "account_needed": false,
+   "resolves": "The yeti.com Akamai/captcha.js block recorded earlier is irrelevant to this route. The block is on yeti.com; the review data is on api.bazaarvoice.com, which did not refuse."
+  },
+  {
+   "company": "BellRing Brands, Inc.", "venue": "NYSE:BRBR", "public": true,
+   "platform": "powerreviews", "merchant_id": "804682",
+   "product": "PremierProtein_ProteinShake_Chocolate",
+   "total_claimed": 2201, "collected": 2201, "unique_ids": 2201,
+   "pagination_caps": false, "pages_walked": 89,
+   "dates_descending_verified": true, "date_inversions": 0,
+   "oldest": "2016-09-17", "newest": "2026-09-28", "reach_years": 10.0,
+   "with_text": 2201, "with_text_pct": 100.0,
+   "newest_review_age_days": 17,
+   "star_spread": {"1": 55, "2": 61, "3": 196, "4": 693, "5": 1196},
+   "cost": "free", "account_needed": false
+  },
+  {
+   "company": "The Simply Good Foods Company", "venue": "NASDAQ:SMPL", "public": true,
+   "platform": "bazaarvoice", "client": "questnutrition", "display_code": "13325",
+   "catalog_products": 518,
+   "product": "7052413403210 Quest Peanut Butter Cups",
+   "total_claimed": 1388, "pagination_caps": false, "exhausted_at_offset": 1300,
+   "oldest": "2020-09-23", "newest": "2026-09-22", "reach_years": 6.0,
+   "with_text_pct": 75,
+   "cost": "free", "account_needed": false,
+   "note": "atkins.com returned 404 on the sampled PDP and no atkins Bazaarvoice zone exists; the SMPL brand reachable here is Quest."
+  },
+  {
+   "company": "Olaplex Holdings, Inc.", "venue": "NASDAQ:OLPX", "public": true,
+   "platform": "bazaarvoice", "client": "olaplex", "display_code": "10548",
+   "catalog_products": 894,
+   "product": "20142840 No.3 Hair Perfector",
+   "total_claimed": 4886, "pagination_caps": false, "exhausted_at_offset": 4800,
+   "oldest": "2019-02-26", "newest": "2026-10-12", "reach_years": 7.6,
+   "with_text_pct_by_era": {"recent": 88, "2023": 59, "2022": 64, "2020": 61},
+   "cost": "free", "account_needed": false,
+   "moderation_flag": "Olaplex's catalog contains a product literally named 'Removed Products Reviews' (ProductId RemovedProductsReviews) holding 8,928 reviews. Reviews of delisted products are swept into a bucket rather than deleted - which is better than deletion, and is also direct evidence that the brand curates what appears against a live product.",
+   "note": "Not a member of any declared group. Measured because it was the lead handed to this session."
+  },
+  {
+   "company": "Turtle Beach Corporation", "venue": "NASDAQ:TBCH", "public": true,
+   "platform": "yotpo",
+   "product": "6963833667686 Stealth 600 Headset (Gen 3)",
+   "total_claimed": 555, "collected": 555, "unique_ids": 555,
+   "pagination_caps": false, "pages_walked": 6,
+   "dates_descending_verified": true, "date_inversions": 0,
+   "oldest": "2024-06-05", "newest": "2026-10-10", "reach_years": 2.35,
+   "with_text": 555, "with_text_pct": 100.0,
+   "flagged_deleted": 0,
+   "newest_review_age_days": 5,
+   "star_spread": {"1": 36, "2": 17, "3": 26, "4": 61, "5": 415},
+   "cost": "free", "account_needed": false
+  },
+  {
+   "company": "Bose Corporation", "venue": "private", "public": false,
+   "platform": "bazaarvoice", "client": "bose", "display_code": "13084",
+   "catalog_products": 1861,
+   "product": "ULT-HEADPHONEOPN Bose Ultra Open Earbuds",
+   "total_claimed": 5113, "pagination_caps": false, "exhausted_at_offset": 5100,
+   "oldest": "2024-02-09", "newest": "2026-10-15", "reach_years": 2.7,
+   "with_text_pct": 97,
+   "newest_review_age_days": 0,
+   "cost": "free", "account_needed": false,
+   "role": "category control for wireless-speakers - tone only. Deepest Bose products are earbuds/headphones rather than the declared SoundLink speaker, so substitutability must be re-checked before this is used as the peer."
+  },
+  {
+   "company": "Red Bull GmbH", "venue": "private", "public": false,
+   "platform": "bazaarvoice", "client": "redbull", "display_code": "23015",
+   "catalog_products": 104,
+   "product": "00611269991000 Red Bull Energy Drink 8.4 Fl Oz",
+   "total_claimed": 8859, "pagination_caps": false, "exhausted_at_offset": 8800,
+   "oldest": "2019-01-09", "newest": "2026-10-14", "reach_years": 7.8,
+   "with_text_pct": 100, "newest_review_age_days": 1,
+   "cost": "free", "account_needed": false,
+   "role": "category control for energy-drinks - tone only, never revenue",
+   "pooling_warning": "All six top ProductIds report an identical 8,859 - a pooled family across pack sizes and can counts. Dedupe by review id before using more than one.",
+   "found_only_after_correction": true,
+   "but": "energy-drinks has no reachable PUBLIC member, so this control controls for a test that cannot be run."
+  },
+  {
+   "company": "Trove Brands, LLC (Owala)", "venue": "private", "public": false,
+   "platform": "bazaarvoice", "client": "owala", "display_code": "26006",
+   "catalog_products": 141,
+   "product": "SC02043 Owala FreeSip 24oz Stainless",
+   "total_claimed": 14029, "pagination_caps": false, "exhausted_at_offset": 14000,
+   "oldest": "2020-03-07", "newest": "2022-07-28", "reach_years": 2.4,
+   "with_text_pct": 68,
+   "newest_review_age_days": 1540,
+   "verdict": "HISTORY ONLY - THE DEPLOYMENT IS ABANDONED",
+   "why_it_matters": "14,029 reviews across 2.4 years at ~68% text is a genuinely good history sample, and it stops dead in July 2022. Owala moved off Bazaarvoice and left the data behind. Useful for a 2020-2022 backtest, worthless for a forward cadence, and a reading that mixed it with live peers would compare 2022 tone against 2026 tone.",
+   "found_only_after_correction": true,
+   "general_lesson": "Reach is two numbers, not one: how far BACK a route goes and how far FORWARD. Every route before this one had a newest review within days or a couple of months, so only the back edge was ever recorded. It must be both from here on."
+  },
+  {
+   "company": "Monster Beverage Corporation", "venue": "NASDAQ:MNST", "public": true,
+   "platform": "bazaarvoice", "client": "monsterenergy", "display_code": "18670",
+   "catalog_products": 1,
+   "reachable": true,
+   "verdict": "ROUTE WORKS, CATALOG ESSENTIALLY EMPTY",
+   "deepest_product": "980175158 Monster Energy Ultra Paradise 16oz 24pk, 52 reviews, 2019-04-04 to 2019-06-20",
+   "why": "The deployment holds exactly ONE product and 52 reviews from a 77-day window in 2019. Monster does not collect reviews on its own site in any meaningful way. Not a refusal and not a block - there is simply nothing there, and unlike Corsair there is no sign it is filling up.",
+   "found_only_after_correction": true,
+   "supersedes": "the earlier reading of monsterenergy.com as a 403 wall. The 403 is real and irrelevant: the data is on api.bazaarvoice.com and there is none of it."
+  },
+  {
+   "company": "The Simply Good Foods Company (Atkins brand)", "venue": "NASDAQ:SMPL", "public": true,
+   "platform": "bazaarvoice", "client": "simplygoodfoods", "display_code": "19060",
+   "catalog_products": 2386,
+   "product": "6816588038222 Endulge Chocolate Peanut Candies",
+   "total_claimed": 3422, "pagination_caps": false, "exhausted_at_offset": 3400,
+   "oldest": "2016-11-02", "newest": "2026-10-02", "reach_years": 9.9,
+   "with_text_pct_by_era": {"recent": 33, "2023": 93, "2016": 100},
+   "cost": "free", "account_needed": false,
+   "found_only_after_correction": true,
+   "note": "SMPL is reachable through TWO zones - questnutrition (Quest) and simplygoodfoods (Atkins/Endulge, 2,386 products). This matters for the concentration filter: a company tracked through two brands on two zones is being measured across more of its revenue, which is what CORE-PROMPT's concentration rule actually wants. The earlier note that 'the SMPL brand reachable here is Quest' was wrong."
+  },
+  {
+   "company": "Logitech International S.A.", "venue": "NASDAQ:LOGI", "public": true,
+   "platform": "bazaarvoice", "client": "logitech", "display_code": "27080",
+   "catalog_products": 0,
+   "reachable": true,
+   "verdict": "KEY PUBLISHED, CATALOG EMPTY - ZERO PRODUCTS",
+   "why": "products.json returns TotalResults 0 with no errors. The zone is provisioned and serves nothing. Logitech's PDPs also return 308/404 to anonymous requests, so where its reviews actually live is still unknown.",
+   "found_only_after_correction": true,
+   "next_step": "browser pane against a live Logitech PDP to see which review service the page calls. Not attempted: the built-in browser refused navigation to the one external site tried this session."
+  },
+  {
+   "company": "Corsair Gaming, Inc.", "venue": "NASDAQ:CRSR", "public": true,
+   "platform": "bazaarvoice", "client": "corsair", "display_code": "13825",
+   "catalog_products": 6644,
+   "reachable": true,
+   "verdict": "REACHABLE BUT NO HISTORY",
+   "deepest_product": "CC-9011306-WW with 143 reviews, 2026-08-28 to 2026-10-01 - 34 days",
+   "declared_product_in_group": "the HS80 gaming headset family carries ~22 reviews",
+   "why": "Corsair's Bazaarvoice deployment is new. The route works perfectly and there is simply almost nothing in it. This is a company fact, not a route fact, and it will fix itself with time."
+  }
+ ],
+
+ "doors_closed": [
+  {
+   "route": "Bazaarvoice bfd proxy (apps.bazaarvoice.com/bfd/v1/clients/<client>/...)",
+   "result": "HTTP 401 Unauthorized",
+   "verified_for": ["traegerservice with displaycode 17661-en_us", "olaplex with displaycode 10548-en_us"],
+   "action": "Recorded and stopped. NOT routed around. No Referer or Origin header was sent to it. The bfd proxy exists precisely so the page need not expose a passkey; the deployments measured above expose one anyway through the legacy scout file, which is a different endpoint that did not refuse."
+  },
+  {
+   "route": "Sonos, Inc. (NASDAQ:SONO) brand site",
+   "result": "NO REVIEWS SERVED AT ALL",
+   "evidence": "The Era 100 PDP ships a PowerReviews integration whose config reads \"powerReviews\":{\"merchantGroupId\":null,\"merchantID\":null}. Both identifiers are null, so the widget never fires. No sonos Bazaarvoice zone exists (404). The earlier 'powerreviews + okendo' detection was a false positive from case-insensitive substring matching against 'merchantID' and the filter label 'okenDolbyAtmos'.",
+   "consequence": "wireless-speakers cannot be tested on this route. Bose, the PRIVATE peer, is reachable; the public member is not. That is the wrong way round."
+  },
+  {
+   "route": "Celsius Holdings (NASDAQ:CELH) brand site",
+   "result": "NO REVIEW WIDGET",
+   "evidence": "celsius.com homepage and a product page both return HTTP 200 and contain no Bazaarvoice, PowerReviews, Yotpo, Okendo, TurnTo, Reevoo, Trustpilot or Reviews.io marker. No celsius Bazaarvoice zone exists (404)."
+  },
+  {
+   "route": "Monster Beverage (NASDAQ:MNST) and Red Bull brand sites",
+   "result": "both 403 to anonymous requests - AND IRRELEVANT",
+   "note": "Superseded. Both have provisioned Bazaarvoice deployments reachable on api.bazaarvoice.com, which did not refuse: Red Bull holds 8,859 reviews over 7.8 years, Monster holds 52 from 2019. See the measurements. The brand site's 403 said nothing about the review data, the same way yeti.com's Akamai block said nothing. Recorded and stopped at the brand site; nothing was routed around."
+  },
+  {
+   "route": "Helen of Troy / Hydro Flask (NASDAQ:HELE) brand site",
+   "result": "HTTP 403 Cloudflare interstitial ('Just a moment...')",
+   "action": "Recorded and stopped. No hydroflask or helenoftroy Bazaarvoice zone exists (404)."
+  },
+  {
+   "route": "Logitech International (NASDAQ:LOGI) and Trove Brands / Owala brand sites",
+   "result": "superseded - see the measurements",
+   "note": "Both were written off here on a false negative. Logitech's zone is provisioned with an empty catalog; Owala's holds 14,029 reviews that stop in July 2022. The brand-site findings stand (Logitech PDPs 308/404, owalalife.com PDP 404 and a captcha marker on the homepage) and are simply not the deciding evidence."
+  },
+  {
+   "route": "Pacific Market International / Stanley brand site, Bazaarvoice",
+   "result": "NOT BAZAARVOICE",
+   "evidence": "stanley1913.com carries bazaarvoice, yotpo and okendo substrings but no Bazaarvoice deployment path, and no stanley / stanley1913 / pmi zone exists (404). Stanley's working route remains Yotpo, already measured 2026-10-15.",
+   "note": "Substring presence in a page bundle is not a deployment. Three of the brands flagged 'bazaarvoice' by substring had no zone at all."
+  },
+  {
+   "route": "Retailer syndication (Target, Walmart, Best Buy, Dick's, Ulta, Sephora)",
+   "result": "NOT NEEDED, AND NOT TESTED",
+   "why": "This was handed to this session as the best remaining lead. It was leapfrogged: the brand-hosted platforms turned out to serve their own display API in the clear, which is strictly better than syndication - the brand's full history in true date order rather than whichever rows a retailer chose to ingest. IsSyndicated was 0 on every Bazaarvoice review collected, so none of this data arrived by syndication. Retailer syndication is still the right fallback for a brand whose own deployment is locked, and remains untested."
+  }
+ ],
+
+ "structural_caveats": [
+  {
+   "caveat": "Bazaarvoice POOLS REVIEWS ACROSS A PRODUCT FAMILY, exactly as Amazon pools across variants.",
+   "evidence": "ProductId TFB57GLE (Pro 575 Black) and ProductId TFB78GLE (Pro 780 Black) are different grills at different prices and return IDENTICAL 1,215-review id sets - 100% overlap. The other 20 family pairs tested share 0 ids.",
+   "consequence": "Summing TotalReviewCount across a catalog double-counts. Across the 4 products first measured the claimed sum was 4,013 against 2,798 genuinely unique reviews - a 30% overstatement. Any collection set MUST be deduplicated by review id and the id-set overlap MUST be checked pairwise, never assumed from the ProductId being different. This is the same error PLAN.md already recorded for Amazon parent/child pooling, and it is not fixed by moving platform."
+  },
+  {
+   "caveat": "A single product's review flow DECAYS as the product ages, so one product cannot carry a series.",
+   "evidence": "Traeger Pro 575 has 7.6 years of 100%-text reviews and still clears the 30-review floor in only 11 of its 32 quarters: 2019-2020 carry 75-390 per quarter, 2025-2026 carry 1-12. Seven families together clear 30 of 44.",
+   "consequence": "Depth per product is NOT the binding constraint on this route - product coverage is. This inverts the history-mode failure recorded on 2026-10-14, which was that no product sat in the right velocity band. Here the band does not have to be hit, because many products can be summed; but it means a declared collection set needs a product added at the RECENT end as older models age out, and swapping a product mid-series changes the instrument (CORE-PROMPT section 4)."
+  },
+  {
+   "caveat": "Text fraction is not stable across time, and on YETI it collapses.",
+   "evidence": "YETI 20 oz Tumbler: 98% of 2014 reviews carry text, 96% of 2018, 35% of 2021, 36% of 2026Q2, 6% of 2026Q4. Weber shows the same shape (100% in 2019, ~34% in 2026). Traeger, Quest, BellRing and Turtle Beach do not: they hold 75-100% throughout.",
+   "consequence": "Where text fraction moves, the scored population drifts away from the rated population over the life of the series. A tone trend measured across that shift is partly measuring a change in who bothers to type. It must be reported alongside every YETI and Weber reading, and it is a reason to prefer Traeger / BellRing / Quest as the first tested companies."
+  },
+  {
+   "caveat": "Reach is TWO numbers - how far back and how far forward - and a route can be abandoned by the brand while still serving perfectly.",
+   "evidence": "Owala's deployment serves 14,029 reviews flawlessly and its newest is 2022-07-28, 1,540 days old. Nothing about the response says so; only comparing the newest date against today does. Monster's stops in June 2019.",
+   "consequence": "Record newest_review_age_days on every batch, and treat a stale newest as a hard stop for a cadence even when depth and text fraction are excellent. A peer group mixing a live member with an abandoned one would compare 2026 tone against 2022 tone and read the difference as news."
+  },
+  {
+   "caveat": "These reviews are moderated by the company being measured. Amazon's are not.",
+   "evidence": "Already established for Yotpo. Two further pieces of direct evidence here: Olaplex maintains a catalog entry named 'Removed Products Reviews' holding 8,928 reviews swept off delisted products; and Bazaarvoice's whole display model is a brand-configured moderation queue.",
+   "action_taken": "Deletion snapshots taken 2026-10-15 for Bazaarvoice/Traeger, Bazaarvoice/YETI and PowerReviews/BellRing - 300 ids each, fixed offsets, to be re-pulled on or after 2026-10-22 and diffed, the same test already running on Yotpo/Stanley.",
+   "open": "The Stanley Yotpo finding that pearson(tone, star) = 0.498 against 0.874-0.921 on Amazon data has NOT been re-tested on Bazaarvoice or PowerReviews data. It should be, per company, before any of these series is trusted."
+  }
+ ]
+}

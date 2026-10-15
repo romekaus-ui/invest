@@ -1,0 +1,160 @@
+{
+ "measured_at": "2026-10-15",
+ "route": "brand-hosted review platform display APIs (Bazaarvoice, PowerReviews, Yotpo) - see brand-widget-routes-2026-10-15.json",
+ "why_this_file": "A route reaching one member of a peer group cannot support peer-relative tone, which is the project's second specification (references/signal.md, S2). Coverage is therefore a per-group property, not a per-company one, and has to be written down per group or the S2 claim is unfalsifiable.",
+ "reached_means": "a display API serves this member's reviews, with >= 2 years of dated text AND enough text-bearing reviews to clear the 30-per-quarter floor over a usable run of quarters AND a newest review recent enough to extend",
+ "three_distinct_ways_to_fail": {
+  "no_route": "no review platform at all, or one shipped unconfigured (Celsius, Sonos, Hydro Flask)",
+  "route_works_catalog_empty": "the display API answers correctly and there is nothing in it (Corsair, Logitech, Monster). A company fact, not a route fact. Corsair's is filling up; Monster's and Logitech's are not",
+  "route_works_but_abandoned": "full depth, served perfectly, and the newest review is years old (Owala, newest 2022-07-28). Good for a backtest window, fatal for a cadence"
+ },
+ "note_on_groups_dir": "The files in groups/ are declared and hashed. Nothing in them was edited. This file sits beside the route tests and records what the route reaches; a group is re-declared only through the peer-group skill, and only if the user chooses to.",
+
+ "groups": [
+  {
+   "group_id": "barbecue-grills",
+   "members_declared": 2, "members_reached": 2,
+   "coverage": "FULL", "s2_peer_relative_supported": true,
+   "detail": [
+    {"company": "Traeger, Inc.", "venue": "NYSE:COOK", "reached": true,
+     "platform": "bazaarvoice/traegerservice", "revenue_readable": true,
+     "evidence": "28 consecutive quarters 2019Q2-2026Q1 above the 30-text floor across 7 grill families, 3,917 unique text-bearing reviews, 97-99% text, newest 4 days old"},
+    {"company": "Weber Inc.", "venue": "private", "reached": true,
+     "platform": "bazaarvoice/weber", "revenue_readable": false,
+     "role": "category control - contributes tone only, never revenue",
+     "evidence": "18,772 reviews on one grill, 2018-03-23 to 2026-09-12, no cap",
+     "caveat": "text fraction fell from 100% in 2019 to ~34% in 2026"}
+   ],
+   "verdict": "RUN THIS ONE FIRST. The only declared group where the public member under test and its peer are both reached and both live. S1 and S2 are both computable, and the member whose revenue is needed is the member that is reachable."
+  },
+  {
+   "group_id": "protein-shakes-and-bars",
+   "members_declared": 2, "members_reached": 2,
+   "coverage": "FULL", "s2_peer_relative_supported": true,
+   "detail": [
+    {"company": "BellRing Brands, Inc.", "venue": "NYSE:BRBR", "reached": true,
+     "platform": "powerreviews/804682", "revenue_readable": true,
+     "evidence": "2,201 reviews on one shake, 2016-09-17 to 2026-09-28 (10.0 years), 100% text, 0 date inversions"},
+    {"company": "The Simply Good Foods Company", "venue": "NASDAQ:SMPL", "reached": true,
+     "platform": "bazaarvoice/questnutrition AND bazaarvoice/simplygoodfoods", "revenue_readable": true,
+     "evidence": "Quest Peanut Butter Cups 1,388 reviews 2020-09 to 2026-09 (6.0 yr, ~75% text); Atkins Endulge 3,422 reviews 2016-11 to 2026-10 (9.9 yr). TWO zones, two brands, so more of SMPL's revenue is covered than one zone would cover - which is what the concentration filter actually wants."}
+   ],
+   "verdict": "Both members reached and BOTH public, so S2 is computable and either member can be the one under test. Second to run.",
+   "confound_to_state_with_every_reading": "The two members sit on DIFFERENT platforms - PowerReviews against Bazaarvoice - with different text fractions and different moderation regimes. CORE-PROMPT section 3 requires a route change to be recorded IN a series; here the route differs ACROSS members at the same instant. S2 subtracts a peer mean computed on a different instrument, which is not what S2 was designed to subtract."
+  },
+  {
+   "group_id": "insulated-drinkware",
+   "members_declared": 3, "members_reached": 3,
+   "coverage": "FULL FOR HISTORY TO 2022, PARTIAL AFTER",
+   "s2_peer_relative_supported": true,
+   "detail": [
+    {"company": "YETI Holdings, Inc.", "venue": "NYSE:YETI", "reached": true,
+     "platform": "bazaarvoice/yeti (zone yeticom_sfra)", "revenue_readable": true,
+     "evidence": "35,516 reviews on the 20 oz Tumbler, 2014-04-17 to 2026-10-15 (12.5 years), newest same day, no cap",
+     "caveat": "text fraction 24.3% over the first 3,000 and falling - 6% in 2026Q4. Clears the floor on volume alone (7 of 9 quarters on one product), but the scored population is a shrinking minority of the rated one."},
+    {"company": "Pacific Market International, LLC (Stanley)", "venue": "private", "reached": true,
+     "platform": "yotpo", "revenue_readable": false, "role": "category control",
+     "evidence": "measured 2026-10-15: 8,193 reviews, 5.4 years, 100% text",
+     "caveat": "~2 month freshness lag"},
+    {"company": "Trove Brands, LLC (Owala)", "venue": "private", "reached": true,
+     "platform": "bazaarvoice/owala", "revenue_readable": false, "role": "category control",
+     "evidence": "14,029 reviews, 2020-03-07 to 2022-07-28, ~68% text",
+     "caveat": "ABANDONED. Newest review 1,540 days old. Usable only inside a window ending mid-2022."}
+   ],
+   "verdict": "All three reached, but on three different platforms with three different staleness profiles: YETI same-day, Stanley ~2 months, Owala 4 years. For a 2020Q2-2022Q2 BACKTEST this is a full three-member group. For a forward cadence the peer mean is Stanley alone, and Owala must be dropped explicitly and recorded as ended rather than left to drift - CORE-PROMPT section 2 requires a discontinued series to be recorded as ended, never silently swapped."
+  },
+  {
+   "group_id": "gaming-headsets",
+   "members_declared": 3, "members_reached": 1,
+   "coverage": "ONE MEMBER ONLY", "s2_peer_relative_supported": false,
+   "detail": [
+    {"company": "Turtle Beach Corporation", "venue": "NASDAQ:TBCH", "reached": true,
+     "platform": "yotpo", "revenue_readable": true,
+     "evidence": "555 reviews on Stealth 600 Gen 3, 2024-06-05 to 2026-10-10 (2.35 years), 100% text, 0 inversions, newest 5 days old"},
+    {"company": "Corsair Gaming, Inc.", "venue": "NASDAQ:CRSR", "reached": false,
+     "platform": "bazaarvoice/corsair - route works, catalog nearly empty", "revenue_readable": true,
+     "evidence": "deepest of 6,644 products holds 143 reviews over 34 days; the declared HS80 family holds ~22. The deployment is new.",
+     "will_fix_itself": "yes, with time"},
+    {"company": "Logitech International S.A.", "venue": "NASDAQ:LOGI", "reached": false,
+     "platform": "bazaarvoice/logitech - key published, catalog EMPTY (0 products)", "revenue_readable": true,
+     "evidence": "products.json returns TotalResults 0 with no errors. PDPs also 308/404 anonymously, so where Logitech's reviews live is unknown.",
+     "next_step": "browser pane against a live PDP"}
+   ],
+   "verdict": "Turtle Beach alone can produce S1 and is recorded as peerless under signal.md limit 3 - it STAYS in S1 and emits no signal_peer. Running S2 here today would run the two specifications on different samples. Worth revisiting in a few quarters: both missing members are public, both have working routes, and Corsair's is accumulating."
+  },
+  {
+   "group_id": "wireless-speakers",
+   "members_declared": 2, "members_reached": 1,
+   "coverage": "ONE MEMBER ONLY - AND IT IS THE WRONG ONE",
+   "s2_peer_relative_supported": false,
+   "detail": [
+    {"company": "Sonos, Inc.", "venue": "NASDAQ:SONO", "reached": false,
+     "platform": "none", "revenue_readable": true,
+     "evidence": "the Era 100 PDP ships PowerReviews with merchantGroupId and merchantID both null - unconfigured, so the widget never fires. No sonos Bazaarvoice zone (404)."},
+    {"company": "Bose Corporation", "venue": "private", "reached": true,
+     "platform": "bazaarvoice/bose", "revenue_readable": false,
+     "evidence": "5,113 reviews on Ultra Open Earbuds, 2024-02-09 to 2026-10-15 (2.7 years), ~97% text, newest same day",
+     "caveat": "Bose's deepest products are earbuds and headphones, not the declared SoundLink speaker. Substitutability must be re-checked before this stands as the peer for a speaker group."}
+   ],
+   "verdict": "The reached member is the PRIVATE one, which contributes tone and can never contribute revenue (signal.md). A route that reaches only the control produces a category reading and no test. Nothing testable here."
+  },
+  {
+   "group_id": "energy-drinks",
+   "members_declared": 3, "members_reached": 1,
+   "coverage": "ONE MEMBER ONLY - AND IT IS THE WRONG ONE",
+   "s2_peer_relative_supported": false,
+   "detail": [
+    {"company": "Celsius Holdings, Inc.", "venue": "NASDAQ:CELH", "reached": false,
+     "revenue_readable": true,
+     "evidence": "no review widget of any kind on celsius.com; no Bazaarvoice zone (404)"},
+    {"company": "Monster Beverage Corporation", "venue": "NASDAQ:MNST", "reached": false,
+     "platform": "bazaarvoice/monsterenergy - route works, catalog essentially empty",
+     "revenue_readable": true,
+     "evidence": "the deployment holds exactly ONE product and 52 reviews from a 77-day window in 2019. Nothing suggests it is filling up."},
+    {"company": "Red Bull GmbH", "venue": "private", "reached": true,
+     "platform": "bazaarvoice/redbull", "revenue_readable": false, "role": "category control",
+     "evidence": "8,859 reviews, 2019-01-09 to 2026-10-14 (7.8 years), 100% text, newest 1 day old - one of the best samples found all session"}
+   ],
+   "verdict": "The same failure shape as wireless-speakers: an excellent control and no reachable public member. Red Bull controls for a test that cannot be run. The group was already flagged in PLAN.md for the Monster asymmetry; this is a second, independent reason it cannot produce a reading.",
+   "correction": "Red Bull and Monster were both recorded unreachable earlier today on a gzip bug in the probe. Red Bull is in fact one of the richest sources available and Monster's emptiness is a sharper finding than a 403 wall."
+  },
+  {
+   "group_id": "premium-everyday-carry",
+   "members_declared": 2, "members_reached": 0,
+   "coverage": "NONE",
+   "status": "draft, fails stage G, was already slated to be declared or deleted",
+   "detail": [
+    {"company": "Logitech International S.A.", "venue": "NASDAQ:LOGI", "reached": false,
+     "evidence": "zone provisioned, catalog empty - see gaming-headsets"},
+    {"company": "Helen of Troy Limited", "venue": "NASDAQ:HELE", "reached": false,
+     "evidence": "hydroflask.com returns a Cloudflare 403 interstitial; no hydroflask or helenoftroy Bazaarvoice zone (404). Recorded and stopped."}
+   ],
+   "verdict": "Nothing to collect. Delete it or declare it properly; this route gives no reason to keep it."
+  }
+ ],
+
+ "summary": {
+  "declared_groups": 7,
+  "groups_with_every_member_reached": 3,
+  "groups_where_s2_is_computable_today": 3,
+  "groups_with_a_reachable_PUBLIC_member": 4,
+  "groups_yielding_no_test": 3,
+  "public_companies_reached_with_2plus_years": [
+   "Traeger NYSE:COOK - 28 consecutive quarters, the strongest",
+   "YETI NYSE:YETI - deepest at 12.5 years, weakest text fraction",
+   "BellRing NYSE:BRBR - 10 years at 100% text",
+   "Simply Good Foods NASDAQ:SMPL - two brands, two zones, 6.0 and 9.9 years",
+   "Turtle Beach NASDAQ:TBCH - 2.35 years at 100% text",
+   "Olaplex NASDAQ:OLPX - 7.6 years, not a member of any declared group"
+  ],
+  "private_controls_reached": [
+   "Weber - live, 8.5 years",
+   "Red Bull - live, 7.8 years at 100% text",
+   "Bose - live, 2.7 years",
+   "Pacific Market International / Stanley - ~2 month lag, 5.4 years",
+   "Trove Brands / Owala - ABANDONED 2022, history only"
+  ],
+  "the_honest_shape": "The route is excellent where it reaches and reaches four of seven declared groups' public members. Coverage splits on CHANNEL, not on company size: brands that sell direct from their own storefront run a review platform, and brands that sell through grocery, retail floors or carriers do not. Traeger, YETI, Premier Protein, Quest, Atkins, Olaplex and Turtle Beach are all DTC web storefronts. Celsius and Monster are grocery - and Red Bull, also grocery, is the exception that shows it is a choice rather than a law. That is the same DTC selection bias already recorded for the 10x Amazon asymmetry rule, arriving independently through a second sensor, which makes it a property of the companies rather than of either instrument.",
+  "the_asymmetry_that_should_worry_the_project_most": "Of the five groups with a reachable member, the PRIVATE control is reachable in all five and the PUBLIC member in only four - and in wireless-speakers and energy-drinks the control is reachable while the company under test is not. The sensor sees category controls more reliably than it sees the companies whose revenue the project wants to predict. Private peers are over-represented because private consumer brands are disproportionately DTC, which is the same reason they looked healthiest under the 10x rule."
+ }
+}

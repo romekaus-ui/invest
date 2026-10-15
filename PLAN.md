@@ -16,8 +16,24 @@ What has been decided and what is next. Short by design — the rules live in
   mean, alongside absolute tone. A category-wide shock moves every brand together, and
   absolute tone reads that as company news.
 - Providers on **free tiers** until the real volume is known. No spend yet.
+- **Route C, from 2026-10-15: brand-hosted review-platform display APIs** (Bazaarvoice,
+  PowerReviews, Yotpo). Free, uncapped, true date order, up to 12.5 years of history,
+  and it reaches public companies. It is now the primary source for *history*; Amazon
+  stays as the independent control on brand moderation. Its own batches carry the same
+  provenance contract (`CORE-PROMPT.md` §3: route, sort, filters, timestamp, product id,
+  requested, returned, total claimed) with `route` naming the platform and deployment.
 
-## BLOCKED on one human action
+## No longer blocked — superseded 2026-10-15
+
+Everything below in this section described a project blocked on an Apify token because
+Amazon was the only conceivable surface. **It is not blocked any more.** Traeger
+(NYSE:COOK) yields 28 consecutive quarters of dated review text for free, with no
+account and no cap, and five more public companies clear two years. See *"The
+revenue-readable member is confirmed"* below. The Apify route stays as the Amazon
+control described in `CORE-PROMPT.md` §3 — an independent check on a brand's own
+moderated data, which is exactly what it is now needed for — but nothing waits on it.
+
+Kept verbatim because it is the record of what was believed and why:
 
 **Sign up for Apify's free tier ($5/mo credit, no card) and export `APIFY_TOKEN`.**
 
@@ -135,17 +151,215 @@ the thing Amazon's ~100-per-filter cap makes impossible, available for free.
    2026-10-22** and diff the id set. Do not infer the answer; watch it.
 2. **~2 months of freshness lag.** Amazon served a review 2 days old; Yotpo's newest is
    2026-08-10. Fine for history, useless for a recency cadence.
-3. **Coverage is unknown.** Stanley uses Yotpo and exposes its key. YETI and Traeger
-   serve Bazaarvoice, Sonos PowerReviews and Okendo, Owala and Celsius showed no widget -
-   all unconfirmed, and their keys are script-injected rather than reachable with curl.
+3. ~~**Coverage is unknown.**~~ **Measured 2026-10-15** — see *"Coverage: the route
+   reaches less than half of what is declared"* below. Two of seven declared groups have
+   both members reached; three yield nothing. The guesses in this line were mostly wrong:
+   YETI and Traeger do serve Bazaarvoice and both are reachable, but **Sonos serves no
+   reviews at all** (PowerReviews present with a null merchant id), and the keys turned
+   out not to be script-injected — Bazaarvoice's own CDN publishes them in a static file.
    **A route that reaches one member of a peer group cannot support peer-relative tone**,
-   which is the project's second specification.
-4. **Stanley is private.** The one company confirmed is one whose revenue can never be
-   read, so this does not by itself produce a testable series.
+   which is the project's second specification, and that is now recorded per group.
+4. ~~**Stanley is private.**~~ **Resolved 2026-10-15.** Traeger (NYSE:COOK), YETI
+   (NYSE:YETI), BellRing (NYSE:BRBR), Simply Good Foods (NASDAQ:SMPL) and Turtle Beach
+   (NASDAQ:TBCH) are all reachable and all public. Stanley keeps its job as the
+   `insulated-drinkware` control.
 
 **It does not revive history mode until a revenue-readable member is confirmed.** What it
 establishes is that the 2-year wait is not necessarily the only path - which it was,
 an hour ago.
+
+## The revenue-readable member is confirmed. 2026-10-15.
+
+**Traeger, Inc. (NYSE: COOK). 28 consecutive quarters of dated review text above the
+30-review floor, 2019Q2 through 2026Q1.** Free, no account, no cap. The 2-year wait is
+over before it started, and the history question is settled for this company.
+
+Full measurements, request syntax and every dead end:
+`data/_route-tests/brand-widget-routes-2026-10-15.json`.
+Coverage per declared group: `data/_route-tests/group-coverage-2026-10-15.json`.
+The tool that produced those numbers, kept beside them so they are reproducible rather
+than merely described: `data/_route-tests/measure_widget_route.py`. It is a route test,
+not a collector — `measure_widget_route.py quarters <files…>` re-derives the 28-quarter
+claim and the pooling check below.
+
+**Nothing here was routed around.** The display keys are the ones the platforms' own CDNs
+publish to every visitor. No `Referer` or `Origin` header was sent anywhere, no account
+was created, and the one endpoint that refused — Bazaarvoice's `bfd` proxy, 401 — was
+recorded and left alone.
+
+**What the route is.** Bazaarvoice, PowerReviews and Yotpo each have a documented
+*display* API whose key is published in the clear by the platform's own CDN to every
+visitor's browser. Reading that key and calling that endpoint is what the page does.
+For Bazaarvoice: `apps.bazaarvoice.com/deployments/<client>/<site>/production/<locale>/bv.js`
+gives `legacyScoutUrl`; that file (**fetch it gzipped**, raw it is a binary blob)
+publishes `passkey:"ca…"`; then
+`api.bazaarvoice.com/data/reviews.json?apiversion=5.4&passkey=…&Filter=ProductId:eq:<id>&Limit=100&Offset=<n>&Sort=SubmissionTime:desc`.
+`Limit` maxes at 100 and `Offset` paginates to exhaustion.
+
+**Measured on the same terms as every other route:**
+
+| | Traeger · BV | YETI · BV | BellRing · PR | Quest/SMPL · BV | Turtle Beach · Yotpo | Red Bull · BV |
+|---|---|---|---|---|---|---|
+| venue | NYSE:COOK | NYSE:YETI | NYSE:BRBR | NASDAQ:SMPL | NASDAQ:TBCH | private |
+| reviews, one product | 1,215 | **35,516** | 2,201 | 1,388 | 555 | 8,859 |
+| pagination caps | **no** | **no** | **no** | **no** | **no** | **no** |
+| dates descending | **verified, 0 inversions** | verified | verified | verified | verified | verified |
+| reach back | 7.6 yr | **12.5 yr** | 10.0 yr | 6.0 yr | 2.35 yr | 7.8 yr |
+| carry text | **97.4%** | **24.3%** | **100%** | 75% | **100%** | **100%** |
+| newest review | 4 days | **same day** | 17 days | 23 days | 5 days | 1 day |
+| cost / account | free / none | free / none | free / none | free / none | free / none | free / none |
+
+Also reachable and measured: **Olaplex (NASDAQ:OLPX)** 4,886 / 7.6 yr — the lead handed
+to this session, and not a member of any declared group; **Atkins (NASDAQ:SMPL)** 3,422 /
+9.9 yr through a *second* SMPL zone; **Weber** 18,772 / 8.5 yr and **Bose** 5,113 / 2.7 yr
+as private controls; **Owala** 14,029 but abandoned in 2022.
+
+Sort order was checked **against the dates**, never trusted from the parameter: zero
+inversions in every collection taken. **The ~2-month Yotpo freshness lag is not a
+property of brand-hosted data** — Bazaarvoice served a YETI review from the same day.
+So this route is usable for history *and* for a recency cadence, which Amazon is not and
+Yotpo is not.
+
+**The yeti.com Akamai block was never the obstacle.** The block is on `yeti.com`; the
+reviews are on `api.bazaarvoice.com`, which did not refuse. Worth remembering: a brand
+site refusing is no evidence about the brand's review data.
+
+### Three things measured here that change how a collection set must be built
+
+1. **Bazaarvoice pools across a product family, exactly as Amazon pools across
+   variants.** `TFB57GLE` (Pro 575) and `TFB78GLE` (Pro 780) are different grills at
+   different prices and return **identical 1,215-review id sets** — 100% overlap. The
+   other 20 pairs tested shared 0. Summing `TotalReviewCount` across a catalog
+   double-counts: 4,013 claimed against 2,798 unique across the first four products, a
+   30% overstatement. **Dedupe by review id and check overlap pairwise.** Never infer
+   independence from the ProductId differing. This is the same error already recorded
+   for Amazon parent/child pooling — changing platform did not fix it.
+2. **One product cannot carry a series; its flow decays as the model ages.** The Pro 575
+   has 7.6 years at 100% text and still clears the floor in only **11 of 32** quarters —
+   75–390 reviews a quarter in 2019-20, 1–12 in 2025-26. Seven families together clear
+   **30 of 44**, with the 28-quarter run above. So **product coverage, not depth per
+   product, is the binding constraint** — the inverse of the 2026-10-14 history-mode
+   failure, where no product sat in the right velocity band. Here the band need not be
+   hit at all, because products can be summed. The cost is that a set needs a new
+   product added at the recent end as old models age out, and a mid-series swap changes
+   the instrument (`CORE-PROMPT.md` §4).
+3. **Text fraction is not stable across time, and on YETI it collapses.** 98% of YETI's
+   2014 reviews carry text, 96% of 2018, 35% of 2021, **6% of 2026Q4**. Weber shows the
+   same shape. Traeger, BellRing, Quest and Turtle Beach hold 75–100% throughout. Where
+   it moves, the scored population drifts away from the rated population over the life
+   of the series, so a tone trend partly measures a change in who bothers to type.
+   **Report it with every YETI and Weber reading**, and prefer Traeger / BellRing /
+   Quest as the first companies tested.
+
+### The structural objection is unchanged, and now has two more pieces of evidence
+
+These reviews are still **moderated by the company being measured**. Olaplex maintains a
+catalog entry literally named `RemovedProductsReviews` holding **8,928** reviews swept
+off delisted products — better than deletion, and direct evidence that the brand curates
+what appears against a live product. Bazaarvoice's entire display model *is* a
+brand-configured moderation queue.
+
+**Three more deletion snapshots taken 2026-10-15**, same shape and same purpose as the
+Yotpo one, 300 ids each at fixed offsets, **to be re-pulled on or after 2026-10-22** and
+diffed:
+`bazaarvoice-traeger-snapshot-2026-10-15.json`,
+`bazaarvoice-yeti-snapshot-2026-10-15.json`,
+`powerreviews-bellring-snapshot-2026-10-15.json`.
+
+**Still open and it matters:** Stanley's Yotpo data gave `pearson(tone, star) = 0.498`
+against 0.874–0.921 on Amazon data. That test has **not** been repeated on Bazaarvoice
+or PowerReviews data. Do it per company before any of these series is trusted — it is
+the cheapest available check on whether the brand-hosted population differs from the
+marketplace one.
+
+## Coverage: the route reaches less than half of what is declared
+
+| group | declared | reached | S2 peer-relative |
+|---|---|---|---|
+| **barbecue-grills** | 2 | **2 — Traeger (COOK) + Weber** | **yes** |
+| **protein-shakes-and-bars** | 2 | **2 — BellRing (BRBR) + Quest *and* Atkins (SMPL)** | **yes** |
+| insulated-drinkware | 3 | **3** — YETI (YETI) + Stanley + Owala, but Owala's newest review is **2022-07-28** | yes, to 2022; Stanley alone after |
+| gaming-headsets | 3 | 1 — Turtle Beach (TBCH) only | **no** |
+| wireless-speakers | 2 | 1 — **Bose only, the private one** | **no** |
+| energy-drinks | 3 | 1 — **Red Bull only, the private one** | **no** |
+| premium-everyday-carry (draft) | 2 | **0** | no |
+
+**A correction made inside the same session, because it nearly became a permanent false
+negative.** The first sweep of the Bazaarvoice CDN fetched `bv.js` without accepting
+gzip. Bazaarvoice gzips some zones regardless of `Accept-Encoding`, so those bodies
+decoded to binary and every regex silently found nothing. **Five zones were written off
+as "unprovisioned stubs" on that basis and all five publish a key:** `monsterenergy`,
+`redbull`, `owala`, `simplygoodfoods`, `logitech`. Red Bull turned out to be one of the
+best samples found all day (8,859 reviews, 7.8 years, **100% text**, newest 1 day old)
+and Owala holds 14,029. *A regex finding nothing is evidence only once the body is known
+to be text; a negative from a parser is not a negative from the server.*
+
+**Three distinct ways a member fails, and they want different responses:**
+
+- **no route** — no platform, or one shipped unconfigured. Celsius, Sonos, Hydro Flask.
+- **route works, catalog empty** — the API answers correctly and holds nothing. Corsair
+  (143 reviews over 34 days), Logitech (**0 products**), Monster (**1 product, 52
+  reviews, ending June 2019**). A company fact, not a route fact. Corsair's is filling
+  up; the other two are not.
+- **route works, deployment abandoned** — full depth, served perfectly, newest review
+  years old. **Owala: 14,029 reviews and a newest of 2022-07-28, 1,540 days stale.**
+  Fine inside a backtest window, fatal for a cadence.
+
+**So reach is two numbers, not one** — how far *back* and how far *forward*. Every route
+before today had a newest review within days or a couple of months, so only the back
+edge was ever recorded. Record `newest_review_age_days` on every batch from here.
+
+**`barbecue-grills` is the group to run first.** It is the only declared group where the
+public member under test *and* its peer are both reached, so S1 and S2 are both
+computable and the member whose revenue is needed is the one that is reachable.
+`protein-shakes-and-bars` is second, with the caveat that its two members sit on
+**different platforms** — PowerReviews against Bazaarvoice — with different text
+fractions and different moderation regimes. `CORE-PROMPT.md` §3 requires a route change
+to be recorded *in* a series; here the route differs *across members at the same
+instant*, which is a confound S2 was not designed for and which has to be stated with
+the reading.
+
+**`wireless-speakers` and `energy-drinks` both fail in the worst direction:** the reached
+member is the *private* one. Bose and Red Bull contribute tone and can never contribute
+revenue (`references/signal.md`), so a route reaching only the control produces a
+category reading and no test.
+
+**That asymmetry is the thing here most worth worrying about.** Of the five groups with
+any reachable member, the private control is reachable in **all five** and the public
+member in only four — and twice the control is reachable while the company under test is
+not. **The sensor sees category controls more reliably than it sees the companies whose
+revenue the project wants to predict**, because private consumer brands are
+disproportionately DTC. That is the same reason the all-private groups looked healthiest
+under the 10x rule, and it is now visible through a second, independent sensor.
+
+**Turtle Beach is recorded as peerless** and stays in S1 per `signal.md` limit 3.
+Running S2 on `gaming-headsets` today would run the two specifications on different
+samples.
+
+**Coverage splits on channel, not on company size.** Brands selling direct from their own
+storefront run a review platform; brands selling through grocery, retail floors or
+carriers largely do not. Traeger, YETI, Premier Protein, Quest, Atkins, Olaplex and
+Turtle Beach are all DTC web storefronts; Celsius and Monster are grocery — and Red Bull,
+also grocery, is the exception that shows this is a choice rather than a law. **That is
+the same DTC selection bias already recorded for the 10x Amazon asymmetry rule, arriving
+independently through a second sensor** — which makes it a property of the companies
+rather than of either instrument, and it is the single most important thing this session
+learned about what the project can ever see.
+
+## Doors closed 2026-10-15, so they are not re-opened
+
+| door | result |
+|---|---|
+| **Bazaarvoice `bfd` proxy** (`apps.bazaarvoice.com/bfd/v1/clients/<client>/…`) | **401 Unauthorized**, verified for `traegerservice`/`17661-en_us` and `olaplex`/`10548-en_us`. **Recorded and stopped — no `Referer` or `Origin` was sent to it.** The `bfd` proxy exists so the page need not expose a passkey; the deployments above expose one anyway via the legacy scout file, a *different* endpoint that did not refuse |
+| **Sonos (NASDAQ:SONO)** | **serves no reviews at all.** The Era 100 PDP ships PowerReviews with `"merchantGroupId":null,"merchantID":null` — unconfigured, so the widget never fires. No `sonos` Bazaarvoice zone. The earlier "powerreviews + okendo" sighting was a false positive from substring-matching `merchantID` and the filter label `okenDolbyAtmos` |
+| **Celsius (NASDAQ:CELH)** | no review widget of any kind on `celsius.com`; no Bazaarvoice zone |
+| **Monster (NASDAQ:MNST)** | **route works, catalog essentially empty.** The `monsterenergy` zone holds **1 product and 52 reviews**, all from a 77-day window in 2019. Nothing suggests it is filling up. Its brand site's 403 is real and irrelevant |
+| **Helen of Troy / Hydro Flask (NASDAQ:HELE)** | Cloudflare 403 interstitial. Recorded and stopped. No zone exists |
+| **Corsair (NASDAQ:CRSR)** | **route works, data absent.** Deepest product in a 6,644-product catalog holds 143 reviews over 34 days; the declared HS80 family holds ~22. Its deployment is new. A company fact, not a route fact — it fixes itself with time |
+| **Logitech (NASDAQ:LOGI)** | **key published, catalog empty — 0 products.** `products.json` returns `TotalResults 0` with no errors. PDPs also 308/404 anonymously, so where its reviews actually live is still unknown. Needs the browser pane against a live PDP |
+| **Owala / Trove Brands** | **reachable but abandoned.** 14,029 reviews, and the newest is **2022-07-28**. Good for a window ending mid-2022; useless for a cadence |
+| **Stanley on Bazaarvoice** | **not Bazaarvoice.** `stanley1913.com` carries the substring but has no deployment path and no zone exists. Stanley's route stays Yotpo. **Substring presence in a bundle is not a deployment** — three brands flagged this way had no zone at all |
+| **Retailer syndication** (Target, Walmart, Best Buy, Dick's, Ulta, Sephora) | **not needed, and not tested.** It was the best remaining lead and got leapfrogged: the brand platforms serve their own display API in the clear, which is strictly better — the brand's full history in true date order rather than whichever rows a retailer ingested. `IsSyndicated` was **0** on every Bazaarvoice review collected, so none of this arrived by syndication. Still the right fallback for a brand whose own deployment is locked |
 
 ## Providers evaluated, so they are not re-litigated
 
@@ -202,16 +416,19 @@ Stages G and C are built and `/tone-run` walks them. Every declared group curren
 stops at **stage C**, because nothing has been collected. Four things stand between
 here and a chart:
 
-1. **Find a route that is not Amazon's capped surface** — in progress. Amazon gives 8
-   reviews publicly and ~100 per filter commercially, and that cap is Amazon's, not a
-   provider's. Brand sites run review widgets (Yotpo, Bazaarvoice, PowerReviews, Okendo)
-   with public JSON APIs, and syndication may put the same text on retailer pages with
-   no login wall. **If one of these holds, it changes the project more than any plan
-   tier would** — and it carries a structural objection Amazon does not: these reviews
-   are moderated by the company being measured, which is a problem in exactly the
-   direction that matters.
-2. **Decide the collection set and cadence**, declare both, start collecting. Flagship
-   products, since history mode failed on availability.
+1. ~~**Find a route that is not Amazon's capped surface.**~~ **Done, 2026-10-15.**
+   Bazaarvoice, PowerReviews and Yotpo display APIs — free, uncapped, true date order,
+   up to 12.5 years, and a revenue-readable company confirmed (Traeger, NYSE:COOK). The
+   structural objection stands and is now being watched by four deletion snapshots.
+   See the two sections above.
+2. **Declare a collection set and cadence for `barbecue-grills`, and collect.** This is
+   now the blocking step and it needs no money and no token. What the declaration has to
+   fix, given what was measured: **which Bazaarvoice ProductIds** (at least ~7 Traeger
+   grill families to clear the quarterly floor across the whole window, and the Weber
+   equivalents), **the pairwise id-overlap check** that proves they are not one pooled
+   family, and **the rule for adding a product at the recent end** as a model ages out.
+   A mid-series swap changes the instrument, so the rule is declared now, not improvised
+   later.
 3. **Calibrate the tone scorer** — the user labels ~100 reviews by hand against
    `references/tone-rubric-v1.md`. **Nobody else can do this step**, and the scorer
    produces numbers rather than measurements until it is done. It needs reviews on disk
@@ -285,7 +502,20 @@ can have souring reviews while revenue is driven by something nobody reviews.
 
 ## What may be claimed, today
 
-Nothing about prediction. No review has been collected. `CORE-PROMPT.md` §8 governs: the
-series starts the day collection starts, a trend claim needs a declared number of
-readings, and a predictive claim needs the test written down before the revenue arrives
-and then several reporting periods to run.
+Nothing about prediction. `CORE-PROMPT.md` §8 governs: the series starts the day
+collection starts, a trend claim needs a declared number of readings, and a predictive
+claim needs the test written down before the revenue arrives and then several reporting
+periods to run.
+
+**No declared collection exists.** What 2026-10-15 established is that one *could* now
+be built with 7 years of history for a public company — a fact about reachability, not a
+reading. The review text pulled while measuring the route was a route test; it was **not
+committed as a corpus and must not be reused as one**, because the collection set and
+cadence have not been declared and choosing them after seeing the text is the thing
+`CORE-PROMPT.md` §2 forbids. The route is deterministic and re-collectable to
+exhaustion, so declaring first costs nothing but a re-pull.
+
+One consequence worth stating plainly: **the 2-year wait and the forward cadence are now
+separate questions.** History is available today; whether tone *predicts* revenue still
+needs the prereg written before the revenue arrives, and no amount of back history
+substitutes for that.
