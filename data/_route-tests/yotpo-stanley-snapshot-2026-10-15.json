@@ -1,0 +1,2115 @@
+{
+  "taken_at": "2026-10-15T08:25:24.072883+00:00",
+  "source": "yotpo widget api",
+  "product": "Stanley 40oz Quencher (yotpo product 5019777269819)",
+  "pages": [
+    1,
+    2,
+    3
+  ],
+  "n": 300,
+  "purpose": "deletion test. Re-pull the same three pages in a week and diff the id set. A review present now and absent later was removed by the company being measured - which is the structural objection to brand-hosted review data, and the only way to size it is to watch.",
+  "compare_after": "2026-10-22",
+  "ids": [
+    {
+      "id": 884381678,
+      "created_at": "2026-08-10T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381700,
+      "created_at": "2026-08-09T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381657,
+      "created_at": "2026-08-08T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381666,
+      "created_at": "2026-08-07T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381647,
+      "created_at": "2026-08-03T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381563,
+      "created_at": "2026-08-03T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381379,
+      "created_at": "2026-08-01T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883039401,
+      "created_at": "2026-08-01T00:00:00.000Z",
+      "score": 2,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381622,
+      "created_at": "2026-07-24T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027841,
+      "created_at": "2026-07-22T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883028054,
+      "created_at": "2026-07-20T00:00:00.000Z",
+      "score": 3,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381595,
+      "created_at": "2026-07-19T00:00:00.000Z",
+      "score": 3,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381578,
+      "created_at": "2026-07-14T00:00:00.000Z",
+      "score": 4,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027839,
+      "created_at": "2026-07-14T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027834,
+      "created_at": "2026-07-13T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381537,
+      "created_at": "2026-07-11T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381515,
+      "created_at": "2026-07-09T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381504,
+      "created_at": "2026-07-05T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883028159,
+      "created_at": "2026-07-05T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381474,
+      "created_at": "2026-07-02T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381420,
+      "created_at": "2026-07-02T00:00:00.000Z",
+      "score": 1,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883033135,
+      "created_at": "2026-07-01T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381468,
+      "created_at": "2026-06-26T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381463,
+      "created_at": "2026-06-26T00:00:00.000Z",
+      "score": 1,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883028189,
+      "created_at": "2026-06-25T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381432,
+      "created_at": "2026-06-20T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883031780,
+      "created_at": "2026-06-18T00:00:00.000Z",
+      "score": 3,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027832,
+      "created_at": "2026-06-18T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883028156,
+      "created_at": "2026-06-14T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381354,
+      "created_at": "2026-06-09T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027987,
+      "created_at": "2026-06-08T00:00:00.000Z",
+      "score": 4,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027814,
+      "created_at": "2026-06-08T00:00:00.000Z",
+      "score": 3,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381329,
+      "created_at": "2026-06-07T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381397,
+      "created_at": "2026-06-06T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883028154,
+      "created_at": "2026-05-26T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027985,
+      "created_at": "2026-05-20T00:00:00.000Z",
+      "score": 3,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884386443,
+      "created_at": "2026-05-06T00:00:00.000Z",
+      "score": 1,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883029645,
+      "created_at": "2026-05-06T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027751,
+      "created_at": "2026-05-04T00:00:00.000Z",
+      "score": 1,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883028698,
+      "created_at": "2026-05-01T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883034064,
+      "created_at": "2026-04-30T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027586,
+      "created_at": "2026-04-30T00:00:00.000Z",
+      "score": 1,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884385024,
+      "created_at": "2026-04-27T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883034817,
+      "created_at": "2026-04-17T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027979,
+      "created_at": "2026-04-17T00:00:00.000Z",
+      "score": 2,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027654,
+      "created_at": "2026-04-17T00:00:00.000Z",
+      "score": 1,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884387946,
+      "created_at": "2026-04-14T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884379152,
+      "created_at": "2026-04-14T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884792009,
+      "created_at": "2026-04-13T00:00:00.000Z",
+      "score": 1,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027782,
+      "created_at": "2026-04-12T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381948,
+      "created_at": "2026-04-07T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884386692,
+      "created_at": "2026-04-05T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027766,
+      "created_at": "2026-04-05T00:00:00.000Z",
+      "score": 1,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884791825,
+      "created_at": "2026-04-03T00:00:00.000Z",
+      "score": 1,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884382807,
+      "created_at": "2026-04-02T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381008,
+      "created_at": "2026-03-27T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883032590,
+      "created_at": "2026-03-27T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027639,
+      "created_at": "2026-03-24T00:00:00.000Z",
+      "score": 1,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884382978,
+      "created_at": "2026-03-23T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381124,
+      "created_at": "2026-03-22T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884379816,
+      "created_at": "2026-03-22T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884792194,
+      "created_at": "2026-03-20T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884385363,
+      "created_at": "2026-03-20T00:00:00.000Z",
+      "score": 3,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883033723,
+      "created_at": "2026-03-20T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884791890,
+      "created_at": "2026-03-19T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883031205,
+      "created_at": "2026-03-19T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883030299,
+      "created_at": "2026-03-19T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027545,
+      "created_at": "2026-03-19T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884796639,
+      "created_at": "2026-03-18T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027741,
+      "created_at": "2026-03-18T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883034788,
+      "created_at": "2026-03-17T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381191,
+      "created_at": "2026-03-16T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883031535,
+      "created_at": "2026-03-16T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027596,
+      "created_at": "2026-03-16T00:00:00.000Z",
+      "score": 1,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884801449,
+      "created_at": "2026-03-15T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884799357,
+      "created_at": "2026-03-15T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884792335,
+      "created_at": "2026-03-15T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884388692,
+      "created_at": "2026-03-15T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883042927,
+      "created_at": "2026-03-15T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883033119,
+      "created_at": "2026-03-15T00:00:00.000Z",
+      "score": 1,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884791846,
+      "created_at": "2026-03-14T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884384662,
+      "created_at": "2026-03-14T00:00:00.000Z",
+      "score": 4,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884382943,
+      "created_at": "2026-03-14T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884382846,
+      "created_at": "2026-03-14T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884378741,
+      "created_at": "2026-03-14T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883028212,
+      "created_at": "2026-03-14T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884799576,
+      "created_at": "2026-03-13T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884390554,
+      "created_at": "2026-03-13T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884388781,
+      "created_at": "2026-03-13T00:00:00.000Z",
+      "score": 1,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884382038,
+      "created_at": "2026-03-13T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884380575,
+      "created_at": "2026-03-13T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884380396,
+      "created_at": "2026-03-13T00:00:00.000Z",
+      "score": 3,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883039274,
+      "created_at": "2026-03-13T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884797434,
+      "created_at": "2026-03-12T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884796694,
+      "created_at": "2026-03-12T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884387571,
+      "created_at": "2026-03-12T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884384819,
+      "created_at": "2026-03-12T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884378887,
+      "created_at": "2026-03-12T00:00:00.000Z",
+      "score": 4,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027504,
+      "created_at": "2026-03-12T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884388884,
+      "created_at": "2026-03-11T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884386232,
+      "created_at": "2026-03-11T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883028665,
+      "created_at": "2026-03-11T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027744,
+      "created_at": "2026-03-11T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381743,
+      "created_at": "2026-03-10T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883032574,
+      "created_at": "2026-03-10T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883028116,
+      "created_at": "2026-03-10T00:00:00.000Z",
+      "score": 4,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027717,
+      "created_at": "2026-03-10T00:00:00.000Z",
+      "score": 1,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884792248,
+      "created_at": "2026-03-09T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884384996,
+      "created_at": "2026-03-09T00:00:00.000Z",
+      "score": 1,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884383938,
+      "created_at": "2026-03-09T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381791,
+      "created_at": "2026-03-09T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884791895,
+      "created_at": "2026-03-08T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883030173,
+      "created_at": "2026-03-08T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884792031,
+      "created_at": "2026-03-07T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884384765,
+      "created_at": "2026-03-07T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884383204,
+      "created_at": "2026-03-07T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381642,
+      "created_at": "2026-03-07T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884798176,
+      "created_at": "2026-03-06T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884792282,
+      "created_at": "2026-03-06T00:00:00.000Z",
+      "score": 4,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884380004,
+      "created_at": "2026-03-06T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884379716,
+      "created_at": "2026-03-06T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884378650,
+      "created_at": "2026-03-06T00:00:00.000Z",
+      "score": 1,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884801408,
+      "created_at": "2026-03-05T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884792034,
+      "created_at": "2026-03-05T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884385657,
+      "created_at": "2026-03-05T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883034457,
+      "created_at": "2026-03-05T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883028711,
+      "created_at": "2026-03-05T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884800722,
+      "created_at": "2026-03-04T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884382046,
+      "created_at": "2026-03-04T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883031830,
+      "created_at": "2026-03-04T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884798628,
+      "created_at": "2026-03-03T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884389128,
+      "created_at": "2026-03-03T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381745,
+      "created_at": "2026-03-03T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884380923,
+      "created_at": "2026-03-03T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884802288,
+      "created_at": "2026-03-02T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884390328,
+      "created_at": "2026-03-02T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884388055,
+      "created_at": "2026-03-02T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884385008,
+      "created_at": "2026-03-02T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884382356,
+      "created_at": "2026-03-02T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884380684,
+      "created_at": "2026-03-02T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883032309,
+      "created_at": "2026-03-02T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883028187,
+      "created_at": "2026-03-02T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884792298,
+      "created_at": "2026-03-01T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884791933,
+      "created_at": "2026-03-01T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884798773,
+      "created_at": "2026-02-27T00:00:00.000Z",
+      "score": 4,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884792312,
+      "created_at": "2026-02-27T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884384629,
+      "created_at": "2026-02-27T00:00:00.000Z",
+      "score": 1,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883028062,
+      "created_at": "2026-02-27T00:00:00.000Z",
+      "score": 4,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884388248,
+      "created_at": "2026-02-26T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381691,
+      "created_at": "2026-02-26T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883035032,
+      "created_at": "2026-02-26T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883033972,
+      "created_at": "2026-02-26T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883033733,
+      "created_at": "2026-02-26T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883030876,
+      "created_at": "2026-02-26T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884385423,
+      "created_at": "2026-02-25T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884383896,
+      "created_at": "2026-02-25T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884800599,
+      "created_at": "2026-02-24T00:00:00.000Z",
+      "score": 2,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884387783,
+      "created_at": "2026-02-24T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884383323,
+      "created_at": "2026-02-24T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381710,
+      "created_at": "2026-02-24T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381453,
+      "created_at": "2026-02-24T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884380878,
+      "created_at": "2026-02-24T00:00:00.000Z",
+      "score": 1,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884380634,
+      "created_at": "2026-02-24T00:00:00.000Z",
+      "score": 4,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883032826,
+      "created_at": "2026-02-24T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883031603,
+      "created_at": "2026-02-24T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027845,
+      "created_at": "2026-02-24T00:00:00.000Z",
+      "score": 2,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884382243,
+      "created_at": "2026-02-23T00:00:00.000Z",
+      "score": 3,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884379780,
+      "created_at": "2026-02-23T00:00:00.000Z",
+      "score": 3,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884385067,
+      "created_at": "2026-02-22T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884382719,
+      "created_at": "2026-02-22T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883031869,
+      "created_at": "2026-02-22T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884796544,
+      "created_at": "2026-02-21T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884791967,
+      "created_at": "2026-02-21T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884384828,
+      "created_at": "2026-02-21T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381071,
+      "created_at": "2026-02-21T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027733,
+      "created_at": "2026-02-21T00:00:00.000Z",
+      "score": 1,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884798189,
+      "created_at": "2026-02-20T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884797300,
+      "created_at": "2026-02-20T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884792387,
+      "created_at": "2026-02-20T00:00:00.000Z",
+      "score": 3,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884390760,
+      "created_at": "2026-02-20T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884384827,
+      "created_at": "2026-02-20T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381635,
+      "created_at": "2026-02-20T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884380736,
+      "created_at": "2026-02-20T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884380162,
+      "created_at": "2026-02-20T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884385410,
+      "created_at": "2026-02-19T00:00:00.000Z",
+      "score": 3,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884383406,
+      "created_at": "2026-02-19T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883034411,
+      "created_at": "2026-02-19T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027669,
+      "created_at": "2026-02-19T00:00:00.000Z",
+      "score": 1,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027525,
+      "created_at": "2026-02-19T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884798517,
+      "created_at": "2026-02-18T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884380679,
+      "created_at": "2026-02-18T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884382920,
+      "created_at": "2026-02-17T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884380412,
+      "created_at": "2026-02-17T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884380186,
+      "created_at": "2026-02-17T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027530,
+      "created_at": "2026-02-17T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884382153,
+      "created_at": "2026-02-16T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884792054,
+      "created_at": "2026-02-15T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884383984,
+      "created_at": "2026-02-15T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884801523,
+      "created_at": "2026-02-14T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884792343,
+      "created_at": "2026-02-14T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884791839,
+      "created_at": "2026-02-14T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884384990,
+      "created_at": "2026-02-14T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884382108,
+      "created_at": "2026-02-14T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027622,
+      "created_at": "2026-02-14T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884387360,
+      "created_at": "2026-02-13T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884386981,
+      "created_at": "2026-02-13T00:00:00.000Z",
+      "score": 1,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884385479,
+      "created_at": "2026-02-13T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884379097,
+      "created_at": "2026-02-13T00:00:00.000Z",
+      "score": 3,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883038107,
+      "created_at": "2026-02-13T00:00:00.000Z",
+      "score": 3,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027728,
+      "created_at": "2026-02-13T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884791919,
+      "created_at": "2026-02-11T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884384889,
+      "created_at": "2026-02-11T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884382696,
+      "created_at": "2026-02-11T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884382632,
+      "created_at": "2026-02-11T00:00:00.000Z",
+      "score": 1,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884382111,
+      "created_at": "2026-02-11T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884380665,
+      "created_at": "2026-02-11T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883030418,
+      "created_at": "2026-02-11T00:00:00.000Z",
+      "score": 1,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027777,
+      "created_at": "2026-02-11T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381084,
+      "created_at": "2026-02-10T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884383253,
+      "created_at": "2026-02-09T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884379244,
+      "created_at": "2026-02-09T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884802125,
+      "created_at": "2026-02-08T00:00:00.000Z",
+      "score": 3,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884382060,
+      "created_at": "2026-02-08T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884379255,
+      "created_at": "2026-02-08T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884388079,
+      "created_at": "2026-02-07T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884386398,
+      "created_at": "2026-02-07T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884385110,
+      "created_at": "2026-02-07T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381126,
+      "created_at": "2026-02-07T00:00:00.000Z",
+      "score": 4,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884379591,
+      "created_at": "2026-02-07T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883034906,
+      "created_at": "2026-02-07T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027885,
+      "created_at": "2026-02-07T00:00:00.000Z",
+      "score": 3,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884792047,
+      "created_at": "2026-02-06T00:00:00.000Z",
+      "score": 4,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884387734,
+      "created_at": "2026-02-06T00:00:00.000Z",
+      "score": 2,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884385228,
+      "created_at": "2026-02-06T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884379534,
+      "created_at": "2026-02-06T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884798104,
+      "created_at": "2026-02-05T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883041202,
+      "created_at": "2026-02-05T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883033136,
+      "created_at": "2026-02-05T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883031735,
+      "created_at": "2026-02-05T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883029122,
+      "created_at": "2026-02-05T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884384188,
+      "created_at": "2026-02-04T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884378478,
+      "created_at": "2026-02-04T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027745,
+      "created_at": "2026-02-04T00:00:00.000Z",
+      "score": 2,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883029513,
+      "created_at": "2026-02-03T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027812,
+      "created_at": "2026-02-03T00:00:00.000Z",
+      "score": 1,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884389878,
+      "created_at": "2026-02-02T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884387512,
+      "created_at": "2026-02-02T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884384495,
+      "created_at": "2026-02-02T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884383511,
+      "created_at": "2026-02-02T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381608,
+      "created_at": "2026-02-02T00:00:00.000Z",
+      "score": 4,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884378880,
+      "created_at": "2026-02-02T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884378800,
+      "created_at": "2026-02-02T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027901,
+      "created_at": "2026-02-02T00:00:00.000Z",
+      "score": 3,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884382131,
+      "created_at": "2026-02-01T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884382076,
+      "created_at": "2026-02-01T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884382019,
+      "created_at": "2026-02-01T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884801051,
+      "created_at": "2026-01-31T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884792363,
+      "created_at": "2026-01-31T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884792143,
+      "created_at": "2026-01-31T00:00:00.000Z",
+      "score": 4,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884385336,
+      "created_at": "2026-01-31T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884382651,
+      "created_at": "2026-01-31T00:00:00.000Z",
+      "score": 1,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884379260,
+      "created_at": "2026-01-31T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027810,
+      "created_at": "2026-01-31T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884796973,
+      "created_at": "2026-01-30T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884792250,
+      "created_at": "2026-01-30T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884390264,
+      "created_at": "2026-01-30T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884384226,
+      "created_at": "2026-01-30T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884382135,
+      "created_at": "2026-01-30T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883032244,
+      "created_at": "2026-01-30T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883031996,
+      "created_at": "2026-01-30T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883028693,
+      "created_at": "2026-01-30T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883028113,
+      "created_at": "2026-01-30T00:00:00.000Z",
+      "score": 4,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884791911,
+      "created_at": "2026-01-29T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884791903,
+      "created_at": "2026-01-29T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884383945,
+      "created_at": "2026-01-29T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884382553,
+      "created_at": "2026-01-29T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884382052,
+      "created_at": "2026-01-29T00:00:00.000Z",
+      "score": 2,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381671,
+      "created_at": "2026-01-29T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883037021,
+      "created_at": "2026-01-29T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883032979,
+      "created_at": "2026-01-29T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883032082,
+      "created_at": "2026-01-29T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884802005,
+      "created_at": "2026-01-28T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884792292,
+      "created_at": "2026-01-28T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884792052,
+      "created_at": "2026-01-28T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884388448,
+      "created_at": "2026-01-28T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884384311,
+      "created_at": "2026-01-28T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884384191,
+      "created_at": "2026-01-28T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381169,
+      "created_at": "2026-01-28T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884380789,
+      "created_at": "2026-01-28T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884798677,
+      "created_at": "2026-01-27T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884384342,
+      "created_at": "2026-01-27T00:00:00.000Z",
+      "score": 1,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884381525,
+      "created_at": "2026-01-27T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884380207,
+      "created_at": "2026-01-27T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884378381,
+      "created_at": "2026-01-27T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027770,
+      "created_at": "2026-01-27T00:00:00.000Z",
+      "score": 1,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 883027651,
+      "created_at": "2026-01-27T00:00:00.000Z",
+      "score": 1,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884800681,
+      "created_at": "2026-01-26T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884796741,
+      "created_at": "2026-01-26T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884795660,
+      "created_at": "2026-01-26T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    },
+    {
+      "id": 884388633,
+      "created_at": "2026-01-26T00:00:00.000Z",
+      "score": 5,
+      "deleted": false,
+      "is_incentivized": false
+    }
+  ]
+}

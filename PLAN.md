@@ -105,6 +105,48 @@ retail brands poorly, **and that bias now selects the universe** — the rule ki
 group holding the biggest brand name. Worth weighing against the chosen 10x, which remains
 arguable.
 
+## Yotpo: confirmed, and it changes the depth question
+
+Measured 2026-10-15 against Stanley's own widget API. No account, no login wall,
+no cost.
+
+| | |
+|---|---|
+| reviews available | **8,193** for one product |
+| pagination | pages 1-82 return 100 each, 83 is empty. **No cap** |
+| date order | genuinely descending, verified against the dates |
+| reach | **2021-03-29 to 2026-08-10 - 5.4 years** |
+| text | **100 of 100** carry real review text |
+| newest review | 2026-08-10, i.e. **~2 months stale** |
+| score spread | 1*:13 2*:2 3*:7 4*:4 5*:74 - not obviously curated |
+
+Page 20 lands in March 2025, page 50 in January 2023, page 82 in March 2021. This is
+the thing Amazon's ~100-per-filter cap makes impossible, available for free.
+
+**Four caveats, and the first is structural.**
+
+1. **These reviews are hosted and moderated by the company being measured.** Amazon's
+   are not. A firm has the most reason to delete negative reviews precisely when tone
+   would otherwise fall - the exact moment the series is supposed to be informative. The
+   schema carries a `deleted` field, which means deletion is a thing that happens;
+   0 flagged on page 1 is not evidence that none ever are.
+   **Deletion test started:** `data/_route-tests/yotpo-stanley-snapshot-2026-10-15.json`
+   holds 300 review ids taken today. Re-pull the same three pages **on or after
+   2026-10-22** and diff the id set. Do not infer the answer; watch it.
+2. **~2 months of freshness lag.** Amazon served a review 2 days old; Yotpo's newest is
+   2026-08-10. Fine for history, useless for a recency cadence.
+3. **Coverage is unknown.** Stanley uses Yotpo and exposes its key. YETI and Traeger
+   serve Bazaarvoice, Sonos PowerReviews and Okendo, Owala and Celsius showed no widget -
+   all unconfirmed, and their keys are script-injected rather than reachable with curl.
+   **A route that reaches one member of a peer group cannot support peer-relative tone**,
+   which is the project's second specification.
+4. **Stanley is private.** The one company confirmed is one whose revenue can never be
+   read, so this does not by itself produce a testable series.
+
+**It does not revive history mode until a revenue-readable member is confirmed.** What it
+establishes is that the 2-year wait is not necessarily the only path - which it was,
+an hour ago.
+
 ## Providers evaluated, so they are not re-litigated
 
 | provider | verdict | why |
