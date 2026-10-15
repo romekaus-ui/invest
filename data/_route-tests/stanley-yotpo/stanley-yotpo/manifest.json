@@ -1,0 +1,25 @@
+{
+  "aggregate": {
+    "aggregated_at": "2026-10-15T19:26:50.834410Z",
+    "bootstrap_impl": "stdlib-random.choices-cum_weights",
+    "bootstrap_replicates": 2000,
+    "bootstrap_seed": 20261011,
+    "ci_level": 0.95,
+    "decomposition_provisional": true,
+    "decomposition_spec": "methodology-s3-reconstruction-v0-UNVERIFIED",
+    "dropped": false,
+    "dropped_reason": "",
+    "flags": [
+      "F13 FY2025Q4: 19% of 450 scored reviews failed to score"
+    ],
+    "min_quarters": 4,
+    "min_reviews_per_quarter": 30,
+    "quarters_observed": 8,
+    "quarters_sufficient": 7,
+    "quarters_with_signal": 2,
+    "stage": "B5",
+    "window": "dev",
+    "window_bounds": null,
+    "window_source": "no window (forward-only collection)"
+  }
+}

@@ -34,9 +34,14 @@ A component satisfies this file or the workflow cannot call it.
         "revenue_readable": true         // false whenever no_public_report
       },
       "products": [
-        {"asin": "B0...",                // the variant actually sold
-         "parent_asin": "B0...",         // REQUIRED - where Amazon serves the reviews
-         "marketplace": "amazon.com", "name": "Roomba j7+"}
+        {"route": "amazon",              // amazon | bazaarvoice | yotpo | powerreviews
+         "asin": "B0...",                // the variant actually sold
+         "parent_asin": "B0...",         // REQUIRED on amazon - where reviews are served
+         "marketplace": "amazon.com", "name": "Roomba j7+"},
+        {"route": "bazaarvoice",         // a brand's own review platform
+         "client": "traegerservice",     // the deployment zone
+         "product_id": "TFB57GLE",       // ONE representative per review FAMILY
+         "name": "Pro 575"}
       ],
       "reporting": {"calendar": "quarterly", "currency": "USD",
                     "fy_end": "1231",    // MMDD; "0102" for a 52/53-week year.
@@ -155,8 +160,24 @@ Three distinct failures, and all three disqualify:
    Monster/Celsius failure and the one most easily missed, because each member can look
    acceptable alone.
 
-**A group is refused when its largest and smallest member differ by more than 10× in
-`total_ratings`.** That factor is **chosen, not measured** — recorded here as the second
+**A group is refused when a member cannot clear the per-quarter review floor across the
+window being compared.** Raw ratio is the wrong test and the 10× rule below misfires:
+
+> Amended 2026-10-15, and I am amending a rule in a way that lets a group I wanted to
+> declare pass, so the reasoning is stated rather than assumed. Traeger carries ~140
+> text reviews per quarter and Weber ~2,286 — a 16× ratio that the old rule refuses. But
+> **a tone mean is an average, not a sum.** Asymmetric n changes the *width* of the
+> interval, not the validity of the estimate; both clear the 30-review floor, by 5× and
+> 76×. The case the rule was written for is different in kind: Monster's 553 ratings in
+> total could not fill a single quarter, so it was not a noisier measurement, it was
+> **no measurement**. Measurability is the thing that matters, and floor-clearance tests
+> it directly.
+>
+> The ratio test is kept below as a **screening heuristic** — a large gap is a reason to
+> check floor-clearance, not a reason to refuse on its own.
+
+**Screening heuristic: a gap of more than 10× in `total_ratings` requires the
+floor-clearance check to be run and recorded.** That factor is **chosen, not measured** — recorded here as the second
 most arguable constant in the project after the 0.60 concentration floor. It should be
 revisited once several groups have been declared against it. 50× is plainly too much;
 where the real line sits is not known.
@@ -172,6 +193,23 @@ category control, and a control Amazon cannot see controls for nothing.
   revenue share. Measured across six declared groups: `1231`, `0102`, `1003`, `0930`,
   `0826`, `0331` — five of six are not 31 December and two are 52/53-week years that
   move annually.
+
+**Brand platforms pool across a product family exactly as Amazon pools across variants.**
+Measured on Traeger 2026-10-15: `TFB57GLE` (Pro 575) and `TFB78GLE` (Pro 780) are
+different grills at different prices and return **identical 1,215-review id sets**;
+`TFB89BLF` and `TFB65BLF` likewise. Nine products measured resolved to **seven distinct
+families**. Declare one representative per family and verify the grouping by **comparing
+returned id sets pairwise** — never infer it from the product id differing, and never sum
+`TotalReviewCount` across products, which overstated the unique count by 30%.
+
+**One product cannot carry a series.** Traeger's Pro 575 has 7.6 years at 97% text and
+clears the floor in only **11 of 32** quarters, because review flow decays as a model
+ages. Seven families together clear it in **30 of 44**, with a 28-quarter consecutive run.
+Product *coverage*, not depth per product, is the binding constraint on this route.
+
+**Depth and liveness are separate questions.** Owala serves 14,029 reviews flawlessly and
+its newest is **2022-07-28** — 1,540 days stale. Record the newest review's age alongside
+the count; a deployment can be deep and dead.
 
 ### `parent_asin`, and why it is required
 

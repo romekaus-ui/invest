@@ -1,0 +1,41 @@
+{
+  "backend": "api",
+  "conversation_history": false,
+  "failure_rate": 0.031127012522361358,
+  "n_attempted": 2795,
+  "n_defect": 192,
+  "n_failed": 87,
+  "n_failed_malformed": 0,
+  "n_failed_transport": 87,
+  "n_in_tone_aggregate": 2637,
+  "n_ok_after_retry": 0,
+  "n_price_complaint": 37,
+  "n_scored": 2708,
+  "n_seller_or_shipping_only": 71,
+  "per_quarter": {
+    "(none)": {
+      "failed": 87,
+      "failure_rate": 0.031127012522361358,
+      "flagged_over_10pct": false,
+      "n": 2795,
+      "seller_only": 71
+    }
+  },
+  "reviews_path": "data/_route-tests/stanley-yotpo/stanley-yotpo/reviews.csv",
+  "reviews_per_call": 1,
+  "rubric_sha256": "4ce22feb1c52b4b4f2063a774fd542abfc59211667c2c5c349af30a9bdc48b14",
+  "rubric_version": "v1",
+  "scored_at": "2026-10-15T19:26:41+00:00",
+  "scorer_model_id": "claude-haiku-4-5-20251001",
+  "scores_path": "data/_route-tests/stanley-yotpo/stanley-yotpo/scores.csv",
+  "temperature": 0,
+  "tone_distribution": {
+    "-1": 87,
+    "-2": 163,
+    "0": 1870,
+    "1": 93,
+    "2": 495
+  },
+  "tone_star_pearson": 0.4975793136136944,
+  "tone_star_pearson_n": 2708
+}

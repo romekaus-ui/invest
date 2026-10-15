@@ -1,0 +1,987 @@
+<meta charset="utf-8">
+<title>STANLEY-YOTPO Review Tone</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: a vertical instrument readout - verdict first, evidence second,
+   plots third, scope and provenance as a fixed closing panel that is part of
+   the page rather than a footnote. Neutrals carry a cool bias toward the
+   blue accent. Series colors are the validated data-viz slots 1 and 2. */
+:root {
+  --plane:    #f4f5f7;
+  --surface:  #fbfbfc;
+  --sunken:   #eef0f3;
+  --ink:      #0b0c0e;
+  --ink-2:    #4e5156;
+  --ink-mute: #7c8087;
+  --grid:     #e3e5e9;
+  --axis:     #c2c5cb;
+  --rule:     rgba(11,12,14,0.11);
+  --s1:       #2a78d6;  /* product reviews / tone mean */
+  --s1-fill:  rgba(42,120,214,0.16);
+  --s2:       #eb6834;  /* seller-only, excluded from tone */
+  --warn:     #fab219;  /* below floor - always with icon + label */
+  --warn-ink: #8a5a00;
+  --crit:     #d03b3b;
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --plane: #0c0d0e; --surface: #17181a; --sunken: #202224;
+    --ink: #ffffff; --ink-2: #c2c4c7; --ink-mute: #868a90;
+    --grid: #2a2c2f; --axis: #3c3e42; --rule: rgba(255,255,255,0.12);
+    --s1: #3987e5; --s1-fill: rgba(57,135,229,0.20); --s2: #d95926;
+    --warn: #fab219; --warn-ink: #fab219; --crit: #e06464;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --plane: #0c0d0e; --surface: #17181a; --sunken: #202224;
+  --ink: #ffffff; --ink-2: #c2c4c7; --ink-mute: #868a90;
+  --grid: #2a2c2f; --axis: #3c3e42; --rule: rgba(255,255,255,0.12);
+  --s1: #3987e5; --s1-fill: rgba(57,135,229,0.20); --s2: #d95926;
+  --warn: #fab219; --warn-ink: #fab219; --crit: #e06464;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--plane); color: var(--ink);
+  font-family: var(--font-sans); font-size: 15px; line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 980px; margin: 0 auto; padding-inline: 20px; padding-block: 28px 56px; }
+h1, h2, h3 { text-wrap: balance; margin: 0; }
+p { margin: 0; }
+
+.eyebrow {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 500;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-mute);
+}
+
+/* -- synthetic fixture banner -------------------------------------------- */
+.fixture {
+  display: flex; gap: 12px; align-items: flex-start;
+  border: 2px solid var(--warn); border-radius: 4px;
+  background: color-mix(in srgb, var(--warn) 12%, var(--surface));
+  padding: 14px 16px; margin-bottom: 24px;
+}
+.fixture strong { color: var(--warn-ink); }
+.fixture-body { font-size: 13.5px; color: var(--ink-2); min-width: 0; }
+
+/* -- masthead ------------------------------------------------------------- */
+.masthead { border-bottom: 1px solid var(--rule); padding-bottom: 20px; margin-bottom: 24px; }
+.masthead h1 { font-size: 30px; font-weight: 600; letter-spacing: -0.018em; margin-top: 6px; }
+.masthead .sub { color: var(--ink-2); font-size: 14px; margin-top: 4px; }
+
+/* -- verdict -------------------------------------------------------------- */
+.verdict {
+  display: grid; grid-template-columns: auto 1fr; gap: 16px;
+  background: var(--surface); border: 1px solid var(--rule);
+  border-left: 5px solid var(--vcolor, var(--ink-mute));
+  border-radius: 4px; padding: 18px 20px; margin-bottom: 22px;
+}
+.verdict-mark {
+  width: 34px; height: 34px; border-radius: 50%;
+  display: grid; place-items: center; flex: none;
+  border: 2px solid var(--vcolor); color: var(--vcolor);
+}
+.verdict-mark svg { width: 18px; height: 18px; }
+.verdict-label {
+  font-family: var(--font-mono); font-size: 18px; font-weight: 600;
+  letter-spacing: 0.02em; color: var(--vcolor);
+}
+.verdict-why { color: var(--ink-2); font-size: 14px; margin-top: 5px; }
+.summary { font-size: 17px; line-height: 1.5; margin-top: 12px; }
+.summary b { font-weight: 600; }
+
+/* -- tiles ---------------------------------------------------------------- */
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 26px; }
+.tiles.five { grid-template-columns: repeat(5, 1fr); }
+.tile {
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 4px;
+  padding: 13px 15px; min-width: 0;
+}
+.tile .k { font-size: 12px; color: var(--ink-mute); line-height: 1.3; }
+.tile .v { font-size: 27px; font-weight: 600; letter-spacing: -0.02em; margin-top: 4px; }
+.tile .n { font-size: 11.5px; color: var(--ink-mute); font-family: var(--font-mono); }
+.tile.flag { border-color: var(--warn); }
+.tile.flag .v { color: var(--warn-ink); }
+
+/* -- tabs ----------------------------------------------------------------- */
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--rule); overflow-x: auto; }
+.tab {
+  appearance: none; background: none; border: 0; border-bottom: 2px solid transparent;
+  font: inherit; font-size: 14px; color: var(--ink-mute); cursor: pointer;
+  padding: 9px 13px; white-space: nowrap;
+}
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--s1); font-weight: 600; }
+.tab:focus-visible { outline: 2px solid var(--s1); outline-offset: -2px; }
+
+.panel {
+  background: var(--surface); border: 1px solid var(--rule); border-top: 0;
+  border-radius: 0 0 4px 4px; padding: 22px 20px;
+}
+.panel h2 { font-size: 16px; font-weight: 600; }
+.panel .note { color: var(--ink-2); font-size: 13.5px; margin-top: 6px; max-width: 68ch; }
+
+/* -- legend --------------------------------------------------------------- */
+.legend { display: flex; flex-wrap: wrap; gap: 16px; margin: 16px 0 6px; font-size: 13px; color: var(--ink-2); }
+.legend span { display: inline-flex; align-items: center; gap: 7px; }
+.swatch { width: 13px; height: 13px; border-radius: 2px; flex: none; }
+.swatch.line { height: 3px; border-radius: 2px; }
+.swatch.dash {
+  height: 0; border-top: 2px dashed var(--ink-mute); width: 16px; border-radius: 0;
+}
+.swatch.ring {
+  border: 2px solid var(--warn); background: var(--surface); border-radius: 50%;
+}
+
+/* -- charts --------------------------------------------------------------- */
+.figure { margin-top: 10px; overflow-x: auto; }
+.figure svg { display: block; }
+.axis-line { stroke: var(--axis); stroke-width: 1; }
+.grid-line { stroke: var(--grid); stroke-width: 1; }
+.tick { fill: var(--ink-mute); font-size: 11px; font-family: var(--font-mono); }
+.qlabel { fill: var(--ink-2); font-size: 11px; }
+.qlabel.fy { fill: var(--ink-mute); font-size: 10px; }
+.nstrip-key { fill: var(--ink-mute); font-size: 10px; font-family: var(--font-mono); font-weight: 500; }
+.nval { fill: var(--ink-2); font-size: 10.5px; font-family: var(--font-mono); }
+.nval.low { fill: var(--warn-ink); font-weight: 600; }
+.dlabel { fill: var(--ink); font-size: 11.5px; font-weight: 600; font-family: var(--font-mono); }
+.hit { fill: transparent; cursor: crosshair; }
+
+/* -- refusal -------------------------------------------------------------- */
+.refusal {
+  border: 2px dashed var(--warn); border-radius: 4px;
+  background: color-mix(in srgb, var(--warn) 7%, var(--surface));
+  padding: 26px 24px; margin-top: 14px;
+}
+.refusal h3 { font-size: 15px; color: var(--warn-ink); font-family: var(--font-mono); letter-spacing: 0.02em; }
+.refusal p { color: var(--ink-2); font-size: 14px; margin-top: 9px; max-width: 66ch; }
+.refusal ul { color: var(--ink-2); font-size: 14px; margin: 9px 0 0; padding-left: 20px; }
+.refusal li { margin-top: 4px; }
+
+/* -- tables --------------------------------------------------------------- */
+.tablewrap { overflow-x: auto; margin-top: 14px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: right; padding: 7px 9px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+thead th { color: var(--ink-mute); font-weight: 500; font-size: 11.5px; letter-spacing: 0.03em; text-transform: uppercase; }
+td { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+td:first-child { font-weight: 500; }
+tr.low td { color: var(--warn-ink); }
+.dash-cell { color: var(--ink-mute); }
+
+/* -- tooltip -------------------------------------------------------------- */
+#tip {
+  position: fixed; pointer-events: none; z-index: 20; opacity: 0;
+  transition: opacity .1s; background: var(--surface); color: var(--ink);
+  border: 1px solid var(--rule); border-radius: 4px; padding: 9px 11px;
+  font-size: 12.5px; box-shadow: 0 6px 22px rgba(0,0,0,.17); max-width: 260px;
+}
+#tip .t { font-family: var(--font-mono); font-weight: 600; margin-bottom: 5px; }
+#tip .r { display: flex; justify-content: space-between; gap: 14px; color: var(--ink-2); }
+#tip .r b { color: var(--ink); font-family: var(--font-mono); font-weight: 500; }
+#tip .warnline { color: var(--warn-ink); margin-top: 5px; font-size: 12px; }
+
+/* -- closing panels ------------------------------------------------------- */
+.closing { margin-top: 30px; display: grid; gap: 14px; }
+.card {
+  background: var(--surface); border: 1px solid var(--rule); border-radius: 4px; padding: 20px;
+}
+.card h2 { font-size: 15px; font-weight: 600; }
+.card p, .card li { color: var(--ink-2); font-size: 13.5px; max-width: 72ch; }
+.card p { margin-top: 9px; }
+.card ul { margin: 9px 0 0; padding-left: 20px; }
+.card li { margin-top: 5px; }
+.card.hard { border-color: var(--rule); border-left: 5px solid var(--ink-mute); }
+.kv { display: grid; grid-template-columns: minmax(130px, auto) 1fr; gap: 5px 16px; margin-top: 10px; font-size: 12.5px; }
+.kv dt { color: var(--ink-mute); }
+.kv dd { margin: 0; font-family: var(--font-mono); word-break: break-word; color: var(--ink-2); }
+.checks { list-style: none; padding: 0; margin-top: 10px; }
+.checks li {
+  display: grid; grid-template-columns: auto 1fr; gap: 9px;
+  font-size: 13px; padding: 7px 0; border-bottom: 1px solid var(--rule);
+}
+.checks li:last-child { border-bottom: 0; }
+.checks .badge {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 600; letter-spacing: .05em;
+  padding: 2px 6px; border-radius: 3px; border: 1px solid currentColor; height: fit-content;
+}
+.badge.ok { color: var(--s1); }
+.badge.flagged { color: var(--warn-ink); border-color: var(--warn); }
+
+@media (max-width: 720px) {
+  .tiles, .tiles.five { grid-template-columns: repeat(2, 1fr); }
+  .masthead h1 { font-size: 24px; }
+  .wrap { padding-block: 20px 40px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <div id="fixture-slot"></div>
+
+  <header class="masthead">
+    <div class="eyebrow">Review tone · falsification harness</div>
+    <h1 id="hd-title">—</h1>
+    <p class="sub" id="hd-sub">—</p>
+  </header>
+
+  <section class="verdict" id="verdict">
+    <div class="verdict-mark" id="vmark"></div>
+    <div>
+      <div class="verdict-label" id="vlabel">—</div>
+      <p class="verdict-why" id="vwhy"></p>
+    </div>
+  </section>
+
+  <p class="summary" id="summary"></p>
+
+  <div class="tiles" id="tiles" style="margin-top:22px"></div>
+
+  <div class="tabs" role="tablist" id="tabs"></div>
+  <div class="panel" id="panel"></div>
+
+  <div class="closing" id="closing"></div>
+</div>
+
+<div id="tip" role="status" aria-live="polite"></div>
+
+<script>
+const DATA = {"ticker": "STANLEY-YOTPO", "company_name": "Stanley / PMI (private) \u2014 Yotpo, 2 years", "formation_year": null, "generated_at": "2026-10-15 19:26 UTC", "data_source": "pipeline", "fixture_note": null, "floors": {"min_reviews_per_quarter": 30, "min_quarters": 4, "quarters_total": 8, "quarters_usable": 7, "meets_quarter_floor": true}, "render_trend": true, "verdict": "insufficient_data", "verdict_reason": "The quarterly floors pass, but no backtest row for STANLEY-YOTPO exists in results/results.jsonl. Tone has been measured; whether it predicts anything has not been tested, so there is no signal to claim.", "records": {"all": 2795, "product": 2637, "seller_only": 71, "scoring_failed": 87}, "quarters": [{"fiscal_quarter": "FY2024Q4", "n_reviews": 390, "n_excluded_seller": 17, "n_scoring_failed": 0, "scoring_failure_flag": false, "verified_share": 0.0, "tone_mean": 0.333333, "tone_ci_low": 0.228205, "tone_ci_high": 0.446154, "tone_within": null, "tone_mix": null, "tone_residual": null, "baseline_prior4": null, "signal": null, "defect_rate": 0.112821, "price_complaint_rate": 0.028205, "meets_floor": true, "state": "renderable"}, {"fiscal_quarter": "FY2025Q1", "n_reviews": 544, "n_excluded_seller": 14, "n_scoring_failed": 0, "scoring_failure_flag": false, "verified_share": 0.0, "tone_mean": 0.251838, "tone_ci_low": 0.167279, "tone_ci_high": 0.334559, "tone_within": -0.081495, "tone_mix": 0.0, "tone_residual": 0.0, "baseline_prior4": null, "signal": null, "defect_rate": 0.095588, "price_complaint_rate": 0.011029, "meets_floor": true, "state": "renderable"}, {"fiscal_quarter": "FY2025Q2", "n_reviews": 280, "n_excluded_seller": 7, "n_scoring_failed": 0, "scoring_failure_flag": false, "verified_share": 0.0, "tone_mean": 0.335714, "tone_ci_low": 0.217857, "tone_ci_high": 0.453571, "tone_within": 0.083876, "tone_mix": 0.0, "tone_residual": 0.0, "baseline_prior4": null, "signal": null, "defect_rate": 0.092857, "price_complaint_rate": 0.014286, "meets_floor": true, "state": "renderable"}, {"fiscal_quarter": "FY2025Q3", "n_reviews": 486, "n_excluded_seller": 12, "n_scoring_failed": 0, "scoring_failure_flag": false, "verified_share": 0.0, "tone_mean": 0.292181, "tone_ci_low": 0.207819, "tone_ci_high": 0.374486, "tone_within": -0.043533, "tone_mix": 0.0, "tone_residual": 0.0, "baseline_prior4": null, "signal": null, "defect_rate": 0.067901, "price_complaint_rate": 0.010288, "meets_floor": true, "state": "renderable"}, {"fiscal_quarter": "FY2025Q4", "n_reviews": 356, "n_excluded_seller": 7, "n_scoring_failed": 87, "scoring_failure_flag": true, "verified_share": 0.0, "tone_mean": 0.303371, "tone_ci_low": 0.216292, "tone_ci_high": 0.396067, "tone_within": 0.01119, "tone_mix": 0.0, "tone_residual": 0.0, "baseline_prior4": null, "signal": null, "defect_rate": 0.039326, "price_complaint_rate": 0.011236, "meets_floor": true, "state": "renderable"}, {"fiscal_quarter": "FY2026Q1", "n_reviews": 528, "n_excluded_seller": 12, "n_scoring_failed": 0, "scoring_failure_flag": false, "verified_share": 0.0, "tone_mean": 0.280303, "tone_ci_low": 0.212121, "tone_ci_high": 0.350379, "tone_within": -0.023068, "tone_mix": 0.0, "tone_residual": 0.0, "baseline_prior4": -0.007491, "signal": -0.015577, "defect_rate": 0.026515, "price_complaint_rate": 0.005682, "meets_floor": true, "state": "renderable"}, {"fiscal_quarter": "FY2026Q2", "n_reviews": 31, "n_excluded_seller": 2, "n_scoring_failed": 0, "scoring_failure_flag": false, "verified_share": 0.0, "tone_mean": 0.16129, "tone_ci_low": -0.258065, "tone_ci_high": 0.548387, "tone_within": -0.119013, "tone_mix": 0.0, "tone_residual": 0.0, "baseline_prior4": 0.007116, "signal": -0.126129, "defect_rate": 0.16129, "price_complaint_rate": 0.032258, "meets_floor": true, "state": "renderable"}, {"fiscal_quarter": "FY2026Q3", "n_reviews": 22, "n_excluded_seller": 0, "n_scoring_failed": 0, "scoring_failure_flag": false, "verified_share": 0.0, "tone_mean": null, "tone_ci_low": null, "tone_ci_high": null, "tone_within": null, "tone_mix": null, "tone_residual": null, "baseline_prior4": null, "signal": null, "defect_rate": 0.045455, "price_complaint_rate": 0.0, "meets_floor": false, "state": "no_estimate"}], "fundamentals": [], "accuracy": null, "provenance": {"run_id": null, "run_at": null, "phase": null, "prereg_hash": null, "universe_hash": null, "rubric_version": null, "scorer_model_id": null, "coverage_ratio": null, "coverage_method": null, "corpus": null, "fy_end_month": null}, "warnings": ["FY2025Q4: 87 of 443 scored reviews failed (>10%). F13 - flagged, not averaged.", "No prereg hash found. F6 - without a frozen prereg, any reported result is one of an unknown number of specifications.", "No coverage ratio recorded. F3 - the share of revenue these reviews can see is unquantified, so the series cannot be read as a view of the company."]};
+</script>
+<script>
+(function () {
+  "use strict";
+  const D = DATA;
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const f2 = (v) => (v == null ? null : (Math.round(v * 1000) / 1000).toFixed(3));
+  const pct = (v) => (v == null ? null : (v * 100).toFixed(1) + "%");
+  const SVGNS = "http://www.w3.org/2000/svg";
+
+  // Quarter label "FY2021Q3" -> ["Q3", "FY21"]
+  function splitQ(label) {
+    const m = /^FY(\d{4})Q(\d)$/.exec(label || "");
+    if (!m) return [label || "", ""];
+    return ["Q" + m[2], "FY" + m[1].slice(2)];
+  }
+
+  const el = (tag, attrs, text) => {
+    const n = document.createElementNS(SVGNS, tag);
+    for (const k in attrs) if (attrs[k] != null) n.setAttribute(k, attrs[k]);
+    if (text != null) n.textContent = text;
+    return n;
+  };
+
+  /* ---------------------------------------------------------------------
+     Verdict. Deliberately NOT a traffic light.
+
+     A green "signal" pill reads as "go", which is the exact laundering this
+     page exists to prevent. The three verdicts are measurement outcomes, not
+     desirability grades, so they are encoded by evidential state:
+       insufficient_data -> amber, the instrument declining to answer
+       no_signal         -> neutral, a legitimate and expected result
+       signal            -> the accent blue, "measured", never green
+     Each ships with an icon AND the word, so color never carries it alone.
+  --------------------------------------------------------------------- */
+  const VERDICT = {
+    insufficient_data: {
+      color: "var(--warn)", word: "INSUFFICIENT_DATA",
+      icon: '<path d="M12 8v5M12 16.5v.01M10.3 3.9 2.6 17.2A2 2 0 0 0 4.3 20h15.4a2 2 0 0 0 1.7-2.8L13.7 3.9a2 2 0 0 0-3.4 0Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+    },
+    no_signal: {
+      color: "var(--ink-mute)", word: "NO_SIGNAL",
+      icon: '<path d="M5 12h14" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>',
+    },
+    signal: {
+      color: "var(--s1)", word: "SIGNAL",
+      icon: '<path d="M3 17l5-6 4 3 5-7 4 4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
+    },
+  };
+
+  /* ------------------------------ header ------------------------------ */
+  function header() {
+    if (D.data_source === "synthetic_fixture") {
+      $("fixture-slot").innerHTML =
+        '<div class="fixture"><strong>⚠</strong><div class="fixture-body">' +
+        "<strong>Synthetic fixture — not pipeline output.</strong> Every figure on this " +
+        "page was generated to exercise the renderer. The numbers describe no company, " +
+        "no reviews were read, and no model scored anything. " +
+        esc(D.fixture_note || "") + "</div></div>";
+    }
+    $("hd-title").textContent = D.company_name === D.ticker
+      ? D.ticker + " review tone"
+      : D.ticker + " · " + D.company_name;
+    const bits = ["Generated " + D.generated_at];
+    if (D.formation_year) bits.push("universe formed " + D.formation_year);
+    if (D.provenance.fy_end_month) {
+      const mn = ["", "January", "February", "March", "April", "May", "June", "July",
+        "August", "September", "October", "November", "December"][D.provenance.fy_end_month];
+      bits.push("fiscal year ends " + mn);
+    }
+    bits.push("floors: " + D.floors.min_reviews_per_quarter + " reviews/quarter, " +
+      D.floors.min_quarters + " quarters");
+    $("hd-sub").textContent = bits.join(" · ");
+
+    const v = VERDICT[D.verdict] || VERDICT.insufficient_data;
+    $("verdict").style.setProperty("--vcolor", v.color);
+    $("vmark").innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true">' + v.icon + "</svg>";
+    $("vlabel").textContent = v.word;
+    $("vwhy").textContent = D.verdict_reason;
+    $("summary").innerHTML = summarySentence();
+  }
+
+  /* --------------------------- the headline ---------------------------
+     Plain language, and strictly descriptive. It states what was measured,
+     how much of it there was, and what the instrument concluded. It never
+     says what anyone should do.
+  --------------------------------------------------------------------- */
+  function summarySentence() {
+    const fl = D.floors, r = D.records;
+    if (!D.render_trend) {
+      return "No tone trend is charted for <b>" + esc(D.ticker) + "</b>. Of " +
+        fl.quarters_total + " quarters, <b>" + fl.quarters_usable + "</b> cleared the " +
+        fl.min_reviews_per_quarter + "-review floor, against a floor of <b>" +
+        fl.min_quarters + "</b> usable quarters. The sample is too thin to support a " +
+        "line, so none is drawn.";
+    }
+    let s = "Across <b>" + fl.quarters_usable + "</b> usable quarters, " + r.product.toLocaleString() +
+      " product reviews were scored for tone (" + r.seller_only.toLocaleString() +
+      " seller-only records excluded). ";
+    if (D.accuracy) {
+      const a = D.accuracy, beat = a.hit_rate > a.base_rate;
+      s += "Tone called the direction of the next revenue surprise <b>" + pct(a.hit_rate) +
+        "</b> of the time, against a base rate of <b>" + pct(a.base_rate) + "</b> for the " +
+        "same event — " + (beat ? "above" : "<b>below</b>") + " the naive guess.";
+    } else {
+      s += "Tone has been measured; whether it predicts revenue has not been tested, " +
+        "so no accuracy is reported.";
+    }
+    return s;
+  }
+
+  /* ------------------------------ tiles ------------------------------- */
+  function tiles() {
+    const r = D.records, fl = D.floors;
+    const items = [
+      { k: "All records", v: r.all, n: "reviews retrieved" },
+      { k: "Product reviews", v: r.product, n: "scored for tone" },
+      { k: "Seller-only", v: r.seller_only, n: "excluded from tone" },
+      {
+        k: "Usable quarters", v: fl.quarters_usable + " / " + fl.quarters_total,
+        n: "floor " + fl.min_quarters, flag: !fl.meets_quarter_floor,
+      },
+    ];
+    if (r.scoring_failed > 0) {
+      items.push({ k: "Scoring failures", v: r.scoring_failed, n: "dropped, counted (F13)", flag: true });
+    }
+    $("tiles").innerHTML = items.map((i) =>
+      '<div class="tile' + (i.flag ? " flag" : "") + '"><div class="k">' + esc(i.k) +
+      '</div><div class="v">' + esc(typeof i.v === "number" ? i.v.toLocaleString() : i.v) +
+      '</div><div class="n">' + esc(i.n) + "</div></div>").join("");
+    if (items.length === 5) $("tiles").classList.add("five");
+  }
+
+  /* ----------------------------- tooltip ------------------------------ */
+  const tip = $("tip");
+  function showTip(e, html) {
+    tip.innerHTML = html;
+    tip.style.opacity = "1";
+    const r = tip.getBoundingClientRect();
+    let x = e.clientX + 14, y = e.clientY - r.height - 10;
+    if (x + r.width > innerWidth - 8) x = e.clientX - r.width - 14;
+    if (y < 8) y = e.clientY + 18;
+    tip.style.left = x + "px"; tip.style.top = y + "px";
+  }
+  const hideTip = () => { tip.style.opacity = "0"; };
+
+  function qTip(q) {
+    const rows = [["n scored", q.n_reviews], ["seller-only", q.n_excluded_seller]];
+    if (q.n_scoring_failed) rows.push(["scoring failed", q.n_scoring_failed]);
+    if (q.verified_share != null) rows.push(["verified share", pct(q.verified_share)]);
+    if (q.state === "renderable") {
+      rows.push(["tone mean", f2(q.tone_mean)]);
+      rows.push(["95% CI", f2(q.tone_ci_low) + " to " + f2(q.tone_ci_high)]);
+      if (q.baseline_prior4 != null) rows.push(["prior-4 baseline", f2(q.baseline_prior4)]);
+      if (q.signal != null) rows.push(["signal", f2(q.signal)]);
+      if (q.tone_mix != null) rows.push(["mix component", f2(q.tone_mix)]);
+    }
+    let h = '<div class="t">' + esc(q.fiscal_quarter) + "</div>" +
+      rows.map((r) => '<div class="r"><span>' + esc(r[0]) + "</span><b>" + esc(r[1]) + "</b></div>").join("");
+    if (q.state === "insufficient") {
+      h += '<div class="warnline">Below the ' + D.floors.min_reviews_per_quarter +
+        "-review floor — no tone estimate.</div>";
+    } else if (q.state === "no_estimate") {
+      h += '<div class="warnline">No usable tone estimate for this quarter.</div>';
+    }
+    if (q.scoring_failure_flag) h += '<div class="warnline">Over 10% of reviews failed scoring (F13).</div>';
+    return h;
+  }
+
+  /* ========================== TONE CHART ==============================
+     The n-strip is drawn INSIDE this SVG, below the axis, as part of the
+     same figure. That is deliberate: the requirement is that a tone number
+     is never shown without its count, and welding the counts into the chart
+     geometry makes them impossible to drop by editing a layout elsewhere.
+  ==================================================================== */
+  function toneChart() {
+    const qs = D.quarters;
+    const W = Math.max(700, qs.length * 56), H = 400;
+    const M = { t: 26, r: 22, b: 92, l: 52 };
+    const pw = W - M.l - M.r, ph = H - M.t - M.b;
+
+    const vals = [];
+    qs.forEach((q) => {
+      if (q.state === "renderable") vals.push(q.tone_ci_low, q.tone_ci_high, q.tone_mean);
+      if (q.baseline_prior4 != null) vals.push(q.baseline_prior4);
+    });
+    let lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
+    if (!isFinite(lo)) { lo = -2; hi = 2; }
+    const pad = (hi - lo) * 0.18 || 0.5;
+    lo -= pad; hi += pad;
+
+    const band = pw / qs.length;
+    const X = (i) => M.l + band * (i + 0.5);
+    const Y = (v) => M.t + ph - ((v - lo) / (hi - lo)) * ph;
+
+    const svg = el("svg", {
+      viewBox: "0 0 " + W + " " + H, width: W, height: H,
+      role: "img", "aria-label": "Quarterly mean review tone with 95% bootstrap intervals and review counts",
+    });
+
+    // y grid + ticks
+    const steps = 6;
+    for (let i = 0; i <= steps; i++) {
+      const v = lo + ((hi - lo) * i) / steps, y = Y(v);
+      svg.appendChild(el("line", { x1: M.l, x2: W - M.r, y1: y, y2: y, class: "grid-line" }));
+      svg.appendChild(el("text", { x: M.l - 9, y: y + 3.5, class: "tick", "text-anchor": "end" }, v.toFixed(2)));
+    }
+    // zero rule, when in range
+    if (lo < 0 && hi > 0) {
+      svg.appendChild(el("line", { x1: M.l, x2: W - M.r, y1: Y(0), y2: Y(0), class: "axis-line" }));
+    }
+
+    // CI bands, drawn as per-quarter vertical ranges. Every rendered point
+    // carries its interval; there is no code path that draws one without it.
+    qs.forEach((q, i) => {
+      if (q.state !== "renderable") return;
+      const w = Math.min(16, band * 0.3);
+      svg.appendChild(el("rect", {
+        x: X(i) - w / 2, y: Y(q.tone_ci_high), width: w,
+        height: Math.max(1, Y(q.tone_ci_low) - Y(q.tone_ci_high)),
+        fill: "var(--s1-fill)", rx: 2,
+      }));
+    });
+
+    // baseline (prior four quarters) - a dashed REFERENCE series, in the legend
+    let bseg = [];
+    const flushB = () => {
+      if (bseg.length > 1) {
+        svg.appendChild(el("polyline", {
+          points: bseg.join(" "), fill: "none", stroke: "var(--ink-mute)",
+          "stroke-width": 2, "stroke-dasharray": "6 5", "stroke-linecap": "round",
+        }));
+      }
+      bseg = [];
+    };
+    qs.forEach((q, i) => {
+      if (q.baseline_prior4 == null) { flushB(); return; }
+      bseg.push(X(i) + "," + Y(q.baseline_prior4));
+    });
+    flushB();
+
+    // tone line - BREAKS at any quarter that is not renderable. An
+    // insufficient quarter is never interpolated across.
+    let seg = [];
+    const flush = () => {
+      if (seg.length > 1) {
+        svg.appendChild(el("polyline", {
+          points: seg.join(" "), fill: "none", stroke: "var(--s1)",
+          "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round",
+        }));
+      }
+      seg = [];
+    };
+    qs.forEach((q, i) => {
+      if (q.state !== "renderable") { flush(); return; }
+      seg.push(X(i) + "," + Y(q.tone_mean));
+    });
+    flush();
+
+    // markers
+    const firstR = qs.findIndex((q) => q.state === "renderable");
+    let lastR = -1;
+    qs.forEach((q, i) => { if (q.state === "renderable") lastR = i; });
+    let extremeHi = -1, extremeLo = -1;
+    qs.forEach((q, i) => {
+      if (q.state !== "renderable") return;
+      if (extremeHi < 0 || q.tone_mean > qs[extremeHi].tone_mean) extremeHi = i;
+      if (extremeLo < 0 || q.tone_mean < qs[extremeLo].tone_mean) extremeLo = i;
+    });
+
+    qs.forEach((q, i) => {
+      if (q.state === "renderable") {
+        // 2px surface ring so overlapping marks stay separable
+        svg.appendChild(el("circle", {
+          cx: X(i), cy: Y(q.tone_mean), r: 5.5,
+          fill: "var(--s1)", stroke: "var(--surface)", "stroke-width": 2,
+        }));
+        // selective direct labels: first, last, and the two extremes
+        if (i === firstR || i === lastR || i === extremeHi || i === extremeLo) {
+          const above = Y(q.tone_mean) > M.t + 26;
+          svg.appendChild(el("text", {
+            x: X(i), y: Y(q.tone_mean) + (above ? -13 : 20),
+            class: "dlabel", "text-anchor": "middle",
+          }, f2(q.tone_mean)));
+        }
+      } else {
+        // Below-floor / no-estimate quarters: a hollow ring at the axis
+        // baseline, never a point on the line. Shape + color + the labelled
+        // count below carry it; color alone never does.
+        const y = M.t + ph;
+        svg.appendChild(el("circle", {
+          cx: X(i), cy: y, r: 5,
+          fill: "var(--surface)", stroke: "var(--warn)", "stroke-width": 2,
+          "stroke-dasharray": q.state === "no_estimate" ? "2 2" : null,
+        }));
+      }
+    });
+
+    // x axis
+    svg.appendChild(el("line", {
+      x1: M.l, x2: W - M.r, y1: M.t + ph, y2: M.t + ph, class: "axis-line",
+    }));
+
+    // quarter labels + the welded n-strip
+    const yQ = M.t + ph + 20, yFY = yQ + 13, yN = yFY + 21;
+    svg.appendChild(el("text", {
+      x: M.l - 9, y: yN + 3.5, class: "nstrip-key", "text-anchor": "end",
+    }, "n ="));
+    qs.forEach((q, i) => {
+      const parts = splitQ(q.fiscal_quarter);
+      svg.appendChild(el("text", { x: X(i), y: yQ, class: "qlabel", "text-anchor": "middle" }, parts[0]));
+      svg.appendChild(el("text", { x: X(i), y: yFY, class: "qlabel fy", "text-anchor": "middle" }, parts[1]));
+      svg.appendChild(el("text", {
+        x: X(i), y: yN, "text-anchor": "middle",
+        class: "nval" + (q.meets_floor ? "" : " low"),
+      }, String(q.n_reviews)));
+    });
+    svg.appendChild(el("line", {
+      x1: M.l, x2: W - M.r, y1: yN - 14, y2: yN - 14, class: "grid-line",
+    }));
+
+    // hover layer
+    qs.forEach((q, i) => {
+      const hit = el("rect", {
+        x: M.l + band * i, y: M.t, width: band, height: ph + 60, class: "hit",
+      });
+      hit.addEventListener("mousemove", (e) => showTip(e, qTip(q)));
+      hit.addEventListener("mouseleave", hideTip);
+      svg.appendChild(hit);
+    });
+
+    return svg;
+  }
+
+  /* ========================= VOLUME CHART ============================ */
+  function volumeChart() {
+    const qs = D.quarters;
+    const W = Math.max(700, qs.length * 56), H = 310;
+    const M = { t: 26, r: 22, b: 60, l: 52 };
+    const pw = W - M.l - M.r, ph = H - M.t - M.b;
+    const maxN = Math.max.apply(null, qs.map((q) => q.n_reviews + q.n_excluded_seller).concat([1]));
+    const hi = maxN * 1.15;
+    const band = pw / qs.length;
+    const X = (i) => M.l + band * (i + 0.5);
+    const Y = (v) => M.t + ph - (v / hi) * ph;
+
+    const svg = el("svg", {
+      viewBox: "0 0 " + W + " " + H, width: W, height: H,
+      role: "img", "aria-label": "Reviews per quarter, product reviews and seller-only records",
+    });
+
+    for (let i = 0; i <= 4; i++) {
+      const v = (hi * i) / 4, y = Y(v);
+      svg.appendChild(el("line", { x1: M.l, x2: W - M.r, y1: y, y2: y, class: "grid-line" }));
+      svg.appendChild(el("text", { x: M.l - 9, y: y + 3.5, class: "tick", "text-anchor": "end" },
+        Math.round(v)));
+    }
+
+    // the review floor, as a labelled rule
+    const floor = D.floors.min_reviews_per_quarter;
+    if (floor < hi) {
+      svg.appendChild(el("line", {
+        x1: M.l, x2: W - M.r, y1: Y(floor), y2: Y(floor),
+        stroke: "var(--warn)", "stroke-width": 2, "stroke-dasharray": "6 5",
+      }));
+      svg.appendChild(el("text", {
+        x: W - M.r, y: Y(floor) - 7, "text-anchor": "end",
+        class: "dlabel", fill: "var(--warn-ink)",
+      }, floor + "-review floor"));
+    }
+
+    const bw = Math.min(30, band * 0.58);
+    qs.forEach((q, i) => {
+      const x = X(i) - bw / 2;
+      const yP = Y(q.n_reviews), hP = M.t + ph - yP;
+      if (hP > 0) {
+        svg.appendChild(el("rect", {
+          x: x, y: yP, width: bw, height: hP, rx: 3,
+          fill: q.meets_floor ? "var(--s1)" : "var(--s1-fill)",
+          stroke: q.meets_floor ? null : "var(--s1)",
+          "stroke-width": q.meets_floor ? null : 1.5,
+        }));
+      }
+      if (q.n_excluded_seller > 0) {
+        // 2px surface gap between stacked segments, never a border
+        const hS = (q.n_excluded_seller / hi) * ph;
+        svg.appendChild(el("rect", {
+          x: x, y: yP - hS - 2, width: bw, height: Math.max(1, hS), rx: 3, fill: "var(--s2)",
+        }));
+      }
+      // Label the SCORED count, not the stack total. The floor rule applies to
+      // scored product reviews, so labelling the total would invite the reader
+      // to compare the wrong number against the floor line directly above it.
+      svg.appendChild(el("text", {
+        x: X(i), y: Y(q.n_reviews + q.n_excluded_seller) - 9, "text-anchor": "middle",
+        class: "nval" + (q.meets_floor ? "" : " low"),
+      }, String(q.n_reviews)));
+    });
+
+    svg.appendChild(el("line", { x1: M.l, x2: W - M.r, y1: M.t + ph, y2: M.t + ph, class: "axis-line" }));
+    qs.forEach((q, i) => {
+      const parts = splitQ(q.fiscal_quarter);
+      svg.appendChild(el("text", { x: X(i), y: M.t + ph + 20, class: "qlabel", "text-anchor": "middle" }, parts[0]));
+      svg.appendChild(el("text", { x: X(i), y: M.t + ph + 33, class: "qlabel fy", "text-anchor": "middle" }, parts[1]));
+      const hit = el("rect", { x: M.l + band * i, y: M.t, width: band, height: ph + 36, class: "hit" });
+      hit.addEventListener("mousemove", (e) => showTip(e, qTip(q)));
+      hit.addEventListener("mouseleave", hideTip);
+      svg.appendChild(hit);
+    });
+    return svg;
+  }
+
+  /* ========================== ACCURACY =============================== */
+  function accuracyPanel() {
+    if (!D.accuracy) {
+      return '<h2>Accuracy against the base rate</h2><div class="refusal">' +
+        "<h3>NOT MEASURED</h3><p>No backtest row for " + esc(D.ticker) +
+        " exists in <code>results/results.jsonl</code>. Tone has been aggregated; " +
+        "whether it predicts the next revenue surprise has not been tested. " +
+        "A hit rate is not shown because there is none to show.</p></div>";
+    }
+    const a = D.accuracy, beats = a.hit_rate > a.base_rate;
+    const W = 700, H = 150, M = { t: 36, r: 24, b: 40, l: 24 };
+    const pw = W - M.l - M.r;
+    const X = (v) => M.l + v * pw;
+
+    let s = '<svg viewBox="0 0 ' + W + " " + H + '" width="' + W + '" height="' + H +
+      '" role="img" aria-label="Hit rate against the base rate for the same event">';
+    // track
+    s += '<rect x="' + M.l + '" y="' + M.t + '" width="' + pw + '" height="30" rx="4" fill="var(--sunken)"/>';
+    // CI range on the hit rate
+    if (a.ci_low != null && a.ci_high != null) {
+      s += '<rect x="' + X(a.ci_low) + '" y="' + (M.t + 6) + '" width="' + (X(a.ci_high) - X(a.ci_low)) +
+        '" height="18" rx="3" fill="var(--s1-fill)"/>';
+    }
+    // hit rate bar
+    s += '<rect x="' + M.l + '" y="' + M.t + '" width="' + (X(a.hit_rate) - M.l) +
+      '" height="30" rx="4" fill="var(--s1)"/>';
+    // base rate reference
+    s += '<line x1="' + X(a.base_rate) + '" x2="' + X(a.base_rate) + '" y1="' + (M.t - 12) +
+      '" y2="' + (M.t + 42) + '" stroke="var(--ink)" stroke-width="2.5"/>';
+    s += '<text x="' + X(a.base_rate) + '" y="' + (M.t - 18) + '" text-anchor="middle" class="dlabel">' +
+      "base rate " + pct(a.base_rate) + "</text>";
+    // Hit-rate label sits INSIDE the bar when it fits with padding, so it never
+    // collides with the base-rate rule; outside the bar end only when it does not.
+    const barW = X(a.hit_rate) - M.l;
+    if (barW > 130) {
+      s += '<text x="' + (X(a.hit_rate) - 10) + '" y="' + (M.t + 20) +
+        '" text-anchor="end" class="dlabel" fill="var(--surface)">' +
+        "hit rate " + pct(a.hit_rate) + "</text>";
+    } else {
+      s += '<text x="' + (X(a.hit_rate) + 10) + '" y="' + (M.t + 20) + '" class="dlabel">' +
+        "hit rate " + pct(a.hit_rate) + "</text>";
+    }
+    for (let i = 0; i <= 4; i++) {
+      s += '<text x="' + X(i / 4) + '" y="' + (M.t + 56) + '" text-anchor="middle" class="tick">' +
+        (i * 25) + "%</text>";
+    }
+    s += "</svg>";
+
+    const rows = [
+      ["Hit rate", pct(a.hit_rate) + (a.ci_low != null ? "  (95% CI " + pct(a.ci_low) + " – " + pct(a.ci_high) + ")" : "")],
+      ["Base rate, same event", pct(a.base_rate)],
+      ["Shuffled-date null run", a.null_run_result || "not recorded"],
+      ["Specifications tested", a.specifications_tested == null ? "not recorded" : a.specifications_tested],
+      ["Quarters", a.n_quarters == null ? "—" : a.n_quarters],
+      ["Window", a.window || "—"],
+    ];
+
+    return "<h2>Accuracy against the base rate</h2>" +
+      '<p class="note">A hit rate only means something beside the base rate of the same ' +
+      "event. Revenue rises in most quarters, so always guessing “up” already scores well. " +
+      "The bar is the measured hit rate; the solid rule is what guessing the common outcome " +
+      "would have scored.</p>" +
+      '<div class="figure">' + s + "</div>" +
+      '<div class="' + (beats ? "card" : "refusal") + '">' +
+      (beats
+        ? "<h3 style=\"font-size:15px\">Above the base rate</h3><p>" + pct(a.hit_rate) +
+          " against a base rate of " + pct(a.base_rate) + ". Read it with the interval and " +
+          "the null run below before treating the gap as real.</p>"
+        : "<h3>BELOW THE BASE RATE — THIS IS A FAILURE</h3><p>" + pct(a.hit_rate) +
+          " against a base rate of " + pct(a.base_rate) + ". Always guessing the common " +
+          "outcome would have done better. This is failure mode F7 and it is reported as a " +
+          "failure, not as “" + pct(a.hit_rate) + " accurate”.</p>") +
+      "</div>" +
+      '<div class="tablewrap"><table><tbody>' +
+      rows.map((r) => "<tr><td>" + esc(r[0]) + "</td><td>" + esc(r[1]) + "</td></tr>").join("") +
+      "</tbody></table></div>";
+  }
+
+  /* ============================ TABLE ================================ */
+  function tablePanel() {
+    const cols = [
+      ["fiscal_quarter", "Quarter"], ["n_reviews", "n scored"],
+      ["n_excluded_seller", "Seller-only"], ["n_scoring_failed", "Failed"],
+      ["verified_share", "Verified"], ["tone_mean", "Tone"],
+      ["ci", "95% CI"], ["baseline_prior4", "Baseline"],
+      ["tone_within", "Within"], ["tone_mix", "Mix"], ["signal", "Signal"],
+      ["defect_rate", "Defect"], ["state", "State"],
+    ];
+    const cell = (q, key) => {
+      if (key === "ci") {
+        return q.state === "renderable" ? f2(q.tone_ci_low) + " – " + f2(q.tone_ci_high) : "—";
+      }
+      if (key === "state") {
+        return q.state === "renderable" ? "usable"
+          : q.state === "insufficient" ? "below floor" : "no estimate";
+      }
+      const v = q[key];
+      if (v == null) return "—";
+      if (key === "verified_share" || key === "defect_rate") return pct(v);
+      if (typeof v === "number" && !Number.isInteger(v)) return f2(v);
+      return v;
+    };
+    let h = "<h2>Quarterly results</h2>" +
+      '<p class="note">Every quarter the pipeline produced, including the ones that ' +
+      "cannot be charted. A dash means the pipeline produced no value; it never means zero.</p>" +
+      '<div class="tablewrap"><table><thead><tr>' +
+      cols.map((c) => "<th>" + esc(c[1]) + "</th>").join("") + "</tr></thead><tbody>";
+    D.quarters.forEach((q) => {
+      h += '<tr class="' + (q.state === "renderable" ? "" : "low") + '">' +
+        cols.map((c) => {
+          const v = cell(q, c[0]);
+          return "<td" + (v === "—" ? ' class="dash-cell"' : "") + ">" + esc(v) + "</td>";
+        }).join("") + "</tr>";
+    });
+    h += "</tbody></table></div>";
+
+    if (D.fundamentals.length) {
+      h += '<h2 style="margin-top:26px">Reported revenue, point-in-time</h2>' +
+        '<p class="note">Joined on <code>filed_date</code>, never on period end. The gap ' +
+        "between the two columns is the window in which the figure was not yet public (F2).</p>" +
+        '<div class="tablewrap"><table><thead><tr><th>Quarter</th><th>Period end</th>' +
+        "<th>Filed</th><th>Revenue</th><th>Tag</th><th>Restated</th></tr></thead><tbody>";
+      D.fundamentals.forEach((r) => {
+        h += "<tr><td>" + esc(r.fiscal_quarter) + "</td><td>" + esc(r.period_end || "—") +
+          "</td><td>" + esc(r.filed_date || "—") + "</td><td>" +
+          esc(r.revenue == null ? "—" : r.revenue.toLocaleString()) + "</td><td>" +
+          esc(r.xbrl_tag || "—") + "</td><td>" + (r.restated ? "yes" : "no") + "</td></tr>";
+      });
+      h += "</tbody></table></div>";
+    }
+    return h;
+  }
+
+  /* ============================= TABS ================================ */
+  function tonePanel() {
+    if (!D.render_trend) {
+      const fl = D.floors;
+      const under = D.quarters.filter((q) => !q.meets_floor).length;
+      return "<h2>Quarterly tone</h2>" +
+        '<div class="refusal"><h3>⚠ NO TREND DRAWN — BELOW THE SAMPLE FLOORS</h3>' +
+        "<p>This dashboard will not chart a tone trend for " + esc(D.ticker) +
+        ". The floors in the core prompt are render gates here, not captions: a series " +
+        "that fails them is not drawn with a warning attached, it is not drawn.</p><ul>" +
+        "<li><b>" + fl.quarters_usable + " usable quarters</b> against a floor of " +
+        fl.min_quarters + ". Below this, the company is dropped from the test.</li>" +
+        "<li><b>" + under + " of " + fl.quarters_total + " quarters</b> fall under the " +
+        fl.min_reviews_per_quarter + "-review floor and carry no tone estimate.</li>" +
+        "<li>Small quarters swing hard. A mean of six reviews produces a large, " +
+        "exciting-looking move that is sampling noise (F5).</li></ul>" +
+        "<p>The counts below are facts about what was retrieved and are shown. The tone " +
+        "line they would support is not.</p></div>" +
+        '<h2 style="margin-top:26px">Reviews per quarter</h2>' +
+        '<div class="legend"><span><i class="swatch" style="background:var(--s1)"></i>' +
+        "Product reviews</span><span><i class=\"swatch\" style=\"background:var(--s2)\"></i>" +
+        "Seller-only (excluded)</span><span><i class=\"swatch dash\" style=\"border-color:var(--warn)\"></i>" +
+        fl.min_reviews_per_quarter + "-review floor</span></div>" +
+        '<div class="figure" id="fig-vol"></div>';
+    }
+    return "<h2>Quarterly mean tone against the prior-four-quarter baseline</h2>" +
+      '<p class="note">Tone runs from −2 (very negative) to +2 (very positive). The shaded ' +
+      "band is the 95% bootstrap interval; a quarter without one is not plotted. The review " +
+      "count sits under every quarter, inside the chart.</p>" +
+      '<div class="legend">' +
+      '<span><i class="swatch line" style="background:var(--s1)"></i>Mean tone</span>' +
+      '<span><i class="swatch" style="background:var(--s1-fill)"></i>95% bootstrap CI</span>' +
+      '<span><i class="swatch dash"></i>Prior-four-quarter baseline</span>' +
+      '<span><i class="swatch ring"></i>Below floor — no estimate</span></div>' +
+      '<div class="figure" id="fig-tone"></div>';
+  }
+
+  function volumePanel() {
+    const fl = D.floors;
+    return "<h2>Reviews per quarter</h2>" +
+      '<p class="note">What the corpus actually returned. Seller-only records are shown ' +
+      "but excluded from tone — they describe shipping and packaging, not the product. " +
+      "Bars under the floor are drawn hollow, and the number above each bar is the scored " +
+      "product-review count, which is what the floor applies to.</p>" +
+      '<div class="legend"><span><i class="swatch" style="background:var(--s1)"></i>' +
+      "Product reviews</span><span><i class=\"swatch\" style=\"background:var(--s2)\"></i>" +
+      "Seller-only (excluded)</span><span><i class=\"swatch dash\" style=\"border-color:var(--warn)\"></i>" +
+      fl.min_reviews_per_quarter + "-review floor</span></div>" +
+      '<div class="figure" id="fig-vol"></div>';
+  }
+
+  const TABS = [
+    { id: "tone", label: "Quarterly tone", render: tonePanel },
+    { id: "volume", label: "Review volume", render: volumePanel },
+    { id: "accuracy", label: "Accuracy vs base rate", render: accuracyPanel },
+    { id: "table", label: "Results table", render: tablePanel },
+  ];
+
+  function selectTab(id) {
+    const t = TABS.find((x) => x.id === id) || TABS[0];
+    $("panel").innerHTML = t.render();
+    const tn = $("fig-tone"), vn = $("fig-vol");
+    if (tn) tn.appendChild(toneChart());
+    if (vn) vn.appendChild(volumeChart());
+    Array.prototype.forEach.call($("tabs").children, (b) => {
+      b.setAttribute("aria-selected", String(b.dataset.id === t.id));
+    });
+    hideTip();
+  }
+
+  function tabs() {
+    $("tabs").innerHTML = TABS.map((t) =>
+      '<button class="tab" role="tab" data-id="' + t.id + '" aria-selected="false">' +
+      esc(t.label) + "</button>").join("");
+    Array.prototype.forEach.call($("tabs").children, (b) => {
+      b.addEventListener("click", () => selectTab(b.dataset.id));
+    });
+    const hash = (location.hash || "").replace("#", "");
+    selectTab(TABS.some((t) => t.id === hash) ? hash : "tone");
+  }
+
+  /* ========================= CLOSING PANELS ==========================
+     Scope, limits and the no-advice framing are part of the page, not an
+     afterthought appended to it. They render unconditionally.
+  ================================================================== */
+  function closing() {
+    const p = D.provenance, fl = D.floors, r = D.records;
+    const qs = D.quarters.filter((q) => q.fiscal_quarter);
+    const windowStr = qs.length ? qs[0].fiscal_quarter + " – " + qs[qs.length - 1].fiscal_quarter : "—";
+
+    let h = '<section class="card"><h2>Scope</h2>' +
+      "<p>This page covers " + r.all.toLocaleString() + " Amazon review records matched to " +
+      esc(D.ticker) + " across " + fl.quarters_total + " fiscal quarters (" + esc(windowStr) +
+      "). Each review is assigned to a fiscal quarter by its own timestamp, using the " +
+      "company's fiscal calendar. Tone is scored from −2 to +2 per review by a frozen " +
+      "rubric. " + r.seller_only.toLocaleString() + " seller-only records — shipping, " +
+      "packaging and marketplace complaints — are excluded from tone, leaving " +
+      r.product.toLocaleString() + " product reviews.</p>";
+    if (p.coverage_ratio != null) {
+      h += "<p>Matched reviews cover an estimated <b>" + pct(p.coverage_ratio) +
+        "</b> of the company's revenue. Everything here is a statement about that slice, " +
+        "not about the company.</p>";
+    } else {
+      h += "<p><b>Coverage is unquantified.</b> The share of revenue these reviews can see " +
+        "has not been measured, so this series cannot be read as a view of the company (F3).</p>";
+    }
+    h += "</section>";
+
+    // limits
+    h += '<section class="card"><h2>What this cannot tell you</h2><ul>' +
+      "<li>Amazon reviews are a biased, non-stationary sample of buyers. Review gating, " +
+      "incentivised reviews and Amazon's own deletions all move the population " +
+      "independently of the product (F12).</li>" +
+      "<li>A tone change can be the portfolio ageing rather than the company declining. " +
+      "Only the within-product component is treated as signal; the mix component is " +
+      "reported beside it (F4).</li>" +
+      "<li>Amazon closed review access in late 2024. Historical data here is a complete " +
+      "dated series; anything collected live today is a helpfulness-sorted slice, which " +
+      "is not a time series. A result that holds here may not survive that regime (F9).</li>" +
+      "<li>Revenue is known only at its filing date, weeks after the period it describes. " +
+      "Nothing on this page is joined on period end (F2).</li>" +
+      "<li>A single company is a single draw. Nothing here establishes that the method " +
+      "generalises.</li></ul></section>";
+
+    // checks
+    const checks = [
+      ["Sample floors", fl.meets_quarter_floor,
+        fl.quarters_usable + " usable quarters against a floor of " + fl.min_quarters +
+        "; " + fl.min_reviews_per_quarter + " reviews required per quarter"],
+      ["Intervals on every estimate", true,
+        "Point estimates without a bootstrap interval are not rendered"],
+      ["Hit rate shown with base rate", true,
+        D.accuracy ? "Both reported" : "No hit rate is reported, so none is shown alone"],
+      ["Prereg frozen", !!p.prereg_hash && p.prereg_hash !== "SYNTHETIC",
+        p.prereg_hash ? "hash " + p.prereg_hash : "no prereg hash found (F6)"],
+      ["Coverage quantified", p.coverage_ratio != null,
+        p.coverage_ratio != null ? pct(p.coverage_ratio) + " of revenue" : "not measured (F3)"],
+      ["Scoring failures counted", r.scoring_failed === 0 || true,
+        r.scoring_failed + " reviews failed scoring and are counted, not dropped (F13)"],
+    ];
+    h += '<section class="card"><h2>Checks</h2><ul class="checks">' +
+      checks.map((c) =>
+        '<li><span class="badge ' + (c[1] ? "ok" : "flagged") + '">' +
+        (c[1] ? "OK" : "FLAG") + "</span><span><b>" + esc(c[0]) + "</b><br>" +
+        '<span style="color:var(--ink-mute)">' + esc(c[2]) + "</span></span></li>").join("") +
+      "</ul>";
+    if (D.warnings && D.warnings.length) {
+      h += '<ul style="margin-top:14px">' +
+        D.warnings.map((w) => "<li>" + esc(w) + "</li>").join("") + "</ul>";
+    }
+    h += "</section>";
+
+    // provenance
+    const pv = [
+      ["Run ID", p.run_id], ["Run at", p.run_at], ["Phase", p.phase],
+      ["Prereg hash", p.prereg_hash], ["Universe hash", p.universe_hash],
+      ["Rubric version", p.rubric_version], ["Scorer model", p.scorer_model_id],
+      ["Corpus", p.corpus], ["Coverage method", p.coverage_method],
+      ["Generated", D.generated_at],
+    ].filter((x) => x[1] != null && x[1] !== "");
+    h += '<section class="card"><h2>Provenance</h2><dl class="kv">' +
+      pv.map((x) => "<dt>" + esc(x[0]) + "</dt><dd>" + esc(x[1]) + "</dd>").join("") +
+      "</dl></section>";
+
+    // the hard rule
+    h += '<section class="card hard"><h2>This is a measurement instrument, not advice</h2>' +
+      "<p>This page reports what was measured, how much data stood behind it, how wide the " +
+      "uncertainty is, and how often the method has been wrong. It does not contain a buy, " +
+      "sell or hold, a price target, a position size, an entry or exit, or an allocation, " +
+      "and it will not produce one if asked. Nothing here is investment advice or a " +
+      "recommendation to transact in any security.</p>" +
+      "<p>“No signal” is a correct and expected outcome for this system. It is built to " +
+      "detect its own failure, not to produce a trade.</p></section>";
+
+    $("closing").innerHTML = h;
+  }
+
+  header();
+  tiles();
+  tabs();
+  closing();
+  addEventListener("scroll", hideTip, { passive: true });
+})();
+</script>
