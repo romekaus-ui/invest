@@ -123,6 +123,37 @@ user's Amazon session cookies to that third party**. That is not a trade to make
 lower price per review, and it is not set up on the user's behalf. If it is ever wanted it
 is their explicit, informed decision — never a config change made for them.
 
+## The weekly run, live from 2026-10-15
+
+Scheduled task `review-tone-weekly`, **Mondays 08:37 local**. It collects 3 products at
+50 reviews each (~$0.90), runs `run.py --group insulated-drinkware`, commits and reports.
+
+**50 per product is deliberate.** These products run 3-5 reviews a day, so 50 covers
+10-16 days and a weekly pass cannot miss anything; raising it costs money and the overlap
+is deduplicated away. At 100 the cadence would cost $7.74/month against a $6 free tier
+and would silently halt mid-month. At 50 it is $3.87/month and fits.
+
+**It checks the budget before collecting** and stops if under $1.20 remains, reporting the
+gap rather than overspending. A recorded gap is fine; a cycle that runs out mid-collection
+is not.
+
+It runs while the desktop app is open; if the app is closed on a Monday the run happens at
+next launch.
+
+## The series so far
+
+First measurement 2026-10-15, FY2026Q4, 247 reviews, scorer calibrated at kappa 0.811:
+
+| company | tone | 95% interval | n | coverage |
+|---|---|---|---|---|
+| YETI | 1.113 | [0.716, 1.471] | 53 | ~1% |
+| Stanley | 0.753 | [0.443, 1.030] | 97 | ~1% |
+| Owala | 0.464 | [0.154, 0.773] | 97 | ~1% |
+
+YETI's interval barely clears Owala's, so that gap sits at the edge of being
+distinguishable from noise. The trend chart is refused on all three: it needs 12 quarters
+and there are 2.
+
 ## Next
 
 Stages G and C are built and `/tone-run` walks them. Every declared group currently
