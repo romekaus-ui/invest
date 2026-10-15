@@ -1311,6 +1311,15 @@ def cmd_selftest(args, paths, rubric_version):
     return 1 if fails else 0
 
 
+def data_root(outdir):
+    """The `data/` directory, however deep `--outdir` points inside it."""
+    norm = os.path.normpath(os.path.abspath(outdir))
+    parts = norm.split(os.sep)
+    if "data" in parts:
+        return os.sep.join(parts[:len(parts) - parts[::-1].index("data")])
+    return norm
+
+
 def promote_calibration(outdir, tickers):
     """Publish the per-company calibration result at the contract path.
 
@@ -1342,7 +1351,18 @@ def promote_calibration(outdir, tickers):
 
     keyed = set((r.get("gate"), r.get("rubric_version"), r.get("scorer_model_id"))
                 for _, r in found)
-    dest = os.path.join(outdir, "calibration.json")
+    # The contract path is `data/calibration.json` at the DATA ROOT, not inside
+    # whatever `--outdir` this run happened to use. Calibration is keyed on
+    # (rubric_version, rubric_sha256, scorer_model_id) and applies to every
+    # group scored with that pair; `calibrated_on` records which company's
+    # reviews supplied the sample, which is provenance, not scope.
+    #
+    # Measured 2026-10-15: with the live layout `--outdir data/<group>` put the
+    # gate file at `data/<group>/calibration.json`, the runner read
+    # `data/calibration.json`, and a PASSED gate still blocked the pipeline.
+    # That is the same shape as the bug this function's docstring describes -
+    # a gate reading a file nothing writes - reintroduced one directory up.
+    dest = os.path.join(data_root(outdir), "calibration.json")
     if len(keyed) > 1:
         print("\n!! NOT writing %s: the %d calibrations in this run disagree on"
               % (dest, len(found)))

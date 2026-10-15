@@ -46,6 +46,10 @@ def sh(cmd, dry=False):
     return r.returncode, (r.stdout or "") + (r.stderr or "")
 
 
+sys.path.insert(0, HERE)
+from collect_reviews import slugify as _slugify  # noqa: E402
+
+
 def group_members(group_id):
     """Members of a declared group, from the §1 view the workflow reads."""
     p = os.path.join(ROOT, "groups", "%s.json" % group_id)
@@ -55,7 +59,11 @@ def group_members(group_id):
         g = json.load(f)
     out = []
     for m in g.get("members") or []:
-        slug = m.get("slug") or (m.get("company") or "").lower().replace(" ", "-")
+        # Use the collector's slugify, never a second implementation. A naive
+        # lower().replace(" ", "-") produced 'yeti-holdings,-inc.' against the
+        # real directory 'yeti-holdings-inc', and every stage then looked in a
+        # path that does not exist. Two slug functions is one too many.
+        slug = m.get("slug") or _slugify(m.get("company") or "")
         out.append({"company": m.get("company"), "slug": slug,
                     "venue": m.get("venue"),
                     "readable": bool((m.get("concentration") or {}).get(
@@ -139,7 +147,15 @@ def _per_company(script, group_id, dry, extra=()):
     slugs = [m["slug"] for m in members]
     if not slugs:
         return "unmet", "group %s has no members" % group_id, ""
-    code, out = sh([sys.executable, script, "--tickers"] + slugs + list(extra), dry)
+    # These scripts predate the --group contract and locate data by their own
+    # directory flag, which differs per script. The runner translates rather
+    # than guessing: it tells each one where this group's data actually lives.
+    where = {"score_reviews.py": "--outdir",
+             "aggregate.py": "--datadir"}.get(os.path.basename(script))
+    argv = [sys.executable, script, "--tickers"] + slugs
+    if where:
+        argv += [where, os.path.join("data", group_id)]
+    code, out = sh(argv + list(extra), dry)
     if code is None:
         return "not_built", "%s is missing" % os.path.basename(script), out
     if code != 0:
@@ -162,7 +178,11 @@ def stage_D(group_id, dry):
     if dry:
         return "ok", "would render %d dashboard(s)" % len(members), ""
     for m in members:
-        code, out = sh([sys.executable, DASH, m["slug"]], dry)
+        # Same translation as S and A: build_dashboard.py locates data by
+        # --data-dir, and the runner knows which group this is.
+        code, out = sh([sys.executable, DASH, m["slug"],
+                        "--data-dir", os.path.join("data", group_id),
+                        "--company", m["company"] or m["slug"]], dry)
         if code not in (0, None):
             return "unmet", "dashboard failed for %s" % m["slug"], out
     return "ok", "rendered %d dashboard(s)" % len(members), ""

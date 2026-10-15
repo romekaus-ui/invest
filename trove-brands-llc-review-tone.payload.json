@@ -1,0 +1,64 @@
+{
+  "ticker": "TROVE-BRANDS-LLC",
+  "company_name": "Trove Brands, LLC",
+  "formation_year": null,
+  "generated_at": "2026-10-15 06:32 UTC",
+  "data_source": "pipeline",
+  "fixture_note": null,
+  "floors": {
+    "min_reviews_per_quarter": 30,
+    "min_quarters": 12,
+    "quarters_total": 1,
+    "quarters_usable": 1,
+    "meets_quarter_floor": false
+  },
+  "render_trend": false,
+  "verdict": "insufficient_data",
+  "verdict_reason": "1 usable quarters against a floor of 12. Below the floor this company is dropped from the test (CORE-PROMPT s5); no trend is drawn.",
+  "records": {
+    "all": 100,
+    "product": 97,
+    "seller_only": 3,
+    "scoring_failed": 0
+  },
+  "quarters": [
+    {
+      "fiscal_quarter": "FY2026Q4",
+      "n_reviews": 97,
+      "n_excluded_seller": 3,
+      "n_scoring_failed": 0,
+      "scoring_failure_flag": false,
+      "verified_share": 1.0,
+      "tone_mean": 0.463918,
+      "tone_ci_low": 0.154639,
+      "tone_ci_high": 0.773196,
+      "tone_within": null,
+      "tone_mix": null,
+      "tone_residual": null,
+      "baseline_prior4": null,
+      "signal": null,
+      "defect_rate": 0.340206,
+      "price_complaint_rate": 0.020619,
+      "meets_floor": true,
+      "state": "renderable"
+    }
+  ],
+  "fundamentals": [],
+  "accuracy": null,
+  "provenance": {
+    "run_id": null,
+    "run_at": null,
+    "phase": null,
+    "prereg_hash": null,
+    "universe_hash": null,
+    "rubric_version": null,
+    "scorer_model_id": null,
+    "coverage_ratio": 0.01,
+    "coverage_method": "collected/10000 claimed (reviews basis), route apify, sort recent",
+    "corpus": null,
+    "fy_end_month": null
+  },
+  "warnings": [
+    "No prereg hash found. F6 - without a frozen prereg, any reported result is one of an unknown number of specifications."
+  ]
+}

@@ -1,0 +1,84 @@
+{
+  "ticker": "YETI-HOLDINGS-INC",
+  "company_name": "YETI Holdings",
+  "formation_year": null,
+  "generated_at": "2026-10-15 06:32 UTC",
+  "data_source": "pipeline",
+  "fixture_note": null,
+  "floors": {
+    "min_reviews_per_quarter": 30,
+    "min_quarters": 12,
+    "quarters_total": 2,
+    "quarters_usable": 2,
+    "meets_quarter_floor": false
+  },
+  "render_trend": false,
+  "verdict": "insufficient_data",
+  "verdict_reason": "2 usable quarters against a floor of 12. Below the floor this company is dropped from the test (CORE-PROMPT s5); no trend is drawn.",
+  "records": {
+    "all": 100,
+    "product": 100,
+    "seller_only": 0,
+    "scoring_failed": 0
+  },
+  "quarters": [
+    {
+      "fiscal_quarter": "FY2026Q3",
+      "n_reviews": 47,
+      "n_excluded_seller": 0,
+      "n_scoring_failed": 0,
+      "scoring_failure_flag": false,
+      "verified_share": 0.0,
+      "tone_mean": 1.170213,
+      "tone_ci_low": 0.851064,
+      "tone_ci_high": 1.489362,
+      "tone_within": null,
+      "tone_mix": null,
+      "tone_residual": null,
+      "baseline_prior4": null,
+      "signal": null,
+      "defect_rate": 0.085106,
+      "price_complaint_rate": 0.0,
+      "meets_floor": true,
+      "state": "renderable"
+    },
+    {
+      "fiscal_quarter": "FY2026Q4",
+      "n_reviews": 53,
+      "n_excluded_seller": 0,
+      "n_scoring_failed": 0,
+      "scoring_failure_flag": false,
+      "verified_share": 0.169811,
+      "tone_mean": 1.113208,
+      "tone_ci_low": 0.716981,
+      "tone_ci_high": 1.471698,
+      "tone_within": -0.057005,
+      "tone_mix": 0.0,
+      "tone_residual": 0.0,
+      "baseline_prior4": null,
+      "signal": null,
+      "defect_rate": 0.169811,
+      "price_complaint_rate": 0.037736,
+      "meets_floor": true,
+      "state": "renderable"
+    }
+  ],
+  "fundamentals": [],
+  "accuracy": null,
+  "provenance": {
+    "run_id": null,
+    "run_at": null,
+    "phase": null,
+    "prereg_hash": null,
+    "universe_hash": null,
+    "rubric_version": null,
+    "scorer_model_id": null,
+    "coverage_ratio": 0.01,
+    "coverage_method": "collected/10000 claimed (reviews basis), route apify, sort recent",
+    "corpus": null,
+    "fy_end_month": null
+  },
+  "warnings": [
+    "No prereg hash found. F6 - without a frozen prereg, any reported result is one of an unknown number of specifications."
+  ]
+}

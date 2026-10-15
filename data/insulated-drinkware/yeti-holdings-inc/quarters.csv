@@ -1,2 +1,3 @@
 fiscal_quarter,n_reviews,n_excluded_seller,n_scoring_failed,verified_share,tone_mean,tone_ci_low,tone_ci_high,tone_within,tone_mix,tone_residual,baseline_prior4,signal,defect_rate,price_complaint_rate,sufficient
-FY2026Q4,10,0,0,0.900000,1.000000,0.000000,1.800000,,,,,,0.200000,0.200000,true
+FY2026Q3,47,0,0,0.000000,1.170213,0.851064,1.489362,,,,,,0.085106,0.000000,true
+FY2026Q4,53,0,0,0.169811,1.113208,0.716981,1.471698,-0.057005,0.000000,0.000000,,,0.169811,0.037736,true
