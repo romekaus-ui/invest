@@ -1,5 +1,91 @@
 # Changelog
 
+## 2026-10-17 — the peer-group component learns the `route` field
+
+`CONTRACTS.md` §1 was amended on 2026-10-15 to add **`route`** per product, because
+Amazon is no longer the only sensor: a brand's own review platform serves its reviews
+through a display API whose key the platform's CDN publishes, in the clear, to every
+visitor's browser. `declare_group.py` only understood Amazon, so the `barbecue-grills`
+revision that needed the new route produced six refusals per product — an empty ASIN, an
+unknown marketplace, a missing parent, no verification, no brand, no continuity reason.
+
+### An absent route is `amazon`, and `SCHEMA_VERSION` deliberately did not move
+
+The default is what keeps the six declarations frozen before the field existed valid
+without touching them, and §1.5 forbids touching them. The schema version was **not**
+bumped for the same reason: `verify` only contract-revalidates files at the current
+schema, so bumping would have marked all twelve frozen versions STALE and stopped
+revalidating them — trading a real, continuing check for a nominal one. The extension is
+additive and every frozen file still satisfies the current validator, which was checked
+rather than assumed. The accepted cost: an older copy of the script would read a
+brand-route product as a malformed Amazon one. There is one copy and it is this one.
+
+### The brand route gets equivalents, not exemptions
+
+- **`review_family` is this route's `parent_asin` and is just as required.** The platform
+  pools across a product *family* exactly as Amazon pools across variants. `TFB57GLE`
+  (Pro 575) and `TFB78GLE` (Pro 780) are different grills at different prices and return
+  **identical 1,215-review id sets**; `TFB89BLF`/`TFB65BLF` likewise. `check-products`
+  establishes the family by **comparing the returned review-id sets pairwise** across the
+  whole draft, and two products in one family are refused — inside one member, where they
+  would be counted twice, and across two, where the members would be scored on the same
+  reviews. Confirmed live: a first-page id-set fingerprint is identical for each pooled
+  pair and disjoint between families, so the cheap check detects the real defect.
+- **`verification` records what the API can establish**, including whether dates sort
+  descending **verified against the dates**. A record claiming verified order while also
+  recording inversions is refused as a contradiction: that is what a parameter-trusting
+  check looks like from outside, and §3 records the same claim being false on Amazon.
+- **Liveness is its own check.** The newest review's age is recorded, and a deployment a
+  year without a review must carry a written finding. Not a refusal — Owala serves 14,029
+  reviews flawlessly with a newest of 2022-07-28, and is still usable inside a window
+  ending mid-2022; refusing would push the product out of the file and hide what was found.
+- **The brand-in-the-served-name check is relaxed on this route and nowhere else**, on
+  measurement rather than convenience: four of the five Weber grills are served as e.g.
+  "Spirit II E-210 Gas Grill (Liquid Propane)", with no "Weber" in them. A rule that
+  refuses four correct products teaches people to write around it. The name *comparison*
+  still applies on every route, and caught six of seven on the first brand-route draft.
+
+### Three defects the first live run found, which reading had not
+
+1. `brand_passkey` was called with three arguments and takes four. The route had never
+   been run end to end and raised on the first product.
+2. The served name was read off the reviews query's `Includes.Products`, which carries the
+   whole pooled family — so its first entry is *a* product of the family, not the one
+   asked for. `TFB57GLE` came back "Pro 780" and `TFB88PZB` "Pro Series 22", against "Pro
+   575" and "Pro Series 34" from a direct `Id:eq:` lookup. **A name check reading the
+   wrong name is worse than none**, because it fails in the direction of agreeing with
+   whatever was declared.
+3. `oldest` was the oldest row of the *sample* and read like the family's reach. Reach is
+   two numbers; the sample answers only the forward one. Renamed `oldest_in_sample`, with
+   `first_review` asked for directly in one request and `reach_years` beside it.
+
+### §5: 90 refusal sites, all tripped
+
+20 new sites arrived with the route field; 20 cases that demonstrably trip them arrived
+with them, and the suite went from 187 to 267 checks. The must-pass half is pinned as
+hard as the refusals, because a verifier that fires on a legitimate declaration gets
+switched off within a week and then guards nothing. A new validator helper has to be
+added to the audit's `GUARD_FUNCS` or its refusals are silently excluded — the same
+invisible failure the audit exists to catch.
+
+### `barbecue-grills` v3, the revision this unblocked
+
+Both members moved from the Amazon route to their own Bazaarvoice deployments: Traeger 7
+families, Weber 5, measured 2026-10-17 as **12 distinct families with zero review-id
+overlap between any pair**. Declared with `readings_at_declare: 0` — no review text has
+been collected for this group, so it is still declared before collection.
+
+Why: Amazon caps a pass at ~100 reviews per filter combination, which on these grills
+buys weeks; Traeger's own deployment serves 7.6 years at 97–100% text with no cap and a
+newest review 5 days old. Nothing about either company changed, and no member, brand,
+concentration figure or substitutability reason moved.
+
+**Two findings the declaration carries.** Two of the seven Traeger families are served
+"In Store Only" and are declared for the history they hold rather than for new sales — if
+withdrawn, that family's series ends and is recorded as ended, never swapped. And Weber's
+text fraction has fallen from 100% in 2019 to 29–37% now, so its scored population is a
+shrinking minority of its rated one and must be reported with every Weber reading.
+
 ## 2026-10-13 — every guard now has a test that trips it
 
 `CONTRACTS.md` §5 gained the rule *a check that always passes is indistinguishable from

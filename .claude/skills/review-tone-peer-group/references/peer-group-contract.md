@@ -192,28 +192,115 @@ may be quarterly, and writing `annual` would be the normalisation §5 forbids.
 
 ### `products` — CORE-PROMPT §2
 
+Every product records the **`route`** it is read through (`CONTRACTS.md` §1, amended
+2026-10-15). An absent `route` means `amazon`, which is what keeps the declarations
+frozen before the field existed valid without rewriting a frozen file.
+
+| key | notes |
+|---|---|
+| `route` | `amazon` \| `bazaarvoice` \| `yotpo` \| `powerreviews`. Absent = `amazon` |
+| `brand` | must be one of the member's declared `brands`. **Every route** |
+| `name` | what the platform served. Compared against `verification.title_seen`, so a silently relisted product is visible later. **Every route** |
+| `continuity_reason` | ≥ 30 chars. Why this item will still be sold in a year. Must not argue from popularity, and must assert something checkable: a year, or a term naming the item's place in the range. **Every route** |
+| `verification` | written by `check-products`. **Every route**; the fields differ, see below |
+
+On `route: amazon`:
+
 | key | notes |
 |---|---|
 | `asin` | `^[A-Z0-9]{10}$`, unique across the **whole group**: one product cannot be two companies' |
 | `marketplace` | one of the known hosts, e.g. `amazon.com`, `amazon.co.uk`, `amazon.co.jp` |
-| `brand` | must be one of the member's declared `brands` |
-| `name` | what the marketplace served. Compared against `verification.title_seen`, so a silently relisted ASIN is visible later |
-| `continuity_reason` | ≥ 30 chars. Why this item will still be sold in a year. Must not argue from popularity, and must assert something checkable: a year, or a term naming the item's place in the range |
-| `verification` | written by `check-products`; see below |
+| `parent_asin` | required — where the reviews are actually served |
+
+On a **brand-platform route**:
+
+| key | notes |
+|---|---|
+| `client` | the deployment zone as the platform's own CDN spells it: `traegerservice`, `weber`, `yeti` |
+| `site` | the deployment site within the client. Optional, default `main_site` — YETI publishes a key under both `yeticom_sfra` and `main_site` |
+| `product_id` | the platform's product id. **ONE representative per review family** |
+| `review_family` | required — this route's `parent_asin`; see below |
+| `liveness_finding` | required when the newest review is over a year old |
+
+The Amazon identifiers must be **absent** on a brand-route product. A half-converted
+draft carrying both makes two contradictory claims about where the reviews come from,
+and a reader cannot tell which the collector will follow.
 
 ### `verification`
+
+Common to every route:
 
 | key | notes |
 |---|---|
 | `status` | `resolved` / `not_found` / `blocked` / `unavailable` / `error` |
-| `checked_at`, `route`, `url`, `marketplace`, `http_status` | provenance (§1.4) |
-| `title_seen` | the title the marketplace served |
-| `availability_seen` | read from the buy box only, or a statement that it was not rendered |
-| `parent_asin_seen`, `is_variant_child` | **the collector needs these.** Amazon serves reviews at the parent ASIN, pooled across every variant |
+| `checked_at`, `route` | provenance (§1.4) |
+| `title_seen` | the name the platform served |
 
-Parent ASINs must also be **unique across the group**. Two members tracking children of
+On `route: amazon`: `url`, `marketplace`, `http_status`, `availability_seen` (read from
+the buy box only, or a statement that it was not rendered), and
+`parent_asin_seen` / `is_variant_child` — **the collector needs these**, because Amazon
+serves reviews at the parent ASIN, pooled across every variant.
+
+On a brand-platform route, `check-products` resolves the product against the live display
+API and records what that API can establish:
+
+| key | notes |
+|---|---|
+| `client`, `site`, `product_id_seen` | which deployment answered, and for which id |
+| `total_claimed` | the review count the deployment reports for this family |
+| `newest`, `newest_review_age_days` | **liveness is its own check.** Owala serves 14,029 reviews flawlessly and its newest is 2022-07-28 — 1,540 days stale. Depth says nothing about whether a deployment is alive |
+| `first_review`, `reach_years` | how far **back** the family reaches, asked for directly with `Sort=SubmissionTime:asc&Limit=1`. Not the sample's oldest row: Traeger's Pro 575 sample bottoms out in 2024 while the family reaches 2019-03-20 |
+| `oldest_in_sample`, `sample_window`, `sampled` | the bounds of what was actually walked, named as the sample's |
+| `with_text_pct`, `with_text_pct_basis` | a star-only review can never be scored. Measured over the most recent reviews, which is the useful reading — Weber ran 100% text in 2019 and 29–37% now — and labelled so it is not mistaken for a whole-history figure |
+| `dates_descending_verified`, `date_inversions` | **verified against the dates, never trusted from the sort parameter.** Claiming verified order while recording inversions is a contradiction and is refused: that is what a parameter-trusting check looks like from outside. §3 records the same failure on Amazon, where the claim was false |
+| `family_fingerprint`, `family_sample_ids`, `family_shared_with` | the family, below |
+
+#### The review pool must be unique across the group, on either route
+
+Parent ASINs must be **unique across the group**. Two members tracking children of
 one parent would be handed the same reviews, and their peer-relative tone would be a
 comparison of a series with itself.
+
+**`review_family` is the brand route's `parent_asin`, and it is just as required.** A
+brand review platform pools across a product *family* exactly as Amazon pools across
+variants. Measured on Traeger 2026-10-15: `TFB57GLE` (Pro 575) and `TFB78GLE` (Pro 780)
+are different grills at different prices and return **identical 1,215-review id sets**;
+`TFB89BLF` and `TFB65BLF` likewise. Nine products resolved to **seven distinct families**.
+
+So the family is established by **comparing the returned review-id sets pairwise**, which
+`check-products` does across the whole draft after resolving it. It is never inferred from
+the product ids differing — that is precisely the inference the measurement falsified —
+and `TotalReviewCount` is never summed across products, which overstated uniques by 30%.
+
+Two declared products in one family are refused, both ways round:
+
+- **inside one member**, because both would be collected and the same reviews counted
+  twice;
+- **across two members**, because the platform serves those reviews pooled, so both
+  members would be scored on the same reviews — the same refusal the Amazon route makes
+  for a shared parent.
+
+The brand-in-the-served-name half of the title check does **not** apply on a brand route,
+and the reason is measured: a brand's own catalogue does not repeat its name in its
+product names. Four of the five Weber grills declared are served as e.g. "Spirit II E-210
+Gas Grill (Liquid Propane)" with no "Weber" in them. The **name comparison** — the half
+that catches a transposed identifier — applies on every route, and caught six of seven
+products on the first brand-route draft.
+
+The served name is read from `products.json?Filter=Id:eq:<id>`, **never** off the reviews
+query's `Includes.Products`: that include carries the whole pooled family, so its first
+entry is *a* product of the family and not the one asked for. Read that way, `TFB57GLE`
+came back named "Pro 780" and `TFB88PZB` "Pro Series 22", against "Pro 575" and "Pro
+Series 34" from the direct lookup. A name check reading the wrong name is worse than
+none, because it fails in the direction of agreeing with whatever was declared.
+
+#### Routes the contract names and this component cannot resolve
+
+`yotpo` and `powerreviews` are reachable and both measured
+(`data/_route-tests/brand-widget-routes-2026-10-15.json`), but their key discovery and
+paging differ and **no resolver is wired**. A product on one is refused rather than
+declared on an unchecked identifier, unless `--allow-unverified` is passed. "Not
+implemented" is the honest answer; "assumed to work" is not.
 
 A `status` other than `resolved` blocks the freeze unless `--allow-unverified` is passed,
 and the count then travels in the sidecar. Refusing outright would tempt a swap for a
@@ -232,6 +319,9 @@ group cannot be charted without them being visible.
 |---|---|
 | `marketplaces` | `{marketplace: product count}` |
 | `cross_marketplace` | more than one. **The sharp one**: Amazon's reviewer populations are national, so a tone gap across marketplaces is partly a gap between countries of shopper and partly a language difference, before any company difference |
+| `routes` | `{route: product count}` |
+| `mixed_routes` | more than one route in the group |
+| `routes_differ_between_members` | **the sharper one.** §3 requires a route change to be recorded *in* a series; this is the route differing *across* members at the same instant, so a peer-relative reading subtracts a peer mean computed on a different instrument. A mix *within* every member is a different and milder thing: the comparison between members is sound and each member's own series carries the mix |
 | `reporting_calendars`, `mixed_reporting_calendars` | §5: comparable on tone, not on revenue |
 | `currencies`, `mixed_currencies` | §5: no silent conversion |
 | `members_without_public_reporting` | private members: tone and peer position, no revenue series |
@@ -239,17 +329,23 @@ group cannot be charted without them being visible.
 
 ---
 
-## Parent drift, and why declaring is not enough
+## Pool drift, and why declaring is not enough
 
-The same-parent refusal in `validate` fires **when a group is declared**. Amazon
+The same-pool refusal in `validate` fires **when a group is declared**. Amazon
 re-parents variation families afterwards, so two members declared under distinct parents
 can converge later with **no identifier changing anywhere** — not the child ASINs, not
 the group file, not its hash. The group is then handing two members identical reviews and
 comparing them against each other: exactly the condition already refused, arriving by a
 route nothing watched.
 
-So `CONTRACTS.md` §1 requires every declared parent to be **re-resolved on a cadence**,
-and a convergence found later is the same refusal as one found at declaration.
+The brand platforms are no different: a catalogue is re-organised, and two product ids
+that returned disjoint id sets at declaration can be merged into one pooled family
+afterwards. `reresolve` therefore sweeps **both routes**, re-measuring the parent ASIN on
+amazon and the review-family fingerprint on a brand platform, and treats a convergence
+identically either way.
+
+So `CONTRACTS.md` §1 requires every declared review pool to be **re-resolved on a
+cadence**, and a convergence found later is the same refusal as one found at declaration.
 
 | | |
 |---|---|
@@ -264,9 +360,10 @@ deterministic, and refuses when the sweep is missing, stale, incomplete, of an o
 version, or found something.
 
 What a sweep records per product: `unchanged`, `reparented` (the pool is now a different
-variation family), `converged` (**fatal** — two members share a parent), `ended` (the
-product no longer resolves, so the series ends and is recorded as ended, never swapped),
-`no_parent_on_page`, or `blocked`.
+family), `converged` (**fatal** — two members share a pool), `ended` (the product no
+longer resolves, so the series ends and is recorded as ended, never swapped), `stale` (a
+brand deployment that has stopped receiving reviews since it was declared — liveness
+moves after declaration too), `no_parent_on_page`, or `blocked`.
 
 **`reresolve` never rewrites the declaration.** The collector verifies the parent from
 the page and treats the group file as the declaration, not the authority; editing the
@@ -282,7 +379,15 @@ one marketplace URL this component builds is `https://<host>/dp/<asin>`.
 
 ## What the collector is handed
 
-For each member: the ASINs, their marketplaces, and `parent_asin` for each.
+For each member, per product, **the route first** — then the identifiers that route uses:
+on `amazon` the ASIN, its marketplace and its `parent_asin`; on a brand platform the
+`client`, the `product_id` and its `review_family`. The §1 view projects each product
+through its own route's keys rather than writing a row of nulls for the other route's.
+
+**Both routes pool, and the pooled unit is what the collector must join on.** The rest of
+this section is about Amazon's parent; the brand platforms' `review_family` is the same
+problem with the same consequences, and `check-products` establishes it by comparing the
+returned review-id sets pairwise.
 
 **Read this before keying anything on `asin`.** Amazon serves reviews at the *parent*
 ASIN, pooled across every variant. Of the 15 products declared so far, **14 are variant
