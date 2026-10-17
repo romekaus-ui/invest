@@ -1622,7 +1622,7 @@ def resolve_brand_product(mod, pr, route, rate, cache, max_pages):
         return dict(base, status="error",
                     note="no resolver for route %r; see RESOLVABLE_ROUTES" % route)
 
-    passkey = brand_passkey(mod, client, site)
+    passkey = brand_passkey(mod, client, site, cache)
     if not passkey:
         return dict(base, status="not_found",
                     note="deployment zone %s/%s publishes no display key - "
@@ -1665,7 +1665,7 @@ def resolve_brand_product(mod, pr, route, rate, cache, max_pages):
         total_claimed=rep["total_claimed"],
         collected=rep["collected"],
         newest=(rep["newest"] or "")[:10],
-        oldest=(rep["oldest"] or "")[:10],
+        oldest_in_sample=(rep["oldest"] or "")[:10],
         newest_review_age_days=rep["newest_review_age_days"],
         with_text_pct=rep["with_text_pct"],
         dates_descending_verified=rep["dates_descending_verified"],
@@ -1674,10 +1674,44 @@ def resolve_brand_product(mod, pr, route, rate, cache, max_pages):
         sampled=len(sample),
         sample_window="%s..%s" % ((rep["oldest"] or "")[:10],
                                   (rep["newest"] or "")[:10]),
+        # The text fraction above is measured over the SAMPLE, which is the most
+        # recent reviews. That is the honest reading of it and it is the one
+        # worth having - Weber ran 100% text in 2019 and ~34% in 2026, so a
+        # whole-history figure would describe a population the cadence will
+        # never see again - but it must not be mistaken for the whole history.
+        with_text_pct_basis="most recent %d reviews" % len(rows),
         family_fingerprint=sha256_bytes("\n".join(sorted(sample)).encode("utf-8")),
         family_sample_ids=sample,
         family_shared_with=[],
     )
+
+
+def brand_first_review(mod, pr, cache):
+    """The date of the OLDEST review in this family, in one request.
+
+    Reach is two numbers - how far back and how far forward - and the sample
+    taken above answers only the forward one. Its oldest row is the oldest of
+    the *sample*, which is not the family's reach: Traeger's Pro 575 sample
+    bottoms out in 2024 while the family itself reaches 2019-03-20. Recording
+    the sample's oldest date under a name like `oldest` invites exactly that
+    misreading, so the real one is asked for directly - `Sort=SubmissionTime:asc`
+    with `Limit=1` - and the sample's own bounds are named as the sample's.
+    """
+    client, site = _s(pr, "client"), brand_site_of(pr)
+    passkey = brand_passkey(mod, client, site, cache)
+    if not passkey:
+        return ""
+    q = urllib.parse.urlencode({
+        "apiversion": "5.4", "passkey": passkey,
+        "Filter": "ProductId:eq:%s" % _s(pr, "product_id"),
+        "Limit": 1, "Offset": 0, "Sort": "SubmissionTime:asc"})
+    try:
+        _, d = mod._json("https://api.bazaarvoice.com/data/reviews.json?" + q)
+    except Exception:                                 # noqa: BLE001
+        return ""
+    for row in d.get("Results") or []:
+        return (row.get("SubmissionTime") or "")[:10]
+    return ""
 
 
 def brand_product_name(mod, pr, cache):
@@ -1687,9 +1721,16 @@ def brand_product_name(mod, pr, cache):
     catches a transposed identifier, which is the error no amount of careful
     prose catches because the prose and the id are written in different moments.
     It caught six of the seven products in the first brand-route draft.
+
+    Asked of `products.json` filtered to this exact id, NEVER read off the
+    `Includes.Products` of the reviews query. That include carries the whole
+    pooled FAMILY, so the first entry in it is *a* product of the family and not
+    the one asked for: taken that way, TFB57GLE came back named "Pro 780" and
+    TFB88PZB "Pro Series 22", against "Pro 575" and "Pro Series 34" from the
+    direct lookup. A name check reading the wrong name is worse than none.
     """
     client, site = _s(pr, "client"), brand_site_of(pr)
-    passkey = brand_passkey(mod, client, site)
+    passkey = brand_passkey(mod, client, site, cache)
     if not passkey:
         return ""
     q = urllib.parse.urlencode({
@@ -1780,6 +1821,12 @@ def mode_check_products(args):
                                           args.max_pages)
                 if v.get("status") == "resolved":
                     v["title_seen"] = brand_product_name(mod, pr, keycache)
+                    v["first_review"] = brand_first_review(mod, pr, keycache)
+                    if v["first_review"] and v.get("newest"):
+                        v["reach_years"] = round(
+                            (dt.date.fromisoformat(v["newest"])
+                             - dt.date.fromisoformat(v["first_review"])).days
+                            / 365.25, 2)
                 pr["verification"] = v
                 counts[v["status"]] = counts.get(v["status"], 0) + 1
                 print("  %-22s %-12s %-10s total=%-6s newest=%s (%sd) text=%s%%"
