@@ -16,6 +16,14 @@
       "group_id": "insulated-drinkware",
       "last_changed_at": "2026-10-13T11:45:32Z"
     },
+    "pellet-grills": {
+      "cadence": "weekly",
+      "cadence_days": 7,
+      "collector_version": "d1-collect-v1",
+      "declared_at": "2026-10-17T14:25:45Z",
+      "group_id": "pellet-grills",
+      "last_changed_at": "2026-10-17T14:25:45Z"
+    },
     "premium-everyday-carry": {
       "cadence": "weekly",
       "cadence_days": 7,

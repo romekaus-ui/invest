@@ -170,7 +170,8 @@ REVIEW_FIELDS = ("review_id", "asin", "parent_asin", "marketplace",
 # routes meet.
 PROVENANCE_FIELDS = ("collected_at", "review_id_scheme",
                      "review_date_precision", "vine_voice", "sort_requested",
-                     "sort_verified", "syndicated", "syndication_source")
+                     "sort_verified", "syndicated", "syndication_source",
+                     "incentivized")
 
 # reviews.csv called the route column `collection_route` before the brand route
 # existed, and nine files on disk carry that spelling. CONTRACTS.md §3 spells
@@ -204,7 +205,14 @@ MONTHS = {m: i + 1 for i, m in enumerate(
 SORTS = {
     "recent": {
         "param": "recent",
-        "label_contains": ("most recent",),
+        # Each platform spells its own recency sort. `submissiontime:desc` is
+        # Bazaarvoice's, and it is listed so resolve_sort recognises it as the
+        # sort that was asked for instead of warning that it matches neither.
+        # This only affects the LABEL check: `sort_verified` is still derived
+        # from the collected dates, because a platform echoing a sort
+        # parameter is a claim about the platform and the dates are the only
+        # evidence that cannot be mislabelled.
+        "label_contains": ("most recent", "submissiontime:desc"),
         "produces_series": True,
         "note": "login-only; the only sort that yields a time series",
     },
@@ -1668,7 +1676,10 @@ class BazaarvoiceRoute(Route):
             # decides sort_verified; this is only the label the API echoed.
             sort_observed="SubmissionTime:desc",
             filters=f, reviews=rows, claimed=claimed,
-            requested=limit, marketplace=None, requested_at=at,
+            # None means "everything there was", which is what a limit of 0
+            # asked for. Writing 0 into §3's `requested` would read as a batch
+            # that asked for nothing and got 1,215.
+            requested=(limit or None), marketplace=None, requested_at=at,
             provider="bazaarvoice", plan_tier="public display key",
             # $0 is a MEASUREMENT, not a missing field. A route whose cost is
             # unrecorded cannot be compared against one whose cost is known,
@@ -1681,6 +1692,24 @@ class BazaarvoiceRoute(Route):
 
 
 PLATFORMS = {"bazaarvoice": BazaarvoiceRoute}
+
+
+def _badge_true(v):
+    """Is a Bazaarvoice badge set?
+
+    A badge arrives as an OBJECT whose presence is the signal - there is no
+    boolean to read. So a dict means set, a real boolean is honoured as one,
+    and absence means not set. Spelled out rather than left as `bool(v)`
+    because `bool({"Id": ...})` would also be true for a badge the platform
+    sent with a false value, and that reading would be undetectable.
+    """
+    if v is None:
+        return False
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, dict):
+        return True
+    return bool(v)
 
 
 def normalise_bazaarvoice(results, product_id, locale="en_US"):
@@ -1749,8 +1778,29 @@ def normalise_bazaarvoice(results, product_id, locale="en_US"):
             "title": str(title).replace("\x00", ""),
             "text": str(text).replace("\x00", ""),
             "rating": "" if rating is None else rating,
-            "verified_purchase": bool(r.get("IsVerifiedPurchaser")
-                                      or badges.get("verifiedPurchaser")),
+            # VERIFIED PURCHASE IS A BADGE, AND THE BADGE IS A PRESENCE.
+            # Measured on Traeger 2026-10-15: `IsVerifiedPurchaser` is absent
+            # from all 1,215 rows, and the information lives in
+            # `Badges.verifiedPurchaser`, present on 744 of them with a badge
+            # OBJECT as its value. So presence is the whole semantics.
+            #
+            # This is the Apify 0%-vs-100% trap one platform along. Reading
+            # only `IsVerifiedPurchaser` here would have recorded 0% verified
+            # for a pool that is 61% verified - a plausible number, which is
+            # the dangerous kind: it would have reached the verified-share
+            # check as evidence about Traeger's customers rather than about
+            # this parser. _badge_true is explicit about presence-vs-value so
+            # a future `verifiedPurchaser: false` cannot read as true, which
+            # `bool({...})` would.
+            "verified_purchase": (_badge_true(r.get("IsVerifiedPurchaser"))
+                                  or _badge_true(badges.get("verifiedPurchaser"))),
+            # 179 of Traeger's 1,215 (14.7%) carry `incentivizedReview`. A
+            # brand that solicited a review with an incentive has sampled a
+            # different population, and tone is exactly what an incentive
+            # moves. Recorded rather than filtered, like syndication: whether
+            # to include them is an aggregation decision, and dropping them
+            # here would change the population without saying so.
+            "incentivized": _badge_true(badges.get("incentivizedReview")),
             "helpful_vote": int(r.get("TotalPositiveFeedbackCount") or 0),
             "review_country": country,
             "vine_voice": False,     # an Amazon programme; not this platform's
@@ -2082,6 +2132,7 @@ def merge_batch(outdir, group_id, slug, batch, batch_id, sort_requested,
             "sort_verified": "" if sort_verified is None else sort_verified,
             "syndicated": r.get("syndicated", ""),
             "syndication_source": r.get("syndication_source", ""),
+            "incentivized": r.get("incentivized", ""),
         }
 
         prev = existing.get(r["review_id"])
@@ -2862,8 +2913,22 @@ def _collect_brand(args, route, stage_note, group, cadence, member, product,
 
     # THE FAMILY JOIN, measured rather than asserted.
     collected_ids = {r["review_id"] for r in batch.reviews}
-    family_verified, family_detail = verify_family(
-        route, collected_ids, family, [str(s) for s in siblings], tracked)
+    if args.from_cache:
+        # A re-parse makes NO network call, by design, so it cannot compare id
+        # sets and must not inherit the verification of the batch that filled
+        # the cache. Reported with its own reason rather than as a failed
+        # probe: "could not be checked here" and "the sibling was unreachable"
+        # are different findings and the record should not confuse them.
+        family_verified, family_detail = None, {
+            "declared_family": family,
+            "declared_members": [str(s) for s in siblings],
+            "method": "none - this batch is a re-parse of cached responses",
+            "basis": ("a re-parse makes no network call, so the family cannot "
+                      "be re-verified here; the verification belongs to the "
+                      "batch that produced the cache")}
+    else:
+        family_verified, family_detail = verify_family(
+            route, collected_ids, family, [str(s) for s in siblings], tracked)
     if family_verified is True:
         print("family             %s CONFIRMED - %s"
               % (family, family_detail["basis"]))
@@ -2909,7 +2974,9 @@ def _collect_brand(args, route, stage_note, group, cadence, member, product,
                        family_detail=family_detail)
     man = update_manifest(outdir, args.group, member, cadence, rec)
 
-    print("\nrequested          %s" % rec["requested"])
+    print("\nrequested          %s"
+          % (rec["requested"] if rec["requested"] is not None
+             else "all (walked to exhaustion; Offset is not capped here)"))
     print("returned           %s" % rec["returned"])
     notes = batch.raw_meta.get("normalise_notes") or {}
     if notes.get("dropped_star_only_no_text"):
@@ -3047,19 +3114,32 @@ def cmd_status(args):
             blocked = [b for b in mine if b.get("blocked")]
             # Counted on the FAMILY, the join key for both routes. Counting on
             # the tracked id reads zero for every sibling in a pooled family.
-            jk = str(pr.get("family") or pr.get("parent_asin") or key).upper()
+            # Compared case-insensitively, DISPLAYED as declared. An ASIN is
+            # conventionally upper case; a family label is a label, and
+            # shouting it would misrepresent what the group file says.
+            jk = str(pr.get("family") or pr.get("parent_asin") or key)
             n = sum(1 for r in rows.values()
                     if str(r.get("family") or r.get("parent_asin")
-                           or r.get("asin") or "").upper() == jk)
+                           or r.get("asin") or "").upper() == jk.upper())
             print("  %-12s %-30s %d batch%s (%d blocked), %d review(s) [%s]"
                   % (key, (pr.get("name") or "")[:30], len(ok),
                      "" if len(ok) == 1 else "es", len(blocked), n, prroute))
             if ok:
                 last = ok[-1]
-                fv = last.get("family_verified")
+                # The most recent batch that actually CHECKED, not simply the
+                # most recent batch. A re-parse makes no network call and
+                # verifies nothing, so reading the last batch would report a
+                # verified family as unverified the moment one was re-parsed -
+                # and §5 cuts both ways: an unchecked batch must not look
+                # checked, and a checked one must not be lost behind an
+                # unchecked one.
+                checked = [b for b in ok if b.get("family_verified") is not None]
+                fv = checked[-1].get("family_verified") if checked else None
+                when = (checked[-1].get("collected_at") or "")[:10] if checked else None
                 print("    family           %s · verified: %s"
-                      % (jk, "yes" if fv is True
-                         else ("NO" if fv is False else "unverified")))
+                      % (jk, ("yes, %s" % when) if fv is True
+                         else (("NO, %s" % when) if fv is False
+                               else "NEVER CHECKED")))
                 age = last.get("newest_review_age_days")
                 if age is not None:
                     print("    newest review    %s (%d days old)%s"
@@ -3550,6 +3630,31 @@ def cmd_selftest(args):
               and brows[1]["syndication_source"] == "acehardware")
         check("verified purchase is read from the platform's own field",
               brows[0]["verified_purchase"] is True)
+
+        # The Apify 0%-vs-100% trap, one platform along. Traeger carries NO
+        # `IsVerifiedPurchaser` on any of its 1,215 rows; the information is in
+        # `Badges.verifiedPurchaser`, whose value is a badge OBJECT. Reading
+        # only the top-level field would record 0% verified for a 61%-verified
+        # pool - a plausible number, which is the dangerous kind.
+        badged, _ = normalise_bazaarvoice([{
+            "Id": "b1", "SubmissionTime": "2026-01-01T00:00:00.000+00:00",
+            "Rating": 5, "Title": "t", "ReviewText": "x",
+            "Badges": {"verifiedPurchaser": {"Id": "verifiedPurchaser"},
+                       "incentivizedReview": {"Id": "incentivizedReview"}}}],
+            "P")
+        check("a verified-purchase BADGE is read when the flat field is absent",
+              badged[0]["verified_purchase"] is True)
+        check("the incentivized-review badge is recorded, not filtered",
+              badged[0]["incentivized"] is True)
+        unbadged, _ = normalise_bazaarvoice([{
+            "Id": "b2", "SubmissionTime": "2026-01-01T00:00:00.000+00:00",
+            "Rating": 5, "Title": "t", "ReviewText": "x", "Badges": {}}], "P")
+        check("no badge means not verified and not incentivized",
+              unbadged[0]["verified_purchase"] is False
+              and unbadged[0]["incentivized"] is False)
+        check("a badge sent with a FALSE value does not read as true",
+              _badge_true(False) is False and _badge_true({"Id": "x"}) is True
+              and _badge_true(None) is False)
         check("helpful votes come from TotalPositiveFeedbackCount",
               [r["helpful_vote"] for r in brows] == [4, 0, 11])
         check("the route kind is brand_platform, not provider",
@@ -3979,7 +4084,7 @@ def main():
                     "Every batch records which, and its coverage ratio.")
     sub = p.add_subparsers(dest="cmd")
 
-    def common(sp, collecting=True, ident="asin"):
+    def common(sp, collecting=True, ident="asin", limit_default=10):
         # CONTRACTS.md §4: every stage is invoked as
         # `script --group <group_id> [--company <slug>]`, and no stage reads a
         # path it was not given.
@@ -4009,8 +4114,16 @@ def main():
                                  "PER combination, so a 1-5 fanout reaches ~5x "
                                  "a single pass")
             sp.add_argument("--page", type=int, default=1)
-            sp.add_argument("--limit", type=int, default=10,
-                            help="requested, recorded against returned")
+            # 10 on the Amazon routes, because that is about what a page
+            # serves and what a provider's free tier returns. 0 on the brand
+            # route, meaning WALK TO EXHAUSTION: Offset is not capped there,
+            # depth is the entire reason the route exists, and inheriting a
+            # limit of 10 would have quietly turned a 1,215-review family into
+            # the same thin slice Amazon already gives for free.
+            sp.add_argument("--limit", type=int, default=limit_default,
+                            help="requested, recorded against returned"
+                                 + (("; 0 walks to exhaustion"
+                                     if limit_default == 0 else "")))
             sp.add_argument("--require-recency", action="store_true",
                             help="refuse a batch requested as --sort recent "
                                  "whose dates are not actually descending")
@@ -4051,7 +4164,7 @@ def main():
                          "so the budget can be reasoned about")
 
     sp = sub.add_parser("brand", help="Route C: the brand's own review platform")
-    common(sp, ident="product_id")
+    common(sp, ident="product_id", limit_default=0)
     sp.add_argument("--platform", default="bazaarvoice", choices=sorted(PLATFORMS))
     sp.add_argument("--client", help="deployment zone; defaults to the group "
                                      "file's `client` for this product")
