@@ -84,13 +84,23 @@ GROUPS_DIR = os.path.join("data", "peer_groups")
 # `amazon` product and every declaration frozen under schema 1 still satisfies
 # the current validator exactly as written.
 #
-# Schema 2 (2026-10-17) is a different kind of change and does bump it. The
-# brand-route family fingerprint moved from the newest page to the OLDEST, and
-# the record now has to say which end it sampled - a TIGHTENING, so a record
-# written the old way is genuinely no longer judgeable by this validator. Only
-# one file was ever frozen in that shape (barbecue-grills v3, superseded within
-# the hour by v4).
-SCHEMA_VERSION = 2
+# Schema 2 and 3 (both 2026-10-17) are a different kind of change and do bump
+# it, because both TIGHTEN the brand-route product: a record written the old way
+# is genuinely no longer judgeable by this validator.
+#
+#   2  the family fingerprint moved from the newest page of review ids to the
+#      OLDEST, and the record has to say which end it sampled
+#   3  `family` and `family_product_ids` became required, per CONTRACTS.md §2b,
+#      which keys every route on one `family` column that the collector reads
+#      off the group file
+#
+# Both were found and fixed inside the hour, before any collection, and each
+# cost a version of barbecue-grills: v3 -> v4 -> v5. Three freezes in an hour is
+# churn, and the lesson is the ordering rather than the schema - the integration
+# check against the settled contract belonged BEFORE the first freeze, not after
+# it. The versions are kept rather than tidied away, because that is what the
+# version chain is for.
+SCHEMA_VERSION = 3
 READINGS = os.path.join("results", "readings.jsonl")
 
 GROUP_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,48}$")
@@ -203,6 +213,10 @@ RESOLVABLE_ROUTES = ("amazon", "bazaarvoice")
 # `weber`, `yeti`), and a product id within it (`TFB57GLE`, `44010001`).
 BRAND_CLIENT_RE = re.compile(r"^[a-z0-9][a-z0-9_.-]{1,48}$")
 BRAND_PRODUCT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+
+# `family` - CONTRACTS.md §2b's one join key for every route. A slug, because
+# the collector writes it into a column and joins on it.
+FAMILY_LABEL_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,62}$")
 
 # The Bazaarvoice deployment SITE within a client. Nearly always `main_site`,
 # but not always: YETI publishes a key under both `yeticom_sfra` and
@@ -507,15 +521,29 @@ def brand_site_of(pr):
     return _s(pr, "site") or DEFAULT_BRAND_SITE
 
 
-def family_of(pr):
-    """The review family this product resolves to, or "".
+def family_fingerprint_of(pr):
+    """The measured identity of this product's review pool, or "".
 
-    The brand-route analogue of `parent_asin`, and read the same way: off the
-    product where `normalise_for_contract` lifted it, else out of the
-    verification record `check-products` wrote.
+    EVIDENCE, not the join key. Two products are in one family iff this matches,
+    because it is a hash of the review ids the platform actually returned. The
+    join key is the declared `family` label below; this is what proves the label
+    was earned.
     """
-    return _s(pr, "review_family") or _s(
-        (pr.get("verification") or {}), "family_fingerprint")
+    return _s((pr.get("verification") or {}), "family_fingerprint")
+
+
+def family_label_of(pr):
+    """`family` - the join key CONTRACTS.md §2b keys every route on.
+
+    §2b: "`family` holds the parent ASIN on an Amazon route and the verified
+    family label on a brand route, so anything downstream has one column to pool
+    on and neither route is special." The collector reads THIS, so a declaration
+    that omits it cannot be collected against however well it validates here.
+    """
+    if route_of(pr) == "amazon":
+        return _s(pr, "parent_asin") or _s(
+            (pr.get("verification") or {}), "parent_asin_seen")
+    return _s(pr, "family")
 
 
 def validate(group, allow_unverified=False):
@@ -572,7 +600,8 @@ def validate(group, allow_unverified=False):
     seen_company = {}
     # One bag of cross-member identifier registries, so a new route adds a key
     # here rather than a sixth positional argument to _validate_products.
-    seen = {"asin": {}, "parent": {}, "brand_product": {}, "family": {}}
+    seen = {"asin": {}, "parent": {}, "brand_product": {}, "family": {},
+            "family_label": {}}
     for i, m in enumerate(members):
         tag = "members[%d]" % i
         if not isinstance(m, dict):
@@ -988,18 +1017,46 @@ def _validate_brand_product(pr, ptag, route, seen, idx):
                      "one does not read through amazon"
                      % (ptag, stale, _s(pr, stale), route))
 
-    family = family_of(pr)
+    # CONTRACTS.md §2b: `family` is the ONE column every route is joined on, so
+    # a declaration without it cannot be collected against however well it
+    # validates here. The label is declared; the fingerprint below is what
+    # proves two labels are not secretly one family.
+    label = _s(pr, "family")
+    if not FAMILY_LABEL_RE.match(label):
+        p.append("%s.family %r: CONTRACTS.md §2b requires it - the join key the "
+                 "collector pools on, as a slug (e.g. 'pro-575-780'). This "
+                 "route's `parent_asin`, and no more optional: the platform "
+                 "pools reviews across a product family, so the family is where "
+                 "the reviews actually come from" % (ptag, label))
+
+    ids = pr.get("family_product_ids")
+    if not isinstance(ids, list) or not ids:
+        p.append("%s.family_product_ids: CONTRACTS.md §2b requires the product "
+                 "ids whose review-id sets were compared. At minimum the "
+                 "declared representative itself" % ptag)
+    else:
+        bad = [x for x in ids if not isinstance(x, str)
+               or not BRAND_PRODUCT_ID_RE.match(x.strip())]
+        if bad:
+            p.append("%s.family_product_ids: %r is not a well-formed product id"
+                     % (ptag, bad[0]))
+        elif pid and pid not in [x.strip() for x in ids]:
+            p.append("%s.family_product_ids %s: does not contain the declared "
+                     "product_id %r. The representative is a member of its own "
+                     "family" % (ptag, ids, pid))
+
+    family = family_fingerprint_of(pr)
     if not family:
-        p.append("%s.review_family: empty. This route's equivalent of "
-                 "`parent_asin`, and no more optional: the platform pools "
-                 "reviews across a product family, so the family is where the "
-                 "reviews actually come from and what the collector joins on. "
-                 "`check-products` records it by comparing the returned "
-                 "review-id sets pairwise" % ptag)
+        p.append("%s.verification.family_fingerprint: empty, so nothing has "
+                 "established which family this product is in. §2b: the family "
+                 "is determined by COMPARING RETURNED REVIEW-ID SETS, never "
+                 "inferred from the product ids differing - TFB57GLE and "
+                 "TFB78GLE are different ids, different grills and one family"
+                 % ptag)
         return p
 
     if family in seen["family"]:
-        other_idx, other_key = seen["family"][family]
+        other_idx, other_key, _ = seen["family"][family]
         if other_idx == idx:
             p.append("%s: %s resolves to the SAME review family as %s (%s). "
                      "CONTRACTS.md §1: declare ONE representative per family. "
@@ -1014,7 +1071,23 @@ def _validate_brand_product(pr, ptag, route, seen, idx):
                      "refusal the amazon route makes for a shared parent"
                      % (ptag, family[:16], other_idx, other_key))
     else:
-        seen["family"][family] = (idx, key)
+        seen["family"][family] = (idx, key, label)
+
+    # The dangerous direction, and the one nothing else catches: two GENUINELY
+    # DIFFERENT families sharing one label. The fingerprints differ so every
+    # check above passes, and then the collector - which joins on the label, not
+    # on the fingerprint - pools two unrelated product families into one series
+    # and nothing downstream can tell.
+    if label:
+        prior = seen["family_label"].get(label)
+        if prior and prior[1] != family:
+            p.append("%s.family %r: already used by %s, which is a DIFFERENT "
+                     "review family (%s vs %s). §2b joins on this label, so two "
+                     "families sharing it would be pooled into one series and "
+                     "nothing downstream could tell them apart"
+                     % (ptag, label, prior[0], prior[1][:16], family[:16]))
+        else:
+            seen["family_label"][label] = (key, family)
     return p
 
 
@@ -2190,11 +2263,12 @@ def mode_concentration(args):
 CONTRACT_MEMBER_KEYS = ("company", "venue", "brands", "concentration",
                         "products", "reporting")
 CONTRACT_PRODUCT_KEYS = ("asin", "parent_asin", "marketplace", "name")
-# The brand-platform product, as CONTRACTS.md §1 shapes it: the deployment zone
-# and one representative product id, plus the review family the platform
-# actually pools them into - this route's `parent_asin`.
-CONTRACT_BRAND_PRODUCT_KEYS = ("client", "site", "product_id", "review_family",
-                               "name")
+# The brand-platform product, exactly as CONTRACTS.md §2b shapes it: the
+# deployment zone, one representative product id, and `family` - the one column
+# §2b joins every route on. The collector reads these names, so they are not
+# this component's to choose.
+CONTRACT_BRAND_PRODUCT_KEYS = ("client", "site", "product_id", "family",
+                               "family_product_ids", "name")
 CONTRACT_REPORTING_KEYS = ("calendar", "currency", "fy_end", "source")
 
 
@@ -2223,7 +2297,14 @@ def contract_product(pr):
             else CONTRACT_BRAND_PRODUCT_KEYS)
     out = {"route": route_of(pr)}
     for k in keys:
-        if k == "site" and not _s(pr, "site"):
+        if k == "site":
+            # Written explicitly even when it is the default. The view is read
+            # by the collector, not by someone who knows this component's
+            # defaults, and `groups/pellet-grills.json` - written by the
+            # collector's author - carries `"site": "main_site"` spelled out.
+            # Omitting it would make the reader supply a default of its own,
+            # which is two places for one fact.
+            out[k] = brand_site_of(pr)
             continue
         out[k] = pr.get(k)
     out["continuity_reason"] = pr.get("continuity_reason")
@@ -2330,7 +2411,7 @@ def declared_units(group):
                 "declared_pool": (
                     _s(pr, "parent_asin") or
                     _s((pr.get("verification") or {}), "parent_asin_seen")
-                    if route == "amazon" else family_of(pr)),
+                    if route == "amazon" else family_fingerprint_of(pr)),
             })
     return out
 
@@ -2598,9 +2679,12 @@ def normalise_for_contract(group):
 
     `parent_asin` is lifted from the verification record onto the product,
     because §1 requires it on the product and the collector joins on it.
-    `review_family` is lifted the same way for a brand-platform product: it is
-    that route's `parent_asin`, it is where the reviews actually come from, and
-    it exists only because `check-products` compared the returned id sets.
+    On a brand-platform product the same job is done by `family_product_ids`
+    and the `family_verified` / `family_check` pair: the declared `family` label
+    is a judgement and is never filled in here, but whether the family's
+    MEMBERSHIP was actually established is mechanical, and §2b requires a family
+    with no compared sibling to be reported unverified rather than silently
+    assumed.
 
     `route` is made explicit on every product at freeze time. A reader defaults
     an absent route to `amazon` - that is what keeps the declarations frozen
@@ -2631,9 +2715,34 @@ def normalise_for_contract(group):
                 if seen and not _s(pr, "parent_asin"):
                     pr["parent_asin"] = seen
             else:
-                fam = _s((pr.get("verification") or {}), "family_fingerprint")
-                if fam and not _s(pr, "review_family"):
-                    pr["review_family"] = fam
+                # §2b: a family of ONE compared product is reported UNVERIFIED,
+                # never verified - there is no sibling to compare against, and
+                # §5 forbids never-checked and checked-and-clean looking alike.
+                # Comparing the twelve declared products against each other
+                # establishes that they are TWELVE DIFFERENT families; it does
+                # not establish the full membership of any one of them.
+                ids = [x.strip() for x in (pr.get("family_product_ids") or [])
+                       if isinstance(x, str) and x.strip()]
+                if _s(pr, "product_id") and not ids:
+                    ids = [_s(pr, "product_id")]
+                pr["family_product_ids"] = ids
+                v = pr.get("verification")
+                if isinstance(v, dict) and _s(v, "family_fingerprint"):
+                    v["family_verified"] = len(ids) > 1
+                    v["family_check"] = {
+                        "method": "pairwise review-id set comparison over the "
+                                  "oldest %d ids, Sort=SubmissionTime:asc"
+                                  % FAMILY_SAMPLE,
+                        "compared_against": "every other brand-route product "
+                                            "declared in this group",
+                        "establishes": "that these declared products are "
+                                       "DIFFERENT families",
+                        "does_not_establish": (
+                            "the full membership of this family. No sibling id "
+                            "was found to pool with it, so §2b reports the "
+                            "family unverified; establishing membership needs a "
+                            "catalogue sweep, which this component does not do"),
+                    }
     return group
 
 
@@ -2808,24 +2917,40 @@ def revalidatable(group):
     """Can the CURRENT validator legitimately judge this frozen file's shape?
 
     The blunt version of this test is `schema_version == SCHEMA_VERSION`, and it
-    would be a real loss here: schema 2 changed only the BRAND-ROUTE product
-    shape, so declaring every schema-1 file unjudgeable would stop
-    contract-revalidating the six amazon declarations - twelve frozen versions -
-    over a change that cannot touch them. A check that stops checking is the
-    §5 failure wearing a version number.
+    would be a real loss here: every schema bump so far has changed only the
+    BRAND-ROUTE product shape, so declaring every older file unjudgeable would
+    stop contract-revalidating the six amazon declarations - twelve frozen
+    versions - over changes that cannot touch them. A check that stops checking
+    is the §5 failure wearing a version number.
 
-    So the test says what actually changed. A file at the current schema is
-    revalidated. A file at an older schema is revalidated too if it carries no
-    brand-route product, because nothing schema 2 tightened can apply to it.
-    Anything else is reported STALE - hash-checked, not revalidated - which is
-    what `schema_version` has always existed to express.
+    So the test asks the question it actually means - can the current validator
+    judge this SHAPE - rather than using the version number as a proxy for it
+    and then being wrong. A file is revalidated when it is at the current
+    schema, or when every brand-route product in it carries the fields the
+    later schemas introduced. An amazon-only file therefore always qualifies,
+    because nothing schemas 2 and 3 tightened can apply to it.
+
+    This is a shape test, not a validity test, so it is not circular: it asks
+    whether the fields the bumps ADDED are present, and then the validator
+    decides whether their values are any good. A file missing them is reported
+    STALE - hash-checked, not revalidated - which is what `schema_version` has
+    always existed to express.
+
+    If a future schema bump changes something an AMAZON product has,
+    SCHEMA_FIELDS has to gain it: this is an assertion about which bumps have
+    happened, not a general rule.
     """
     if group.get("schema_version") == SCHEMA_VERSION:
         return True
     for m in group.get("members") or []:
         for pr in m.get("products") or []:
-            if isinstance(pr, dict) and route_of(pr) in BRAND_ROUTES:
+            if not isinstance(pr, dict) or route_of(pr) not in BRAND_ROUTES:
+                continue
+            v = pr.get("verification") or {}
+            if not _s(v, "family_sample_end"):        # schema 2
                 return False
+            if not _s(pr, "family") or not pr.get("family_product_ids"):
+                return False                          # schema 3
     return True
 
 

@@ -112,9 +112,16 @@ display API whose key the platform's CDN publishes to every visitor's browser.
 
 {"route": "bazaarvoice",
  "client": "traegerservice",      // the deployment zone
+ "site": "main_site",             // optional, defaults to main_site
  "product_id": "TFB57GLE",        // ONE representative per review FAMILY
+ "family": "traeger-pro-575",     // §2b's JOIN KEY - the collector pools on it
+ "family_product_ids": ["TFB57GLE"],   // the ids actually compared
  "brand": "...", "name": "...", "continuity_reason": "...", "verification": {...}}
 ```
+
+**`family` is `CONTRACTS.md` §2b's one join key for every route** — the parent ASIN on
+Amazon, the declared label on a brand platform. The collector reads it off the group file,
+so a declaration without it cannot be collected against however well it validates here.
 
 **An absent `route` is `amazon`.** That is what keeps the six declarations frozen before
 the field existed valid; a frozen file is never rewritten to add it (§1.5).
@@ -205,7 +212,7 @@ the contract is the same either way.
 ## Tests
 
 ```bash
-python3 .claude/skills/review-tone-peer-group/tests/test_declare_group.py   # 277
+python3 .claude/skills/review-tone-peer-group/tests/test_declare_group.py   # 290
 python3 .claude/skills/review-tone-peer-group/tests/test_evidence_log.py    # 27
 python3 .claude/skills/review-tone-peer-group/tests/test_guard_coverage.py  # audit
 ```
@@ -214,7 +221,7 @@ python3 .claude/skills/review-tone-peer-group/tests/test_guard_coverage.py  # au
 site in the validators and asserts each one is tripped by at least one test. A guard no
 test has ever seen fire is indistinguishable from a guard that works — it found 24 of 70
 in that position on the day it was written. It carries its own negative controls, because
-an audit that always passes is the thing it exists to prevent. 90 sites now, all tripped.
+an audit that always passes is the thing it exists to prevent. 96 sites now, all tripped.
 
 **A new validator helper must be added to its `GUARD_FUNCS`**, or its refusals are
 excluded from the audit — which is the same invisible failure the audit exists to catch.

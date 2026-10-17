@@ -217,10 +217,15 @@ On a **brand-platform route**:
 | key | notes |
 |---|---|
 | `client` | the deployment zone as the platform's own CDN spells it: `traegerservice`, `weber`, `yeti` |
-| `site` | the deployment site within the client. Optional, default `main_site` — YETI publishes a key under both `yeticom_sfra` and `main_site` |
+| `site` | the deployment site within the client. Optional, default `main_site` — YETI publishes a key under both `yeticom_sfra` and `main_site`. Written out explicitly in the view |
 | `product_id` | the platform's product id. **ONE representative per review family** |
-| `review_family` | required — this route's `parent_asin`; see below |
+| `family` | required — **`CONTRACTS.md` §2b's one join key for every route**, as a slug. The collector reads this off the group file and pools on it; a declaration without it cannot be collected against however well it validates here |
+| `family_product_ids` | required — the product ids whose review-id sets were compared, at minimum the representative itself |
 | `liveness_finding` | required when the newest review is over a year old |
+
+§2b keys **every** route on `family`: it holds the parent ASIN on an Amazon route and the
+declared family label on a brand route, so anything downstream has one column to pool on
+and neither route is special.
 
 The Amazon identifiers must be **absent** on a brand-route product. A half-converted
 draft carrying both makes two contradictory claims about where the reviews come from,
@@ -286,6 +291,23 @@ What *does* move it is an **old review being deleted**, which is a finding worth
 a route where the company being measured runs the moderation queue. `family_sample_end`
 records which end was sampled, and a record that cannot say is refused — one sampled from
 the other end cannot be compared with one sampled from this one.
+
+**The fingerprint is evidence; `family` is the join key.** The fingerprint proves two
+labels are not secretly one family, and the label is what the collector pools on. Both
+directions are refused:
+
+- two products with the **same fingerprint** — one pooled family declared twice;
+- two products with **different fingerprints sharing one label** — the direction nothing
+  else catches, because every fingerprint check passes and then the collector fuses two
+  unrelated families into one series with nothing downstream able to tell.
+
+**Membership is a separate claim from identity, and it is not established here.** Comparing
+the declared products against each other proves they are *different* families; it does not
+prove what else is in any one of them. So `family_product_ids` holds only the ids actually
+compared, and `verification.family_verified` is **false** for a family with no compared
+sibling — §2b requires exactly that ("a `family` of one declared product is reported
+unverified, never verified"), and `family_check` records what was and was not established.
+Establishing membership needs a catalogue sweep, which this component does not do.
 
 Two declared products in one family are refused, both ways round:
 

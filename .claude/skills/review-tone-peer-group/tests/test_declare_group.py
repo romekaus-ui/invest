@@ -684,6 +684,14 @@ def bv_product(**over):
         "verification": dict(BV_VERIFICATION),
     }
     pr.update(over)
+    # CONTRACTS.md §2b: `family` is the one column every route is joined on, and
+    # the collector reads it off the group file. Derived from the product id
+    # here so that overriding the id in a test keeps the two consistent -
+    # otherwise every case would trip the label guard instead of the one it is
+    # about, which is how a fixture ends up testing the fixture.
+    pid = pr.get("product_id") or ""
+    pr.setdefault("family", "fam-%s" % pid.lower().replace("_", "-") or "fam")
+    pr.setdefault("family_product_ids", [pid] if pid else [])
     return pr
 
 
@@ -839,11 +847,61 @@ check("--allow-unverified is the documented way past it, and it records the coun
 # differing - that is precisely the inference the measurement falsified.
 print("\nthe review family, which is not optional")
 
-refuses("a brand product with no review family",
+refuses("a brand product with no family label - the collector's join key",
+        group(members=[bv_member(products=[bv_product(family="")]),
+                       weber_member()]),
+        "CONTRACTS.md §2b requires it")
+refuses("a family label that is not a slug the collector can join on",
+        group(members=[bv_member(products=[bv_product(family="Pro 575 / 780")]),
+                       weber_member()]),
+        "as a slug")
+refuses("a brand product with no family membership recorded",
+        group(members=[bv_member(products=[bv_product(family_product_ids=[])]),
+                       weber_member()]),
+        "requires the product ids whose review-id sets were compared")
+refuses("a family membership list that omits the representative itself",
+        group(members=[bv_member(products=[bv_product(
+            family_product_ids=["TFB78GLE"])]), weber_member()]),
+        "is a member of its own family")
+refuses("a malformed id in the family membership list",
+        group(members=[bv_member(products=[bv_product(
+            family_product_ids=["TFB57GLE", "not a product id!"])]),
+                       weber_member()]),
+        "is not a well-formed product id")
+
+# The direction nothing else catches. Two genuinely DIFFERENT families sharing
+# one label: every fingerprint check passes because the fingerprints differ, and
+# then the collector - which joins on the LABEL - pools two unrelated families
+# into one series with nothing downstream able to tell.
+refuses("two different families sharing one label",
+        group(members=[
+            bv_member(products=[
+                bv_product(product_id="TFB57GLE", family="pro-series"),
+                bv_product(product_id="TFB89BLF", family="pro-series",
+                           name="Ironwood 885 Pellet Grill",
+                           verification=bv_verification(
+                               product_id_seen="TFB89BLF",
+                               title_seen="Ironwood 885 Pellet Grill",
+                               family_fingerprint="96914968f1b56cca" * 4))]),
+            weber_member()]),
+        "would be pooled into one series")
+refuses("and across members too, where it would fuse two companies' series",
+        group(members=[bv_member(products=[bv_product(family="shared-label")]),
+                       weber_member(products=[bv_product(
+                           client="weber", product_id="44010001", brand="Weber",
+                           family="shared-label",
+                           name="Spirit II E-210 Gas Grill (Liquid Propane)",
+                           verification=bv_verification(
+                               client="weber", product_id_seen="44010001",
+                               title_seen="Spirit II E-210 Gas Grill (Liquid Propane)",
+                               family_fingerprint="a1b2c3d4e5f60718" * 4))])]),
+        "would be pooled into one series")
+
+refuses("a brand product whose family was never established at all",
         group(members=[bv_member(products=[bv_product(
             verification=bv_verification(family_fingerprint=""))]),
                        weber_member()]),
-        "equivalent of `parent_asin`")
+        "never inferred from the product ids differing")
 refuses("a brand product whose ids were never compared against the others",
         group(members=[bv_member(products=[bv_product(
             verification=bv_verification(family_fingerprint=""))]),
@@ -1132,16 +1190,33 @@ check("and that note does not claim the members are incomparable",
 print("\nwhich frozen files the current validator may still judge")
 check("a file at the current schema is revalidated",
       dg.revalidatable(dict(bv_group, schema_version=dg.SCHEMA_VERSION)))
-check("an older amazon-only file is STILL revalidated - nothing schema 2 "
-      "tightened can apply to it",
+check("an older amazon-only file is STILL revalidated - nothing the brand-route "
+      "bumps tightened can apply to it",
       dg.revalidatable(dict(group(), schema_version=1)))
-check("an older file carrying a brand product is not revalidated",
-      not dg.revalidatable(dict(bv_group, schema_version=1)))
-check("one brand product among amazon ones is enough to hold it back",
-      not dg.revalidatable(dict(group(members=[member(), weber_member()]),
-                                schema_version=1)))
-check("a file with no schema_version at all is treated as older",
-      dg.revalidatable(group()) and not dg.revalidatable(bv_group))
+check("an older brand file is revalidated when it carries the fields the "
+      "bumps added - the shape is what matters, not the number",
+      dg.revalidatable(dict(bv_group, schema_version=1)))
+check("a brand file missing schema 3's join key is NOT revalidated",
+      not dg.revalidatable(dict(group(members=[
+          bv_member(products=[dict(bv_product(), family="")]), weber_member()]),
+          schema_version=1)))
+check("a brand file missing schema 3's membership list is NOT revalidated",
+      not dg.revalidatable(dict(group(members=[
+          bv_member(products=[dict(bv_product(), family_product_ids=[])]),
+          weber_member()]), schema_version=1)))
+check("a brand file that cannot say which end it fingerprinted is NOT "
+      "revalidated",
+      not dg.revalidatable(dict(group(members=[
+          bv_member(products=[bv_product(
+              verification=bv_verification(family_sample_end=""))]),
+          weber_member()]), schema_version=1)))
+check("one stale brand product among good ones is enough to hold a file back",
+      not dg.revalidatable(dict(group(members=[
+          member(),
+          weber_member(products=[dict(bv_product(
+              client="weber", product_id="44010001", brand="Weber",
+              name="Spirit II E-210 Gas Grill (Liquid Propane)"), family="")])]),
+          schema_version=1)))
 
 # ---- declared_units covers both routes ----
 print("\nwhat reresolve will sweep")
@@ -1188,10 +1263,27 @@ bv_view = dg.contract_view(dict(
 bvp = bv_view["members"][0]["products"][0]
 check("a brand product carries the route it is read through",
       bvp["route"] == "bazaarvoice", bvp)
-check("a brand product carries the zone, the product id and the review family",
-      all(k in bvp for k in ("client", "product_id", "review_family")), sorted(bvp))
-check("the review family was lifted out of the verification record",
-      bvp["review_family"] == BV_VERIFICATION["family_fingerprint"], bvp)
+check("a brand product carries the zone, the product id and §2b's join key",
+      all(k in bvp for k in ("client", "product_id", "family",
+                             "family_product_ids")), sorted(bvp))
+check("the join key is the declared label, which the collector reads",
+      bvp["family"] == "fam-tfb57gle", bvp)
+check("the fingerprint stays in the verification record as the EVIDENCE, not "
+      "as the join key",
+      bvp["verification"]["family_fingerprint"]
+      == BV_VERIFICATION["family_fingerprint"])
+check("a family with no compared sibling is reported UNVERIFIED, never verified",
+      bvp["verification"]["family_verified"] is False,
+      bvp["verification"].get("family_verified"))
+check("and it says what was and was not established",
+      "does_not_establish" in bvp["verification"]["family_check"],
+      bvp["verification"].get("family_check"))
+two_id = dg.normalise_for_contract(group(members=[
+    bv_member(products=[bv_product(
+        family_product_ids=["TFB57GLE", "TFB78GLE"])]), weber_member()]))
+check("a family with a compared sibling IS verified",
+      two_id["members"][0]["products"][0]["verification"]["family_verified"]
+      is True)
 check("a brand product does NOT carry Amazon keys at all",
       not any(k in bvp for k in ("asin", "parent_asin", "marketplace")), sorted(bvp))
 check("the continuity reason and the verification travel with it",

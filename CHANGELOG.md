@@ -87,22 +87,62 @@ check that quietly stops checking. So `revalidatable()` says what actually chang
 at the current schema is revalidated, and so is an older file carrying no brand-route
 product. Only `barbecue-grills` v3 is reported STALE, and `verify` has no breaks.
 
-### §5: 91 refusal sites, all tripped
+### Aligning to §2b, which was settled while this was being built
 
-21 new sites arrived with the route field; 21 cases that demonstrably trip them arrived
-with them, and the suite went from 187 to 277 checks. The must-pass half is pinned as
+§2b landed on `main` during this work ("Settle the brand route in the contracts, before
+anything builds on it") and keys **every** route on one column called **`family`** — the
+parent ASIN on an Amazon route, a declared family label on a brand route. The collector
+reads `family` off the group file, so a declaration carrying only a fingerprint under a
+different name would have validated perfectly here and been **uncollectable**. That is
+precisely the failure this file opens with: components built in parallel against a
+loosely-described interface, none of which could be invoked.
+
+So `family` and `family_product_ids` are now required per brand product, and the §1 view
+emits exactly the keys `groups/pellet-grills.json` carries, `site` spelled out included.
+The id-set fingerprint stays where it belongs, in the verification record, as the
+**evidence** that two labels are not secretly one family. Both directions are refused: two
+products with the same fingerprint, and — the direction nothing else catches — two
+products with *different* fingerprints sharing one label, which every fingerprint check
+passes before the collector fuses two unrelated families into one series.
+
+**Membership is a separate claim from identity, and is not established.** Comparing the
+twelve declared products against each other proves they are twelve *different* families;
+it does not prove what else is in any one of them. So `family_product_ids` holds only the
+compared ids and `family_verified` is **false** for all twelve, which is what §2b demands
+of a family with no compared sibling. Establishing membership needs a catalogue sweep this
+component does not do.
+
+### The cost: three freezes in an hour, and the ordering lesson
+
+`barbecue-grills` went v3 → v4 → v5 in an hour, v3 and v4 superseded for defects found
+immediately after freezing: newest-end fingerprints, then the missing §2b join key.
+Nothing was collected against any of them, so nothing downstream is wrong — but the
+versions are churn, and **the lesson is the ordering, not the schema**. The integration
+check against the settled contract belonged *before* the first freeze. The superseded
+versions are kept rather than tidied away, because that is what the chain is for.
+
+`revalidatable()` was also sharpened in passing. Using the schema *number* as the test
+called v5 stale although its content satisfies the current validator exactly; it now tests
+the **shape** — are the fields the bumps added present — which is the question it always
+meant. v3 and v4 are STALE, v5 and all twelve Amazon versions are fully revalidated, and
+`verify` reports no breaks.
+
+### §5: 96 refusal sites, all tripped
+
+26 new sites arrived with the route field; 26 cases that demonstrably trip them arrived
+with them, and the suite went from 187 to 290 checks. The must-pass half is pinned as
 hard as the refusals, because a verifier that fires on a legitimate declaration gets
 switched off within a week and then guards nothing. A new validator helper has to be
 added to the audit's `GUARD_FUNCS` or its refusals are silently excluded — the same
 invisible failure the audit exists to catch.
 
-### `barbecue-grills` v4, the revision this unblocked
+### `barbecue-grills` v5, the revision this unblocked
 
 Both members moved from the Amazon route to their own Bazaarvoice deployments: Traeger 7
 families, Weber 5, measured 2026-10-17 as **12 distinct families with zero review-id
 overlap between any pair**. Declared with `readings_at_declare: 0` — no review text has
-been collected for this group, so it is still declared before collection. (v3 was the
-same declaration with newest-end fingerprints; see above.)
+been collected for this group, so it is still declared before collection. (v3 and v4
+were the same declaration before the two fixes above.)
 
 Why: Amazon caps a pass at ~100 reviews per filter combination, which on these grills
 buys weeks; Traeger's own deployment serves 7.6 years at 97–100% text with no cap and a

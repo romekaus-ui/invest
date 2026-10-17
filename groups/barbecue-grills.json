@@ -23,11 +23,11 @@
   },
   "declared_at": "2026-10-17",
   "declared_by": {
-    "code_commit": "21079484614841d2fe8b8dd1a3c925bd1480052e-dirty",
+    "code_commit": "2f9ae2291a8b7170f7bc9b8f379d98be70e9f8ab-dirty",
     "tool": "declare_group.py"
   },
   "group_id": "barbecue-grills",
-  "hash": "fcbccccf18990fe115dfe0349948e75edc7309d68fa05131f8054fbccdcc0b38",
+  "hash": "b89c953bbce18d100874aecfa031dd7c4723da0e16f12a37596720cd4cc77385",
   "members": [
     {
       "brands": [
@@ -48,16 +48,26 @@
         {
           "client": "traegerservice",
           "continuity_reason": "In the core Timberline range since 2022, with no successor announced, and its deployment has carried reviews continuously since 2022-03-25.",
+          "family": "traeger-timberline-xl",
+          "family_product_ids": [
+            "TBB01RLG"
+          ],
           "name": "TIMBERLINE XL",
           "product_id": "TBB01RLG",
-          "review_family": "0321f1528b4ab7eee657d0dc8dc4d6acd91944a256837344e522f44e8271dbf8",
           "route": "bazaarvoice",
+          "site": "main_site",
           "verification": {
             "checked_at": "2026-10-17T14:35:29Z",
             "client": "traegerservice",
             "collected": 200,
             "date_inversions": 0,
             "dates_descending_verified": true,
+            "family_check": {
+              "compared_against": "every other brand-route product declared in this group",
+              "does_not_establish": "the full membership of this family. No sibling id was found to pool with it, so §2b reports the family unverified; establishing membership needs a catalogue sweep, which this component does not do",
+              "establishes": "that these declared products are DIFFERENT families",
+              "method": "pairwise review-id set comparison over the oldest 100 ids, Sort=SubmissionTime:asc"
+            },
             "family_fingerprint": "0321f1528b4ab7eee657d0dc8dc4d6acd91944a256837344e522f44e8271dbf8",
             "family_sample_end": "oldest",
             "family_sample_ids": [
@@ -164,6 +174,7 @@
             ],
             "family_sampled": 100,
             "family_shared_with": [],
+            "family_verified": false,
             "first_review": "2022-03-25",
             "newest": "2026-10-10",
             "newest_review_age_days": 6,
@@ -185,16 +196,26 @@
         {
           "client": "traegerservice",
           "continuity_reason": "A legacy Timberline now served in store only. Declared for the continuous review flow since 2019-04-02 rather than for new sales: if it is withdrawn this family's series ends and is recorded as ended, never swapped for another.",
+          "family": "traeger-timberline-1300",
+          "family_product_ids": [
+            "TFB01WLE"
+          ],
           "name": "Timberline 1300 Pellet Grill - In Store Only",
           "product_id": "TFB01WLE",
-          "review_family": "a533c5341e0ea5c7f5510e0285dd3f03f6a39f521f7c043575b2b5de33665eb1",
           "route": "bazaarvoice",
+          "site": "main_site",
           "verification": {
             "checked_at": "2026-10-17T14:35:32Z",
             "client": "traegerservice",
             "collected": 200,
             "date_inversions": 0,
             "dates_descending_verified": true,
+            "family_check": {
+              "compared_against": "every other brand-route product declared in this group",
+              "does_not_establish": "the full membership of this family. No sibling id was found to pool with it, so §2b reports the family unverified; establishing membership needs a catalogue sweep, which this component does not do",
+              "establishes": "that these declared products are DIFFERENT families",
+              "method": "pairwise review-id set comparison over the oldest 100 ids, Sort=SubmissionTime:asc"
+            },
             "family_fingerprint": "a533c5341e0ea5c7f5510e0285dd3f03f6a39f521f7c043575b2b5de33665eb1",
             "family_sample_end": "oldest",
             "family_sample_ids": [
@@ -301,6 +322,7 @@
             ],
             "family_sampled": 100,
             "family_shared_with": [],
+            "family_verified": false,
             "first_review": "2019-04-02",
             "newest": "2026-09-25",
             "newest_review_age_days": 22,
@@ -322,16 +344,26 @@
         {
           "client": "traegerservice",
           "continuity_reason": "A core-line Traeger pellet grill, reviewed continuously since 2019-03-20 and still in the current range.",
+          "family": "traeger-pro-575",
+          "family_product_ids": [
+            "TFB57GLE"
+          ],
           "name": "Pro 575 Pellet Grill - Black",
           "product_id": "TFB57GLE",
-          "review_family": "d9aa93cb2b20ffb0c504641c5a076d89ff9e221025815ce5ecd10e2328503c8e",
           "route": "bazaarvoice",
+          "site": "main_site",
           "verification": {
             "checked_at": "2026-10-17T14:35:35Z",
             "client": "traegerservice",
             "collected": 200,
             "date_inversions": 0,
             "dates_descending_verified": true,
+            "family_check": {
+              "compared_against": "every other brand-route product declared in this group",
+              "does_not_establish": "the full membership of this family. No sibling id was found to pool with it, so §2b reports the family unverified; establishing membership needs a catalogue sweep, which this component does not do",
+              "establishes": "that these declared products are DIFFERENT families",
+              "method": "pairwise review-id set comparison over the oldest 100 ids, Sort=SubmissionTime:asc"
+            },
             "family_fingerprint": "d9aa93cb2b20ffb0c504641c5a076d89ff9e221025815ce5ecd10e2328503c8e",
             "family_sample_end": "oldest",
             "family_sample_ids": [
@@ -438,6 +470,7 @@
             ],
             "family_sampled": 100,
             "family_shared_with": [],
+            "family_verified": false,
             "first_review": "2019-03-20",
             "newest": "2026-10-11",
             "newest_review_age_days": 5,
@@ -459,16 +492,26 @@
         {
           "client": "traegerservice",
           "continuity_reason": "A Pro Series grill whose family has carried reviews continuously since 2016-02-11, the longest reach in this deployment. Now served in store only, so a withdrawal ends this series rather than being swapped.",
+          "family": "traeger-pro-series-34",
+          "family_product_ids": [
+            "TFB88PZB"
+          ],
           "name": "Pro Series 34 Pellet Grill - Bronze",
           "product_id": "TFB88PZB",
-          "review_family": "ef41259b59a8d215595738ebeb152f1e20432dd5389070790ab444c10ecc73fa",
           "route": "bazaarvoice",
+          "site": "main_site",
           "verification": {
             "checked_at": "2026-10-17T14:35:37Z",
             "client": "traegerservice",
             "collected": 200,
             "date_inversions": 0,
             "dates_descending_verified": true,
+            "family_check": {
+              "compared_against": "every other brand-route product declared in this group",
+              "does_not_establish": "the full membership of this family. No sibling id was found to pool with it, so §2b reports the family unverified; establishing membership needs a catalogue sweep, which this component does not do",
+              "establishes": "that these declared products are DIFFERENT families",
+              "method": "pairwise review-id set comparison over the oldest 100 ids, Sort=SubmissionTime:asc"
+            },
             "family_fingerprint": "ef41259b59a8d215595738ebeb152f1e20432dd5389070790ab444c10ecc73fa",
             "family_sample_end": "oldest",
             "family_sample_ids": [
@@ -575,6 +618,7 @@
             ],
             "family_sampled": 100,
             "family_shared_with": [],
+            "family_verified": false,
             "first_review": "2016-02-11",
             "newest": "2026-10-06",
             "newest_review_age_days": 11,
@@ -596,16 +640,26 @@
         {
           "client": "traegerservice",
           "continuity_reason": "A core-line Traeger pellet grill, reviewed continuously since 2019-03-24 and still in the catalogue.",
+          "family": "traeger-ironwood-885",
+          "family_product_ids": [
+            "TFB89BLF"
+          ],
           "name": "Ironwood 885 Pellet Grill",
           "product_id": "TFB89BLF",
-          "review_family": "96914968f1b56ccafdc964b20c18e358305b6f0d5efb5a53527958d80c0d8f10",
           "route": "bazaarvoice",
+          "site": "main_site",
           "verification": {
             "checked_at": "2026-10-17T14:35:40Z",
             "client": "traegerservice",
             "collected": 200,
             "date_inversions": 0,
             "dates_descending_verified": true,
+            "family_check": {
+              "compared_against": "every other brand-route product declared in this group",
+              "does_not_establish": "the full membership of this family. No sibling id was found to pool with it, so §2b reports the family unverified; establishing membership needs a catalogue sweep, which this component does not do",
+              "establishes": "that these declared products are DIFFERENT families",
+              "method": "pairwise review-id set comparison over the oldest 100 ids, Sort=SubmissionTime:asc"
+            },
             "family_fingerprint": "96914968f1b56ccafdc964b20c18e358305b6f0d5efb5a53527958d80c0d8f10",
             "family_sample_end": "oldest",
             "family_sample_ids": [
@@ -712,6 +766,7 @@
             ],
             "family_sampled": 100,
             "family_shared_with": [],
+            "family_verified": false,
             "first_review": "2019-03-24",
             "newest": "2026-08-08",
             "newest_review_age_days": 69,
@@ -733,16 +788,26 @@
         {
           "client": "traegerservice",
           "continuity_reason": "In the permanent range since 2023-02-16, the current generation of the Ironwood line.",
+          "family": "traeger-ironwood-xl",
+          "family_product_ids": [
+            "TFB93RLG"
+          ],
           "name": "Ironwood XL Wood Pellet Grill",
           "product_id": "TFB93RLG",
-          "review_family": "85935f3b44477a81686817e4547f9ad5a02fef3929f91ea87e79e81475eccdb7",
           "route": "bazaarvoice",
+          "site": "main_site",
           "verification": {
             "checked_at": "2026-10-17T14:35:42Z",
             "client": "traegerservice",
             "collected": 152,
             "date_inversions": 0,
             "dates_descending_verified": true,
+            "family_check": {
+              "compared_against": "every other brand-route product declared in this group",
+              "does_not_establish": "the full membership of this family. No sibling id was found to pool with it, so §2b reports the family unverified; establishing membership needs a catalogue sweep, which this component does not do",
+              "establishes": "that these declared products are DIFFERENT families",
+              "method": "pairwise review-id set comparison over the oldest 100 ids, Sort=SubmissionTime:asc"
+            },
             "family_fingerprint": "85935f3b44477a81686817e4547f9ad5a02fef3929f91ea87e79e81475eccdb7",
             "family_sample_end": "oldest",
             "family_sample_ids": [
@@ -849,6 +914,7 @@
             ],
             "family_sampled": 100,
             "family_shared_with": [],
+            "family_verified": false,
             "first_review": "2023-02-16",
             "newest": "2026-10-10",
             "newest_review_age_days": 6,
@@ -870,16 +936,26 @@
         {
           "client": "traegerservice",
           "continuity_reason": "The current-generation Traeger line, on sale since 2024-12-14, declared so the group keeps a family at the recent end as the older models age out.",
+          "family": "traeger-woodridge-pro",
+          "family_product_ids": [
+            "TFB97JLH"
+          ],
           "name": "Woodridge™ Pro Pellet Grill",
           "product_id": "TFB97JLH",
-          "review_family": "ee6bf036c16ed0755caf2e7c5ec4ec2705ee7ab2a40972a61548c9054681bdd2",
           "route": "bazaarvoice",
+          "site": "main_site",
           "verification": {
             "checked_at": "2026-10-17T14:35:45Z",
             "client": "traegerservice",
             "collected": 200,
             "date_inversions": 0,
             "dates_descending_verified": true,
+            "family_check": {
+              "compared_against": "every other brand-route product declared in this group",
+              "does_not_establish": "the full membership of this family. No sibling id was found to pool with it, so §2b reports the family unverified; establishing membership needs a catalogue sweep, which this component does not do",
+              "establishes": "that these declared products are DIFFERENT families",
+              "method": "pairwise review-id set comparison over the oldest 100 ids, Sort=SubmissionTime:asc"
+            },
             "family_fingerprint": "ee6bf036c16ed0755caf2e7c5ec4ec2705ee7ab2a40972a61548c9054681bdd2",
             "family_sample_end": "oldest",
             "family_sample_ids": [
@@ -986,6 +1062,7 @@
             ],
             "family_sampled": 100,
             "family_shared_with": [],
+            "family_verified": false,
             "first_review": "2024-12-14",
             "newest": "2026-09-25",
             "newest_review_age_days": 21,
@@ -1035,16 +1112,26 @@
         {
           "client": "weber",
           "continuity_reason": "A core-line Weber gas grill in the permanent range, reviewed continuously since 2018-03-23.",
+          "family": "weber-spirit-ii-e-210",
+          "family_product_ids": [
+            "44010001"
+          ],
           "name": "Spirit II E-210 Gas Grill (Liquid Propane)",
           "product_id": "44010001",
-          "review_family": "c332ca5d7eb1499c51ec34c73aee316ae938a8cf6a2ca56eefb768e81dd32634",
           "route": "bazaarvoice",
+          "site": "main_site",
           "verification": {
             "checked_at": "2026-10-17T14:35:48Z",
             "client": "weber",
             "collected": 200,
             "date_inversions": 0,
             "dates_descending_verified": true,
+            "family_check": {
+              "compared_against": "every other brand-route product declared in this group",
+              "does_not_establish": "the full membership of this family. No sibling id was found to pool with it, so §2b reports the family unverified; establishing membership needs a catalogue sweep, which this component does not do",
+              "establishes": "that these declared products are DIFFERENT families",
+              "method": "pairwise review-id set comparison over the oldest 100 ids, Sort=SubmissionTime:asc"
+            },
             "family_fingerprint": "c332ca5d7eb1499c51ec34c73aee316ae938a8cf6a2ca56eefb768e81dd32634",
             "family_sample_end": "oldest",
             "family_sample_ids": [
@@ -1151,6 +1238,7 @@
             ],
             "family_sampled": 100,
             "family_shared_with": [],
+            "family_verified": false,
             "first_review": "2018-03-23",
             "newest": "2026-09-12",
             "newest_review_age_days": 35,
@@ -1172,16 +1260,26 @@
         {
           "client": "weber",
           "continuity_reason": "The three-burner Spirit II, a year-round catalogue staple carrying reviews since 2018-03-23.",
+          "family": "weber-spirit-ii-e-310",
+          "family_product_ids": [
+            "45010001"
+          ],
           "name": "Spirit II E-310 Gas Grill (Liquid Propane)",
           "product_id": "45010001",
-          "review_family": "cf96d691970b1b7b0d8eb37781690807a2cb47b28b5ab5bad1a6f72310a4cbe0",
           "route": "bazaarvoice",
+          "site": "main_site",
           "verification": {
             "checked_at": "2026-10-17T14:35:51Z",
             "client": "weber",
             "collected": 200,
             "date_inversions": 0,
             "dates_descending_verified": true,
+            "family_check": {
+              "compared_against": "every other brand-route product declared in this group",
+              "does_not_establish": "the full membership of this family. No sibling id was found to pool with it, so §2b reports the family unverified; establishing membership needs a catalogue sweep, which this component does not do",
+              "establishes": "that these declared products are DIFFERENT families",
+              "method": "pairwise review-id set comparison over the oldest 100 ids, Sort=SubmissionTime:asc"
+            },
             "family_fingerprint": "cf96d691970b1b7b0d8eb37781690807a2cb47b28b5ab5bad1a6f72310a4cbe0",
             "family_sample_end": "oldest",
             "family_sample_ids": [
@@ -1288,6 +1386,7 @@
             ],
             "family_sampled": 100,
             "family_shared_with": [],
+            "family_verified": false,
             "first_review": "2018-03-23",
             "newest": "2026-09-09",
             "newest_review_age_days": 37,
@@ -1309,16 +1408,26 @@
         {
           "client": "weber",
           "continuity_reason": "The current-generation two-burner Spirit, reviewed continuously since 2019-04-02.",
+          "family": "weber-spirit-e-210",
+          "family_product_ids": [
+            "46110001"
+          ],
           "name": "Spirit E-210 Gas Grill (Liquid Propane)",
           "product_id": "46110001",
-          "review_family": "f55bbf81fd1a7f96e5cb30ffbaa5a81ca4d783c6acbbd2c3aff4d663f799883d",
           "route": "bazaarvoice",
+          "site": "main_site",
           "verification": {
             "checked_at": "2026-10-17T14:35:53Z",
             "client": "weber",
             "collected": 200,
             "date_inversions": 0,
             "dates_descending_verified": true,
+            "family_check": {
+              "compared_against": "every other brand-route product declared in this group",
+              "does_not_establish": "the full membership of this family. No sibling id was found to pool with it, so §2b reports the family unverified; establishing membership needs a catalogue sweep, which this component does not do",
+              "establishes": "that these declared products are DIFFERENT families",
+              "method": "pairwise review-id set comparison over the oldest 100 ids, Sort=SubmissionTime:asc"
+            },
             "family_fingerprint": "f55bbf81fd1a7f96e5cb30ffbaa5a81ca4d783c6acbbd2c3aff4d663f799883d",
             "family_sample_end": "oldest",
             "family_sample_ids": [
@@ -1425,6 +1534,7 @@
             ],
             "family_sampled": 100,
             "family_shared_with": [],
+            "family_verified": false,
             "first_review": "2019-04-02",
             "newest": "2026-09-10",
             "newest_review_age_days": 37,
@@ -1446,16 +1556,26 @@
         {
           "client": "weber",
           "continuity_reason": "The current-generation three-burner Spirit, in the permanent range with reviews since 2019-04-02.",
+          "family": "weber-spirit-e-310",
+          "family_product_ids": [
+            "46510001"
+          ],
           "name": "Spirit E-310 Gas Grill (Liquid Propane)",
           "product_id": "46510001",
-          "review_family": "8a4409b9853ae49ef895666a4cf74c529710b6af62914cec9d80a40a4c149800",
           "route": "bazaarvoice",
+          "site": "main_site",
           "verification": {
             "checked_at": "2026-10-17T14:35:56Z",
             "client": "weber",
             "collected": 200,
             "date_inversions": 0,
             "dates_descending_verified": true,
+            "family_check": {
+              "compared_against": "every other brand-route product declared in this group",
+              "does_not_establish": "the full membership of this family. No sibling id was found to pool with it, so §2b reports the family unverified; establishing membership needs a catalogue sweep, which this component does not do",
+              "establishes": "that these declared products are DIFFERENT families",
+              "method": "pairwise review-id set comparison over the oldest 100 ids, Sort=SubmissionTime:asc"
+            },
             "family_fingerprint": "8a4409b9853ae49ef895666a4cf74c529710b6af62914cec9d80a40a4c149800",
             "family_sample_end": "oldest",
             "family_sample_ids": [
@@ -1562,6 +1682,7 @@
             ],
             "family_sampled": 100,
             "family_shared_with": [],
+            "family_verified": false,
             "first_review": "2019-04-02",
             "newest": "2026-09-12",
             "newest_review_age_days": 35,
@@ -1583,16 +1704,26 @@
         {
           "client": "weber",
           "continuity_reason": "A long-running portable gas grill in the core range, reviewed continuously since 2018-01-05.",
+          "family": "weber-q-1200",
+          "family_product_ids": [
+            "51060001"
+          ],
           "name": "Weber® Q 1200 Gas Grill (Liquid Propane)",
           "product_id": "51060001",
-          "review_family": "d25efeee6b6707e0b228adca7f4fde0dd71aeccea61aae1b2052828ec10e3fb1",
           "route": "bazaarvoice",
+          "site": "main_site",
           "verification": {
             "checked_at": "2026-10-17T14:35:58Z",
             "client": "weber",
             "collected": 200,
             "date_inversions": 0,
             "dates_descending_verified": true,
+            "family_check": {
+              "compared_against": "every other brand-route product declared in this group",
+              "does_not_establish": "the full membership of this family. No sibling id was found to pool with it, so §2b reports the family unverified; establishing membership needs a catalogue sweep, which this component does not do",
+              "establishes": "that these declared products are DIFFERENT families",
+              "method": "pairwise review-id set comparison over the oldest 100 ids, Sort=SubmissionTime:asc"
+            },
             "family_fingerprint": "d25efeee6b6707e0b228adca7f4fde0dd71aeccea61aae1b2052828ec10e3fb1",
             "family_sample_end": "oldest",
             "family_sample_ids": [
@@ -1699,6 +1830,7 @@
             ],
             "family_sampled": 100,
             "family_shared_with": [],
+            "family_verified": false,
             "first_review": "2018-01-05",
             "newest": "2026-09-17",
             "newest_review_age_days": 29,
@@ -1734,8 +1866,8 @@
   "peer_relative_reading": true,
   "post_collection": false,
   "readings_at_declare": 0,
-  "record_of_declaration": "data/peer_groups/barbecue-grills.v4.json",
-  "revision_reason": "Re-freezes the same twelve families with the review-family fingerprint taken over the OLDEST hundred review ids instead of the newest, and records which end it sampled. v3 was declared with newest-end fingerprints, which was a defect found within the hour and before any collection: the newest page changes the moment a single review arrives, so the next cadenced re-resolution would have reported every live product as re-parented and stage G would have refused a perfectly healthy group. Measured on the live route 2026-10-17, the oldest page is stable against arrivals and costs nothing in discrimination - Traeger's Pro 575 oldest page spans 2019-03-20 to 2019-06-30 while its newest spans 2024-06-13 to 2026-10-11 and the two are disjoint, the pooled pair TFB57GLE and TFB78GLE still share 100 of 100 oldest ids and fingerprint identically, and a distinct family shares zero. The twelve declared families remain twelve distinct families with no overlapping pair. Nothing else changed: same two members, same brands, same product ids, same concentration figures, same substitutability reasons, same continuity reasons, and readings_at_declare is still 0, so this is still declared before any review has been collected. v3 is kept in the record rather than rewritten, and now reports as STALE under schema 2 rather than as an integrity break.",
+  "record_of_declaration": "data/peer_groups/barbecue-grills.v5.json",
+  "revision_reason": "Adds CONTRACTS.md section 2b's `family` join key to every declared product, which is what makes this group collectable rather than merely valid. Section 2b was settled on main while this component was being taught the route field, and it keys every route on one column called `family` - the parent ASIN on an amazon route, a declared family label on a brand route - so the collector reads `family` off the group file and a declaration carrying only a fingerprint under a different name could not be collected against however well it validated. Each label names the representative actually declared rather than the wider family, because the membership of these families was not established: comparing the twelve declared products against each other proves they are twelve different families, it does not prove what else is in any one of them. So `family_product_ids` holds the single declared id and the family is recorded as UNVERIFIED, with `family_check` saying what was and was not established - section 2b requires a family with no compared sibling to be reported unverified, never verified, and establishing membership needs a catalogue sweep this component does not do. The id-set fingerprint stays in the verification record as the evidence that two labels are not secretly one family. Nothing measured changed: same two members, same twelve product ids, same oldest-end fingerprints, same reach and text fractions, same concentration figures and substitutability reasons, and readings_at_declare is still 0, so this is still declared before any review has been collected.",
   "seed": "outdoor barbecue grills",
   "seed_kind": "category",
   "solo": false,
@@ -1743,9 +1875,9 @@
   "substitutability_test": "Would a consumer shopping for this seed's product consider this company's product instead of it, as a direct alternative for the same need, at the same point of purchase? If yes, it is a peer. Size, country, listing venue and currency are irrelevant to the answer.",
   "supersedes": {
     "declared_at": "2026-10-17",
-    "file": "barbecue-grills.v3.json",
-    "sha256": "5675f1eecb2b02b57f4a9733309c56047ccdfba088d6dbe6fea7ba20a2f17bf8",
-    "version": 3
+    "file": "barbecue-grills.v4.json",
+    "sha256": "78c02ca832a9c483e4b8f4dfd099e5dff5a9dbafdeb0edd038f214d8b2271847",
+    "version": 4
   },
-  "version": 4
+  "version": 5
 }
