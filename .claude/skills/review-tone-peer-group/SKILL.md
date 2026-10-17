@@ -99,6 +99,69 @@ transposed ASIN gets caught. It also records `parent_asin_seen`: **reviews are s
 the parent**, and 14 of the first 15 products declared were variant children, so the
 parent is the real unit of the review pool.
 
+### Two routes, and every product says which
+
+`CONTRACTS.md` §1 was amended on 2026-10-15 to add **`route`** per product, because Amazon
+is no longer the only sensor: a brand's own review platform serves its reviews through a
+display API whose key the platform's CDN publishes to every visitor's browser.
+
+```jsonc
+{"route": "amazon",
+ "asin": "B0...", "parent_asin": "B0...", "marketplace": "amazon.com",
+ "brand": "...", "name": "...", "continuity_reason": "...", "verification": {...}}
+
+{"route": "bazaarvoice",
+ "client": "traegerservice",      // the deployment zone
+ "site": "main_site",             // optional, defaults to main_site
+ "product_id": "TFB57GLE",        // ONE representative per review FAMILY
+ "family": "traeger-pro-575",     // §2b's JOIN KEY - the collector pools on it
+ "family_product_ids": ["TFB57GLE"],   // the ids actually compared
+ "brand": "...", "name": "...", "continuity_reason": "...", "verification": {...}}
+```
+
+**`family` is `CONTRACTS.md` §2b's one join key for every route** — the parent ASIN on
+Amazon, the declared label on a brand platform. The collector reads it off the group file,
+so a declaration without it cannot be collected against however well it validates here.
+
+**An absent `route` is `amazon`.** That is what keeps the six declarations frozen before
+the field existed valid; a frozen file is never rewritten to add it (§1.5).
+
+The brand route gets its **own equivalent of every Amazon guard, never an exemption**:
+
+- **`review_family` is this route's `parent_asin` and is just as required.** The platform
+  pools across a product family exactly as Amazon pools across variants: `TFB57GLE` (Pro
+  575) and `TFB78GLE` (Pro 780) are different grills at different prices and return
+  identical 1,215-review id sets. `check-products` establishes the family by **comparing
+  the returned review-id sets pairwise** across the whole draft, and two products in one
+  family are refused — inside one member and across two. Never infer it from the product
+  ids differing, and never sum the reported counts, which overstated uniques by 30%.
+  The fingerprint is over the **oldest** 100 ids: over the newest page it changes the
+  moment a review arrives, and every live product would read as re-parented within a week.
+- **`brand` and `continuity_reason` stay required**, unchanged.
+- **`verification` stays required** and records what the display API establishes: the
+  count, how far the family reaches **back** and **forward**, the text fraction, and
+  whether dates sort descending **verified against the dates, never taken from the sort
+  parameter**.
+- **Liveness is its own check.** Owala serves 14,029 reviews flawlessly and its newest is
+  2022-07-28 — 1,540 days stale. Depth says nothing about whether a deployment is alive. A
+  deployment a year without a review must carry a `liveness_finding` in writing; it is not
+  refused, because an abandoned deployment is still usable inside a window that ends
+  before it went quiet.
+
+`check-products` reuses `data/_route-tests/measure_widget_route.py` rather than carrying a
+second copy of the walk. **Accept gzip**: Bazaarvoice gzips some zones regardless of
+`Accept-Encoding`, and decoding one as text gives a binary blob in which every regex
+silently finds nothing — five false negatives in one session. A regex finding nothing is
+evidence only once the body is known to be text.
+
+**The `apps.bazaarvoice.com/bfd/v1/` endpoint returns 401. Leave it alone** — no `Referer`,
+no `Origin`, nothing. A block is a finding (§9). The scout route is a different endpoint
+that does not refuse.
+
+`yotpo` and `powerreviews` are named in the contract and **have no resolver here**. A
+product on one is refused unless `--allow-unverified` is passed. "Not implemented" is the
+honest answer; "assumed to work" is not.
+
 ## Where the judgement happens
 
 The script refuses the inadmissible; it does not choose the members. Choosing them is a
@@ -149,7 +212,7 @@ the contract is the same either way.
 ## Tests
 
 ```bash
-python3 .claude/skills/review-tone-peer-group/tests/test_declare_group.py   # 187
+python3 .claude/skills/review-tone-peer-group/tests/test_declare_group.py   # 290
 python3 .claude/skills/review-tone-peer-group/tests/test_evidence_log.py    # 27
 python3 .claude/skills/review-tone-peer-group/tests/test_guard_coverage.py  # audit
 ```
@@ -158,7 +221,10 @@ python3 .claude/skills/review-tone-peer-group/tests/test_guard_coverage.py  # au
 site in the validators and asserts each one is tripped by at least one test. A guard no
 test has ever seen fire is indistinguishable from a guard that works — it found 24 of 70
 in that position on the day it was written. It carries its own negative controls, because
-an audit that always passes is the thing it exists to prevent.
+an audit that always passes is the thing it exists to prevent. 96 sites now, all tripped.
+
+**A new validator helper must be added to its `GUARD_FUNCS`**, or its refusals are
+excluded from the audit — which is the same invisible failure the audit exists to catch.
 
 Standard library only, no network. The lexicon tests are the ones that matter: a refusal
 lexicon that fires on an innocent sentence is worse than none, because it teaches the

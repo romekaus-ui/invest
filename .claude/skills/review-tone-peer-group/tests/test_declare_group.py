@@ -630,6 +630,608 @@ check("the cross-marketplace note is first and names both marketplaces",
 # Comparability is a warning, never a refusal: a global group is what §2 asks for.
 check("a cross-marketplace group still validates", problems(mixed) == [], problems(mixed))
 
+# ------------------------------------------- the route field (§1, 2026-10-15)
+# Amazon was the only sensor this project had; brand-owned review platforms are
+# the second. The rule the whole section exists to hold: the brand route gets
+# its OWN equivalent of every Amazon guard, never an exemption from one.
+#
+# The must-pass cases below matter at least as much as the refusals. A verifier
+# that fires on a legitimate declaration gets switched off within a week, and
+# then it guards nothing - which is why the Weber case is pinned: four of its
+# five grills are served under names that do not contain the word "Weber", and
+# a brand-in-the-title rule carried over from Amazon would refuse all four.
+print("\nthe route field defaults to amazon")
+
+check("a product with no route reads as amazon", dg.route_of({}) == "amazon")
+check("an explicit route is read as given",
+      dg.route_of({"route": "bazaarvoice"}) == "bazaarvoice")
+check("whitespace is not a route", dg.route_of({"route": "   "}) == "amazon")
+check("the default is the value CONTRACTS.md §1 names",
+      dg.DEFAULT_ROUTE == "amazon" and dg.DEFAULT_ROUTE in dg.ROUTES)
+check("§1's four route names are all accepted",
+      dg.ROUTES == ("amazon", "bazaarvoice", "yotpo", "powerreviews"), dg.ROUTES)
+check("the brand routes are the three platform ones",
+      set(dg.BRAND_ROUTES) == {"bazaarvoice", "yotpo", "powerreviews"})
+
+# Measured live 2026-10-15 against the Traeger deployment, and the numbers are
+# the ones data/_route-tests/brand-widget-routes-2026-10-15.json records.
+BV_VERIFICATION = {
+    "status": "resolved", "checked_at": "2026-10-15T20:00:00Z",
+    "route": "bazaarvoice-display-api", "client": "traegerservice",
+    "site": "main_site", "product_id_seen": "TFB57GLE",
+    "title_seen": "Pro 780 Pellet Grill - Black",
+    "total_claimed": 1215, "collected": 200,
+    "newest": "2026-10-11", "oldest": "2024-06-13",
+    "newest_review_age_days": 4, "with_text_pct": 100.0,
+    "dates_descending_verified": True, "date_inversions": 0,
+    "pagination_caps": False, "sampled": 100,
+    "family_fingerprint": "d9aa93cb2b20ffb0" * 4,
+    "family_sample_end": "oldest",
+    "family_sampled": 100,
+    "first_review": "2019-03-20",
+    "family_shared_with": [],
+}
+
+
+def bv_product(**over):
+    pr = {
+        "route": "bazaarvoice", "client": "traegerservice",
+        "product_id": "TFB57GLE", "brand": "Traeger",
+        "name": "Pro 780 Pellet Grill - Black",
+        "continuity_reason": ("A core-range pellet grill in the catalogue "
+                             "continuously since 2019, with no successor "
+                             "announced."),
+        "verification": dict(BV_VERIFICATION),
+    }
+    pr.update(over)
+    # CONTRACTS.md §2b: `family` is the one column every route is joined on, and
+    # the collector reads it off the group file. Derived from the product id
+    # here so that overriding the id in a test keeps the two consistent -
+    # otherwise every case would trip the label guard instead of the one it is
+    # about, which is how a fixture ends up testing the fixture.
+    pid = pr.get("product_id") or ""
+    pr.setdefault("family", "fam-%s" % pid.lower().replace("_", "-") or "fam")
+    pr.setdefault("family_product_ids", [pid] if pid else [])
+    return pr
+
+
+def bv_verification(**over):
+    return dict(BV_VERIFICATION, **over)
+
+
+def bv_member(**over):
+    m = member(
+        company="Traeger, Inc.", venue="NYSE:COOK", cik="0001857853",
+        brands=["Traeger"],
+        reason=("Sells wood pellet barbecue grills under Traeger, which a "
+                "shopper buying an outdoor grill considers instead of another "
+                "maker's at the same point of purchase."),
+        concentration={
+            "dominant_line": "wood pellet grills, with the pellets and "
+                             "accessories used with them",
+            "share_of_revenue": 1.0,
+            "evidence": "FY2025 10-K, revenue by product category",
+            "source_url": "https://www.sec.gov/Archives/edgar/data/1857853/x.htm",
+        },
+        products=[bv_product()])
+    m.update(over)
+    return m
+
+
+# Weber's own catalogue does not repeat its name in its product names: this is
+# the served name, verbatim, for ProductId 44010001.
+def weber_member(**over):
+    m = member(
+        company="Weber Inc.", venue="private", cik="",
+        brands=["Weber"],
+        reason=("Sells outdoor barbecue grills under Weber, the direct "
+                "alternative a shopper weighs against a Traeger when buying a "
+                "grill."),
+        concentration={
+            "dominant_line": "outdoor barbecue grills and accessories",
+            "share_of_revenue": None, "no_public_report": True,
+            "revenue_readable": False,
+            "evidence": "Taken private in February 2023; last 10-K was FY2022",
+            "source_url": "",
+        },
+        reporting={"calendar": "annual", "currency": "USD", "source": "none",
+                   "regime": "taken private February 2023; no current reporting",
+                   "fy_end": "", "calendar_source": "last 10-K was FY2022",
+                   "resolved_by": "agent"},
+        products=[bv_product(
+            client="weber", product_id="44010001", brand="Weber",
+            name="Spirit II E-210 Gas Grill (Liquid Propane)",
+            verification=bv_verification(
+                client="weber", product_id_seen="44010001",
+                title_seen="Spirit II E-210 Gas Grill (Liquid Propane)",
+                total_claimed=18772, newest="2026-09-12",
+                newest_review_age_days=33, with_text_pct=34.0,
+                family_fingerprint="a1b2c3d4e5f60718" * 4))])
+    m.update(over)
+    return m
+
+
+bv_group = group(members=[bv_member(), weber_member()])
+check("a two-member brand-route group validates",
+      problems(bv_group) == [], problems(bv_group))
+WEBER_TITLE = "Spirit II E-210 Gas Grill (Liquid Propane)"
+check("the brand name is genuinely absent from the served name, so this is the "
+      "real case and not a contrived one", "weber" not in WEBER_TITLE.lower())
+check("the brand route does NOT require the brand in the served name - four of "
+      "Weber's five grills are served without it",
+      not any("does not appear in the title" in p
+              for p in problems(group(members=[bv_member(), weber_member()]))),
+      problems(group(members=[bv_member(), weber_member()])))
+check("the same absence on the AMAZON route is still refused, so the rule was "
+      "relaxed for one route and not deleted",
+      any("does not appear in the title" in p for p in problems(group(members=[
+          member(products=[dict(member()["products"][0], brand="Coca-Cola",
+                                name=WEBER_TITLE,
+                                verification={"status": "resolved",
+                                              "checked_at": "x",
+                                              "route": "http-direct",
+                                              "title_seen": WEBER_TITLE})]),
+          other()]))))
+check("a mixed-route group validates: one member on amazon, one on a platform",
+      problems(group(members=[member(), weber_member()])) == [],
+      problems(group(members=[member(), weber_member()])))
+
+print("\nthe route field refuses what it cannot read")
+refuses("a route outside the contract's enum",
+        group(members=[bv_member(products=[bv_product(route="retailer-syndication")]),
+                       weber_member()]),
+        "unknown. CONTRACTS.md §1 names")
+refuses("a brand product with no deployment zone",
+        group(members=[bv_member(products=[bv_product(client="")]), weber_member()]),
+        ".client")
+refuses("a deployment zone that is not a zone name",
+        group(members=[bv_member(products=[bv_product(client="Traeger Service!")]),
+                       weber_member()]),
+        ".client")
+refuses("a malformed deployment site",
+        group(members=[bv_member(products=[bv_product(site="main site/../x")]),
+                       weber_member()]),
+        ".site")
+refuses("a brand product with no product id",
+        group(members=[bv_member(products=[bv_product(product_id="")]),
+                       weber_member()]),
+        "ONE representative per review family")
+refuses("Amazon identifiers left on a product switched to the brand route",
+        group(members=[bv_member(products=[bv_product(asin="B000TNY0AM")]),
+                       weber_member()]),
+        "These are Amazon identifiers")
+refuses("a brand product whose name is not what the platform served",
+        group(members=[bv_member(products=[bv_product(name="Pro 575 family")]),
+                       weber_member()]),
+        "does not match the served title")
+refuses("a brand product with an empty continuity reason",
+        group(members=[bv_member(products=[bv_product(continuity_reason="")]),
+                       weber_member()]),
+        ".continuity_reason: empty")
+refuses("a brand product with no verification at all",
+        group(members=[bv_member(products=[bv_product(verification=None)]),
+                       weber_member()]),
+        ".verification: missing")
+refuses("a brand product whose brand is not the member's",
+        group(members=[bv_member(products=[bv_product(brand="Weber")]),
+                       weber_member()]),
+        "not among the member's declared brands")
+refuses("one product cannot be two companies' on this route either",
+        group(members=[bv_member(),
+                       weber_member(products=[bv_product(
+                           brand="Weber",
+                           verification=bv_verification(
+                               family_fingerprint="a1b2c3d4e5f60718" * 4))])]),
+        "already tracked by members[0]")
+
+# A route named in the contract that this script cannot resolve. Yotpo and
+# PowerReviews are both reachable and both measured, but no resolver is wired
+# here, so nothing has established that the identifier resolves to anything.
+# "Not implemented" is the honest answer; "assumed to work" is not.
+refuses("a contract route with no resolver behind it",
+        group(members=[bv_member(products=[bv_product(
+            route="yotpo",
+            verification=bv_verification(route="yotpo-display-api"))]),
+                       weber_member()]),
+        "has no resolver for it")
+check("--allow-unverified is the documented way past it, and it records the count",
+      problems(group(members=[bv_member(products=[bv_product(
+          route="yotpo", verification=bv_verification(route="yotpo-display-api"))]),
+                              weber_member()]), allow_unverified=True) == [])
+
+# ---- the family: this route's parent_asin ----
+# Bazaarvoice pools across a product FAMILY exactly as Amazon pools across
+# variants. TFB57GLE (Pro 575) and TFB78GLE (Pro 780) are different grills at
+# different prices and return identical 1,215-review id sets; nine products
+# resolved to seven families. Never infer the grouping from the product id
+# differing - that is precisely the inference the measurement falsified.
+print("\nthe review family, which is not optional")
+
+refuses("a brand product with no family label - the collector's join key",
+        group(members=[bv_member(products=[bv_product(family="")]),
+                       weber_member()]),
+        "CONTRACTS.md §2b requires it")
+refuses("a family label that is not a slug the collector can join on",
+        group(members=[bv_member(products=[bv_product(family="Pro 575 / 780")]),
+                       weber_member()]),
+        "as a slug")
+refuses("a brand product with no family membership recorded",
+        group(members=[bv_member(products=[bv_product(family_product_ids=[])]),
+                       weber_member()]),
+        "requires the product ids whose review-id sets were compared")
+refuses("a family membership list that omits the representative itself",
+        group(members=[bv_member(products=[bv_product(
+            family_product_ids=["TFB78GLE"])]), weber_member()]),
+        "is a member of its own family")
+refuses("a malformed id in the family membership list",
+        group(members=[bv_member(products=[bv_product(
+            family_product_ids=["TFB57GLE", "not a product id!"])]),
+                       weber_member()]),
+        "is not a well-formed product id")
+
+# The direction nothing else catches. Two genuinely DIFFERENT families sharing
+# one label: every fingerprint check passes because the fingerprints differ, and
+# then the collector - which joins on the LABEL - pools two unrelated families
+# into one series with nothing downstream able to tell.
+refuses("two different families sharing one label",
+        group(members=[
+            bv_member(products=[
+                bv_product(product_id="TFB57GLE", family="pro-series"),
+                bv_product(product_id="TFB89BLF", family="pro-series",
+                           name="Ironwood 885 Pellet Grill",
+                           verification=bv_verification(
+                               product_id_seen="TFB89BLF",
+                               title_seen="Ironwood 885 Pellet Grill",
+                               family_fingerprint="96914968f1b56cca" * 4))]),
+            weber_member()]),
+        "would be pooled into one series")
+refuses("and across members too, where it would fuse two companies' series",
+        group(members=[bv_member(products=[bv_product(family="shared-label")]),
+                       weber_member(products=[bv_product(
+                           client="weber", product_id="44010001", brand="Weber",
+                           family="shared-label",
+                           name="Spirit II E-210 Gas Grill (Liquid Propane)",
+                           verification=bv_verification(
+                               client="weber", product_id_seen="44010001",
+                               title_seen="Spirit II E-210 Gas Grill (Liquid Propane)",
+                               family_fingerprint="a1b2c3d4e5f60718" * 4))])]),
+        "would be pooled into one series")
+
+refuses("a brand product whose family was never established at all",
+        group(members=[bv_member(products=[bv_product(
+            verification=bv_verification(family_fingerprint=""))]),
+                       weber_member()]),
+        "never inferred from the product ids differing")
+refuses("a brand product whose ids were never compared against the others",
+        group(members=[bv_member(products=[bv_product(
+            verification=bv_verification(family_fingerprint=""))]),
+                       weber_member()]),
+        ".verification.family_fingerprint: empty")
+
+# The real pair, with the fingerprints the live measurement produced.
+POOLED = group(members=[
+    bv_member(products=[
+        bv_product(product_id="TFB57GLE",
+                   verification=bv_verification(product_id_seen="TFB57GLE")),
+        bv_product(product_id="TFB78GLE",
+                   verification=bv_verification(product_id_seen="TFB78GLE"))]),
+    weber_member()])
+refuses("two products of ONE member resolving to the same review family",
+        POOLED, "declare ONE representative per family")
+refuses("and it says what the cost is, not just that it is wrong",
+        POOLED, "counted twice")
+refuses("two MEMBERS resolving to the same review family",
+        group(members=[bv_member(),
+                       weber_member(products=[bv_product(
+                           client="weber", product_id="44010001", brand="Weber",
+                           name="Spirit II E-210 Gas Grill (Liquid Propane)",
+                           verification=bv_verification(
+                               client="weber", product_id_seen="44010001",
+                               title_seen="Spirit II E-210 Gas Grill (Liquid Propane)"))])]),
+        "is already tracked by members[0]")
+refuses("the across-member refusal names the Amazon rule it mirrors",
+        group(members=[bv_member(),
+                       weber_member(products=[bv_product(
+                           client="weber", product_id="44010001", brand="Weber",
+                           name="Spirit II E-210 Gas Grill (Liquid Propane)",
+                           verification=bv_verification(
+                               client="weber", product_id_seen="44010001",
+                               title_seen="Spirit II E-210 Gas Grill (Liquid Propane)"))])]),
+        "the amazon route makes for a shared parent")
+refuses("an overlap `check-products` found pairwise, even without equal fingerprints",
+        group(members=[bv_member(products=[bv_product(
+            verification=bv_verification(
+                family_shared_with=["traegerservice/TFB78GLE"]))]),
+                       weber_member()]),
+        "one pooled family however")
+
+check("two genuinely distinct families in one member validate",
+      problems(group(members=[
+          bv_member(products=[
+              bv_product(product_id="TFB57GLE"),
+              bv_product(product_id="TFB89BLF",
+                         name="Ironwood 885 Pellet Grill",
+                         verification=bv_verification(
+                             product_id_seen="TFB89BLF",
+                             title_seen="Ironwood 885 Pellet Grill",
+                             total_claimed=836,
+                             family_fingerprint="189a1080b52f4ed5" * 4))]),
+          weber_member()])) == [])
+
+# compare_families is what produces the evidence the refusals above act on. It
+# is the pairwise comparison itself, so it is tested against the measured pair
+# rather than against a fingerprint someone typed.
+print("\nthe pairwise comparison that establishes a family")
+shared_ids = ["307353637", "305965212", "305252716", "300776887"]
+other_ids = ["111111111", "222222222", "333333333", "444444444"]
+draft_cf = group(members=[
+    bv_member(products=[
+        bv_product(product_id="TFB57GLE",
+                   verification=bv_verification(family_sample_ids=shared_ids)),
+        bv_product(product_id="TFB78GLE",
+                   verification=bv_verification(family_sample_ids=list(shared_ids)))]),
+    weber_member(products=[bv_product(
+        client="weber", product_id="44010001", brand="Weber",
+        name="Spirit II E-210 Gas Grill (Liquid Propane)",
+        verification=bv_verification(
+            client="weber", product_id_seen="44010001",
+            title_seen="Spirit II E-210 Gas Grill (Liquid Propane)",
+            family_sample_ids=other_ids))])])
+n_units, overlaps = dg.compare_families(draft_cf)
+check("every brand-route product is compared", n_units == 3, n_units)
+check("the pooled pair is found", len(overlaps) == 1, overlaps)
+check("and it is the right pair",
+      overlaps and overlaps[0][0] == "traegerservice/TFB57GLE"
+      and overlaps[0][2] == "traegerservice/TFB78GLE", overlaps)
+check("the overlap count is the measured one, not a guess",
+      overlaps and overlaps[0][4] == len(shared_ids), overlaps)
+check("the finding is written onto both products, so validate can refuse on it",
+      draft_cf["members"][0]["products"][0]["verification"]["family_shared_with"]
+      == ["traegerservice/TFB78GLE"]
+      and draft_cf["members"][0]["products"][1]["verification"]["family_shared_with"]
+      == ["traegerservice/TFB57GLE"])
+check("a distinct product is not implicated",
+      draft_cf["members"][1]["products"][0]["verification"]["family_shared_with"] == [])
+check("the draft it just annotated is refused",
+      any("ONE representative per family" in p for p in problems(draft_cf)))
+check("comparing an already-annotated draft clears a stale finding first",
+      dg.compare_families(copy.deepcopy(draft_cf))[1] and
+      dg.compare_families(group(members=[bv_member(products=[bv_product(
+          verification=bv_verification(
+              family_sample_ids=shared_ids,
+              family_shared_with=["traegerservice/GONE"]))]),
+          weber_member(products=[bv_product(
+              client="weber", product_id="44010001", brand="Weber",
+              name="Spirit II E-210 Gas Grill (Liquid Propane)",
+              verification=bv_verification(
+                  client="weber", product_id_seen="44010001",
+                  title_seen="Spirit II E-210 Gas Grill (Liquid Propane)",
+                  family_sample_ids=other_ids))])]))[1] == [])
+
+# The fingerprint is taken over the OLDEST ids, and that is not a detail. Over
+# the newest page it changes the moment one review arrives, so `reresolve` would
+# report `reparented` on every live product within a week of declaration and
+# stage G would refuse a perfectly healthy group. Measured on the live route
+# before the first cadence ran: Traeger's Pro 575 oldest page spans
+# 2019-03-20..2019-06-30 while its newest page spans 2024-06-13..2026-10-11, and
+# the two are disjoint - so an arrival lands only in the page the fingerprint
+# does not read. It costs nothing in discrimination: the pooled pair shares 100
+# of 100 oldest ids, and a distinct family shares zero.
+print("\nthe fingerprint must survive a week of normal trading")
+check("the sample is declared to come from the oldest end",
+      dg.FAMILY_SAMPLE == 100)
+OLD = ["100000001", "100000002", "100000003"]
+check("an arriving review does not change a fingerprint over the oldest ids",
+      dg.sha256_bytes("\n".join(sorted(OLD)).encode("utf-8"))
+      == dg.sha256_bytes("\n".join(sorted(OLD + [])).encode("utf-8")))
+check("but a DELETED old review does, which is a finding worth having",
+      dg.sha256_bytes("\n".join(sorted(OLD)).encode("utf-8"))
+      != dg.sha256_bytes("\n".join(sorted(OLD[:-1])).encode("utf-8")))
+refuses("a fingerprint that cannot say which end it sampled",
+        group(members=[bv_member(products=[bv_product(
+            verification=bv_verification(family_sample_end=None))]),
+                       weber_member()]),
+        "must be taken over the OLDEST ids")
+refuses("a fingerprint taken over the newest page, as the first version did",
+        group(members=[bv_member(products=[bv_product(
+            verification=bv_verification(family_sample_end="newest"))]),
+                       weber_member()]),
+        "would read as re-parented within a week")
+
+# ---- what the brand route must have measured ----
+print("\nthe brand-route measurement record")
+
+refuses("a verification with no review count",
+        group(members=[bv_member(products=[bv_product(
+            verification=bv_verification(total_claimed=None))]), weber_member()]),
+        ".total_claimed")
+refuses("a review count that is not a positive integer",
+        group(members=[bv_member(products=[bv_product(
+            verification=bv_verification(total_claimed=0))]), weber_member()]),
+        ".total_claimed")
+refuses("a verification that cannot say when the newest review arrived",
+        group(members=[bv_member(products=[bv_product(
+            verification=bv_verification(newest=""))]), weber_member()]),
+        "the newest review's date")
+refuses("a verification with no text fraction",
+        group(members=[bv_member(products=[bv_product(
+            verification=bv_verification(with_text_pct=None))]), weber_member()]),
+        "carrying text")
+refuses("a text fraction recorded as a fraction rather than a percentage",
+        group(members=[bv_member(products=[bv_product(
+            verification=bv_verification(with_text_pct=137.0))]), weber_member()]),
+        "0-100")
+refuses("a date order that is not a boolean",
+        group(members=[bv_member(products=[bv_product(
+            verification=bv_verification(dates_descending_verified=None))]),
+                       weber_member()]),
+        "established from the DATES")
+refuses("a verification with no inversion count behind that boolean",
+        group(members=[bv_member(products=[bv_product(
+            verification=bv_verification(date_inversions=None))]), weber_member()]),
+        ".date_inversions")
+
+# The one that matters most on this route. CONTRACTS.md §3 records the same
+# failure on Amazon: a sort taken from the request parameter was a claim about
+# the platform, and the claim was false. A record asserting verified order while
+# also recording inversions is what a parameter-trusting check looks like from
+# outside, so it is a contradiction rather than a warning.
+refuses("a sort order claimed verified while inversions were counted",
+        group(members=[bv_member(products=[bv_product(
+            verification=bv_verification(dates_descending_verified=True,
+                                         date_inversions=4))]), weber_member()]),
+        "taken from the sort parameter rather than verified")
+check("the honest combination - not descending, inversions counted - validates",
+      problems(group(members=[bv_member(products=[bv_product(
+          verification=bv_verification(dates_descending_verified=False,
+                                       date_inversions=4))]),
+                              weber_member()])) == [])
+
+# ---- liveness is its own check ----
+# Owala serves 14,029 reviews flawlessly and its newest is 2022-07-28, 1,540
+# days stale. Depth says nothing about whether a deployment is alive.
+print("\nliveness, which depth says nothing about")
+
+refuses("a verification that cannot say how old the newest review is",
+        group(members=[bv_member(products=[bv_product(
+            verification=bv_verification(newest_review_age_days=None))]),
+                       weber_member()]),
+        "deep and dead")
+
+OWALA = bv_verification(
+    client="owala", product_id_seen="owala-flip-24",
+    title_seen="Owala FreeSip 24 oz", total_claimed=14029,
+    newest="2022-07-28", oldest="2020-03-07", newest_review_age_days=1540,
+    with_text_pct=68.0, family_fingerprint="0wa1a0wa1a0wa1a0" * 4)
+refuses("a deployment a year without a review, carrying no finding",
+        group(members=[bv_member(products=[bv_product(
+            client="owala", product_id="owala-flip-24",
+            name="Owala FreeSip 24 oz", verification=OWALA)]),
+                       weber_member()]),
+        "is a FINDING the declaration has to carry")
+check("the same product validates once the finding is written down",
+      problems(group(members=[bv_member(products=[bv_product(
+          client="owala", product_id="owala-flip-24",
+          name="Owala FreeSip 24 oz", verification=OWALA,
+          liveness_finding=("ABANDONED: newest review 2022-07-28, 1,540 days "
+                            "stale. Usable only inside a window ending "
+                            "mid-2022; no forward cadence can be run on it."))]),
+                              weber_member()])) == [],
+      problems(group(members=[bv_member(products=[bv_product(
+          client="owala", product_id="owala-flip-24",
+          name="Owala FreeSip 24 oz", verification=OWALA,
+          liveness_finding="x" * 40)]), weber_member()])))
+check("a live deployment needs no finding - 4 days old passes untouched",
+      problems(bv_group) == [])
+check("the staleness line is a year", dg.LIVENESS_STALE_DAYS == 365)
+
+# ---- the Amazon route is untouched by any of this ----
+print("\nthe amazon route keeps every guard it had")
+check("an amazon product still needs a parent_asin",
+      any("parent_asin: empty" in p for p in problems(group(members=[
+          member(products=[dict(member()["products"][0], parent_asin="",
+                                verification={"status": "resolved",
+                                              "checked_at": "x",
+                                              "route": "http-direct",
+                                              "title_seen": "Coca-Cola Classic, "
+                                                            "12 fl oz, 12 Pack"})]),
+          other()]))))
+check("an amazon product still needs the brand in the served title",
+      any("does not appear in the title" in p for p in problems(group(members=[
+          member(products=[dict(member()["products"][0], brand="Sprite",
+                                name="Coca-Cola Classic, 12 fl oz, 12 Pack")]),
+          other()]))))
+check("an amazon product still needs a well-formed ASIN",
+      any("must be 10 characters" in p for p in problems(group(members=[
+          member(products=[dict(member()["products"][0], asin="B00")]), other()]))))
+check("an amazon product still needs a known marketplace",
+      any("marketplace" in p for p in problems(group(members=[
+          member(products=[dict(member()["products"][0],
+                                marketplace="amazon.example")]), other()]))))
+check("a brand product is NOT asked for an ASIN",
+      not any(".asin" in p for p in problems(bv_group)), problems(bv_group))
+check("a brand product is NOT asked for a marketplace",
+      not any("marketplace" in p for p in problems(bv_group)), problems(bv_group))
+
+# ---- the route in the comparability block ----
+print("\nthe route mix, which §3 requires to be visible")
+cr = dg.comparability(bv_group)
+check("a single-route group is not mixed", cr["mixed_routes"] is False, cr)
+check("the routes are counted", cr["routes"] == {"bazaarvoice": 2}, cr)
+check("a single-route group prints no route note",
+      not any("ROUTE" in n for n in dg.print_comparability(cr)),
+      dg.print_comparability(cr))
+cx = dg.comparability(group(members=[member(), weber_member()]))
+check("a group whose members sit on different routes is flagged",
+      cx["routes_differ_between_members"] is True, cx)
+check("and the note says a peer mean would be computed on another instrument",
+      any("different instrument" in n for n in dg.print_comparability(cx)),
+      dg.print_comparability(cx))
+# A route mix WITHIN every member is a different situation: the comparison
+# between members is sound, and it is each member's own series that carries it.
+cw = dg.comparability(group(members=[
+    bv_member(products=[bv_product(), member()["products"][0]]),
+    weber_member(products=[
+        bv_product(client="weber", product_id="44010001", brand="Weber",
+                   name="Spirit II E-210 Gas Grill (Liquid Propane)"),
+        dict(other()["products"][0], brand="Weber")])]))
+check("a route mix inside every member is flagged differently",
+      cw["mixed_routes"] is True
+      and cw["routes_differ_between_members"] is False, cw)
+check("and that note does not claim the members are incomparable",
+      any("comparison between members is sound" in n
+          for n in dg.print_comparability(cw)), dg.print_comparability(cw))
+
+# ---- the schema gate decides whether checking keeps happening ----
+# Schema 2 tightened only the BRAND-ROUTE product shape. The blunt test
+# `schema_version == SCHEMA_VERSION` would have stopped contract-revalidating
+# the six amazon declarations - twelve frozen versions - over a change that
+# cannot touch them, which is the §5 failure wearing a version number.
+print("\nwhich frozen files the current validator may still judge")
+check("a file at the current schema is revalidated",
+      dg.revalidatable(dict(bv_group, schema_version=dg.SCHEMA_VERSION)))
+check("an older amazon-only file is STILL revalidated - nothing the brand-route "
+      "bumps tightened can apply to it",
+      dg.revalidatable(dict(group(), schema_version=1)))
+check("an older brand file is revalidated when it carries the fields the "
+      "bumps added - the shape is what matters, not the number",
+      dg.revalidatable(dict(bv_group, schema_version=1)))
+check("a brand file missing schema 3's join key is NOT revalidated",
+      not dg.revalidatable(dict(group(members=[
+          bv_member(products=[dict(bv_product(), family="")]), weber_member()]),
+          schema_version=1)))
+check("a brand file missing schema 3's membership list is NOT revalidated",
+      not dg.revalidatable(dict(group(members=[
+          bv_member(products=[dict(bv_product(), family_product_ids=[])]),
+          weber_member()]), schema_version=1)))
+check("a brand file that cannot say which end it fingerprinted is NOT "
+      "revalidated",
+      not dg.revalidatable(dict(group(members=[
+          bv_member(products=[bv_product(
+              verification=bv_verification(family_sample_end=""))]),
+          weber_member()]), schema_version=1)))
+check("one stale brand product among good ones is enough to hold a file back",
+      not dg.revalidatable(dict(group(members=[
+          member(),
+          weber_member(products=[dict(bv_product(
+              client="weber", product_id="44010001", brand="Weber",
+              name="Spirit II E-210 Gas Grill (Liquid Propane)"), family="")])]),
+          schema_version=1)))
+
+# ---- declared_units covers both routes ----
+print("\nwhat reresolve will sweep")
+units = dg.declared_units(bv_group)
+check("every brand product is a unit to re-resolve", len(units) == 2, units)
+check("a unit is labelled by its platform identifier",
+      units[0]["label"] == "traegerservice/TFB57GLE", units[0])
+check("a unit carries the review pool it was declared against",
+      units[0]["declared_pool"] == BV_VERIFICATION["family_fingerprint"], units[0])
+amz_units = dg.declared_units(group())
+check("an amazon unit is still labelled by its ASIN",
+      amz_units[0]["label"] == "B000TNY0AM", amz_units[0])
+check("and still carries its declared parent",
+      amz_units[0]["declared_pool"] == "B0PARENTKO", amz_units[0])
+
 # ------------------------------------------------- the CONTRACTS.md §1 view
 print("\nthe contract view")
 v = dg.contract_view(dict(group(), version=1, declared_at="2026-10-12",
@@ -652,6 +1254,50 @@ check("the reason survives into the view, which §1 has no slot for",
       m0["reason"].startswith("Sells carbonated"), m0.get("reason"))
 check("the continuity reason survives into the view",
       "continuity_reason" in m0["products"][0], sorted(m0["products"][0]))
+# A product is projected through its OWN route's keys. Writing an amazon row of
+# nulls for a brand product would invite a reader to join on them.
+bv_view = dg.contract_view(dict(
+    dg.normalise_for_contract(bv_group), version=1, declared_at="2026-10-15",
+    readings_at_declare=0, post_collection=False,
+    comparability=dg.comparability(bv_group)))
+bvp = bv_view["members"][0]["products"][0]
+check("a brand product carries the route it is read through",
+      bvp["route"] == "bazaarvoice", bvp)
+check("a brand product carries the zone, the product id and §2b's join key",
+      all(k in bvp for k in ("client", "product_id", "family",
+                             "family_product_ids")), sorted(bvp))
+check("the join key is the declared label, which the collector reads",
+      bvp["family"] == "fam-tfb57gle", bvp)
+check("the fingerprint stays in the verification record as the EVIDENCE, not "
+      "as the join key",
+      bvp["verification"]["family_fingerprint"]
+      == BV_VERIFICATION["family_fingerprint"])
+check("a family with no compared sibling is reported UNVERIFIED, never verified",
+      bvp["verification"]["family_verified"] is False,
+      bvp["verification"].get("family_verified"))
+check("and it says what was and was not established",
+      "does_not_establish" in bvp["verification"]["family_check"],
+      bvp["verification"].get("family_check"))
+two_id = dg.normalise_for_contract(group(members=[
+    bv_member(products=[bv_product(
+        family_product_ids=["TFB57GLE", "TFB78GLE"])]), weber_member()]))
+check("a family with a compared sibling IS verified",
+      two_id["members"][0]["products"][0]["verification"]["family_verified"]
+      is True)
+check("a brand product does NOT carry Amazon keys at all",
+      not any(k in bvp for k in ("asin", "parent_asin", "marketplace")), sorted(bvp))
+check("the continuity reason and the verification travel with it",
+      bvp["continuity_reason"] and bvp["verification"]["status"] == "resolved")
+check("an amazon product still carries its own keys, and says so explicitly",
+      v["members"][0]["products"][0]["route"] == "amazon"
+      and "asin" in v["members"][0]["products"][0],
+      v["members"][0]["products"][0])
+check("a default route is written explicitly at freeze time, not left implied",
+      dg.normalise_for_contract(group())["members"][0]["products"][0]["route"]
+      == "amazon")
+check("the brand view hashes over its own contents",
+      bv_view["hash"] == dg.content_hash(bv_view))
+
 check("the hash is over the file minus the hash field",
       v["hash"] == dg.content_hash(v))
 check("changing any field changes the hash",
@@ -804,8 +1450,8 @@ try:
     gv = dg.read_json(dg.versions_of(gid)[-1][1])
     plog = dg.parents_log(gid)
 
-    check("declared_parents lists every tracked product",
-          len(dg.declared_parents(gv)) == len(gv["members"]), dg.declared_parents(gv))
+    check("declared_units lists every tracked product",
+          len(dg.declared_units(gv)) == len(gv["members"]), dg.declared_units(gv))
     check("stage G refuses a group whose parents were never re-resolved",
           dg.main(["--group", gid]) == 2)
     check("the refusal says why, not just that",

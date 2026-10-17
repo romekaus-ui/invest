@@ -36,11 +36,20 @@ SOURCE = os.path.join(SCRIPTS, "declare_group.py")
 MAIN_SUITE = os.path.join(HERE, "test_declare_group.py")
 
 # The functions whose appends are refusals a caller acts on.
+#
+# Keeping this list current is itself load-bearing: a new validator helper that
+# is not named here has its refusals excluded from the audit, which is exactly
+# the invisible-failure shape §5 exists to prevent. The `sites found` floor
+# below is the backstop - it fires if the parser stops seeing them - but it
+# cannot notice a whole function missing, so this list is checked when one is
+# added. The four route helpers were added with the `route` field on
+# 2026-10-15.
 GUARD_FUNCS = ("validate", "_validate_venue", "_validate_reporting",
                "_validate_concentration", "_validate_reason",
-               "_validate_products", "_validate_continuity",
-               "_validate_verification", "_validate_title_agreement",
-               "parent_drift_state")
+               "_validate_products", "_validate_amazon_product",
+               "_validate_brand_product", "_validate_continuity",
+               "_validate_verification", "_validate_brand_measurement",
+               "_validate_title_agreement", "parent_drift_state")
 
 
 def literal_of(node):

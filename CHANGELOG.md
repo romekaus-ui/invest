@@ -1,5 +1,160 @@
 # Changelog
 
+## 2026-10-17 — the peer-group component learns the `route` field
+
+`CONTRACTS.md` §1 was amended on 2026-10-15 to add **`route`** per product, because
+Amazon is no longer the only sensor: a brand's own review platform serves its reviews
+through a display API whose key the platform's CDN publishes, in the clear, to every
+visitor's browser. `declare_group.py` only understood Amazon, so the `barbecue-grills`
+revision that needed the new route produced six refusals per product — an empty ASIN, an
+unknown marketplace, a missing parent, no verification, no brand, no continuity reason.
+
+### An absent route is `amazon`, and `SCHEMA_VERSION` deliberately did not move
+
+The default is what keeps the six declarations frozen before the field existed valid
+without touching them, and §1.5 forbids touching them. The schema version was **not**
+bumped for the same reason: `verify` only contract-revalidates files at the current
+schema, so bumping would have marked all twelve frozen versions STALE and stopped
+revalidating them — trading a real, continuing check for a nominal one. The extension is
+additive and every frozen file still satisfies the current validator, which was checked
+rather than assumed. The accepted cost: an older copy of the script would read a
+brand-route product as a malformed Amazon one. There is one copy and it is this one.
+
+### The brand route gets equivalents, not exemptions
+
+- **`review_family` is this route's `parent_asin` and is just as required.** The platform
+  pools across a product *family* exactly as Amazon pools across variants. `TFB57GLE`
+  (Pro 575) and `TFB78GLE` (Pro 780) are different grills at different prices and return
+  **identical 1,215-review id sets**; `TFB89BLF`/`TFB65BLF` likewise. `check-products`
+  establishes the family by **comparing the returned review-id sets pairwise** across the
+  whole draft, and two products in one family are refused — inside one member, where they
+  would be counted twice, and across two, where the members would be scored on the same
+  reviews. Confirmed live: a first-page id-set fingerprint is identical for each pooled
+  pair and disjoint between families, so the cheap check detects the real defect.
+- **`verification` records what the API can establish**, including whether dates sort
+  descending **verified against the dates**. A record claiming verified order while also
+  recording inversions is refused as a contradiction: that is what a parameter-trusting
+  check looks like from outside, and §3 records the same claim being false on Amazon.
+- **Liveness is its own check.** The newest review's age is recorded, and a deployment a
+  year without a review must carry a written finding. Not a refusal — Owala serves 14,029
+  reviews flawlessly with a newest of 2022-07-28, and is still usable inside a window
+  ending mid-2022; refusing would push the product out of the file and hide what was found.
+- **The brand-in-the-served-name check is relaxed on this route and nowhere else**, on
+  measurement rather than convenience: four of the five Weber grills are served as e.g.
+  "Spirit II E-210 Gas Grill (Liquid Propane)", with no "Weber" in them. A rule that
+  refuses four correct products teaches people to write around it. The name *comparison*
+  still applies on every route, and caught six of seven on the first brand-route draft.
+
+### Three defects the first live run found, which reading had not
+
+1. `brand_passkey` was called with three arguments and takes four. The route had never
+   been run end to end and raised on the first product.
+2. The served name was read off the reviews query's `Includes.Products`, which carries the
+   whole pooled family — so its first entry is *a* product of the family, not the one
+   asked for. `TFB57GLE` came back "Pro 780" and `TFB88PZB` "Pro Series 22", against "Pro
+   575" and "Pro Series 34" from a direct `Id:eq:` lookup. **A name check reading the
+   wrong name is worse than none**, because it fails in the direction of agreeing with
+   whatever was declared.
+3. `oldest` was the oldest row of the *sample* and read like the family's reach. Reach is
+   two numbers; the sample answers only the forward one. Renamed `oldest_in_sample`, with
+   `first_review` asked for directly in one request and `reach_years` beside it.
+
+### The defect that would have broken the cadence in a week
+
+The family fingerprint was first taken over the **newest** page of review ids. That is
+wrong in a way nothing in the test suite or the first live run could show, because it only
+appears on the *second* measurement: one arriving review changes the newest page, so the
+next cadenced `reresolve` would have reported **every live product as `reparented`** and
+stage G would have refused a perfectly healthy group within seven days.
+
+Found by asking what the next sweep would see rather than what this one saw, and fixed to
+the **oldest** page, which is stable against arrivals and costs nothing in discrimination.
+Measured 2026-10-17: Traeger's Pro 575 oldest page spans 2019-03-20..2019-06-30 while its
+newest spans 2024-06-13..2026-10-11 and the two are **disjoint**; the pooled pair
+`TFB57GLE`/`TFB78GLE` still shares 100 of 100 oldest ids and fingerprints identically, and
+a distinct family shares zero. A family is identified by its history, not its last page.
+What still moves the fingerprint is an old review being **deleted** — a finding worth
+having on a route where the company being measured runs the moderation queue.
+
+This is a tightening rather than an addition, so it **did** bump `SCHEMA_VERSION`, to 2,
+and `barbecue-grills` v3 was superseded by v4 within the hour, before any collection. v3
+is kept, not rewritten.
+
+But the blunt staleness test — `schema_version == SCHEMA_VERSION` — would then have
+stopped contract-revalidating the six amazon declarations, twelve frozen versions, over a
+change that cannot touch them. **That is the §5 failure wearing a version number**: a
+check that quietly stops checking. So `revalidatable()` says what actually changed: a file
+at the current schema is revalidated, and so is an older file carrying no brand-route
+product. Only `barbecue-grills` v3 is reported STALE, and `verify` has no breaks.
+
+### Aligning to §2b, which was settled while this was being built
+
+§2b landed on `main` during this work ("Settle the brand route in the contracts, before
+anything builds on it") and keys **every** route on one column called **`family`** — the
+parent ASIN on an Amazon route, a declared family label on a brand route. The collector
+reads `family` off the group file, so a declaration carrying only a fingerprint under a
+different name would have validated perfectly here and been **uncollectable**. That is
+precisely the failure this file opens with: components built in parallel against a
+loosely-described interface, none of which could be invoked.
+
+So `family` and `family_product_ids` are now required per brand product, and the §1 view
+emits exactly the keys `groups/pellet-grills.json` carries, `site` spelled out included.
+The id-set fingerprint stays where it belongs, in the verification record, as the
+**evidence** that two labels are not secretly one family. Both directions are refused: two
+products with the same fingerprint, and — the direction nothing else catches — two
+products with *different* fingerprints sharing one label, which every fingerprint check
+passes before the collector fuses two unrelated families into one series.
+
+**Membership is a separate claim from identity, and is not established.** Comparing the
+twelve declared products against each other proves they are twelve *different* families;
+it does not prove what else is in any one of them. So `family_product_ids` holds only the
+compared ids and `family_verified` is **false** for all twelve, which is what §2b demands
+of a family with no compared sibling. Establishing membership needs a catalogue sweep this
+component does not do.
+
+### The cost: three freezes in an hour, and the ordering lesson
+
+`barbecue-grills` went v3 → v4 → v5 in an hour, v3 and v4 superseded for defects found
+immediately after freezing: newest-end fingerprints, then the missing §2b join key.
+Nothing was collected against any of them, so nothing downstream is wrong — but the
+versions are churn, and **the lesson is the ordering, not the schema**. The integration
+check against the settled contract belonged *before* the first freeze. The superseded
+versions are kept rather than tidied away, because that is what the chain is for.
+
+`revalidatable()` was also sharpened in passing. Using the schema *number* as the test
+called v5 stale although its content satisfies the current validator exactly; it now tests
+the **shape** — are the fields the bumps added present — which is the question it always
+meant. v3 and v4 are STALE, v5 and all twelve Amazon versions are fully revalidated, and
+`verify` reports no breaks.
+
+### §5: 96 refusal sites, all tripped
+
+26 new sites arrived with the route field; 26 cases that demonstrably trip them arrived
+with them, and the suite went from 187 to 290 checks. The must-pass half is pinned as
+hard as the refusals, because a verifier that fires on a legitimate declaration gets
+switched off within a week and then guards nothing. A new validator helper has to be
+added to the audit's `GUARD_FUNCS` or its refusals are silently excluded — the same
+invisible failure the audit exists to catch.
+
+### `barbecue-grills` v5, the revision this unblocked
+
+Both members moved from the Amazon route to their own Bazaarvoice deployments: Traeger 7
+families, Weber 5, measured 2026-10-17 as **12 distinct families with zero review-id
+overlap between any pair**. Declared with `readings_at_declare: 0` — no review text has
+been collected for this group, so it is still declared before collection. (v3 and v4
+were the same declaration before the two fixes above.)
+
+Why: Amazon caps a pass at ~100 reviews per filter combination, which on these grills
+buys weeks; Traeger's own deployment serves 7.6 years at 97–100% text with no cap and a
+newest review 5 days old. Nothing about either company changed, and no member, brand,
+concentration figure or substitutability reason moved.
+
+**Two findings the declaration carries.** Two of the seven Traeger families are served
+"In Store Only" and are declared for the history they hold rather than for new sales — if
+withdrawn, that family's series ends and is recorded as ended, never swapped. And Weber's
+text fraction has fallen from 100% in 2019 to 29–37% now, so its scored population is a
+shrinking minority of its rated one and must be reported with every Weber reading.
+
 ## 2026-10-17 — the collector learns a third route, and depth stops being the wall
 
 `collect_reviews.py` knew only Amazon: `SessionRoute`, `ApifyRoute`, `OxylabsRoute`,
