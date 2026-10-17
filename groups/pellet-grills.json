@@ -1,0 +1,44 @@
+{
+  "declared_at": "2026-10-17",
+  "group_id": "pellet-grills",
+  "hash": "006b8183c5391c8a5a819405cc206e5e206fe081f26ab277fc64f330fa924292",
+  "members": [
+    {
+      "brands": [
+        "Traeger"
+      ],
+      "company": "Traeger, Inc.",
+      "company_slug": "traeger-inc",
+      "concentration": {
+        "dominant_line": "wood pellet grills and related consumables",
+        "evidence": "ROUTE VERIFICATION ONLY - no concentration evidence was read for this file. It exists to prove the collector works end to end against a real deployment and is NOT a declared peer group; stage G owns those.",
+        "no_public_report": false,
+        "revenue_readable": false,
+        "share_of_revenue": null,
+        "source_url": null
+      },
+      "products": [
+        {
+          "client": "traegerservice",
+          "family": "pro-575-780",
+          "family_product_ids": [
+            "TFB57GLE",
+            "TFB78GLE"
+          ],
+          "name": "Pro 575",
+          "product_id": "TFB57GLE",
+          "route": "bazaarvoice",
+          "site": "main_site"
+        }
+      ],
+      "reporting": {
+        "calendar": "quarterly",
+        "currency": "USD",
+        "fy_end": "1231",
+        "source": "SEC"
+      },
+      "venue": "NYSE:COOK"
+    }
+  ],
+  "seed": "Traeger"
+}

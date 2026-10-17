@@ -66,7 +66,7 @@ TARGET = os.path.join(HERE, "collect_reviews.py")
 # A parser that stopped finding refusal sites would report full coverage of
 # nothing, and would do it in exactly the confident tone of a passing audit. The
 # floor is the audit's own guard against itself; raise it as refusals are added.
-MIN_SITES = 20
+MIN_SITES = 30
 
 
 def refusal_sites(path):

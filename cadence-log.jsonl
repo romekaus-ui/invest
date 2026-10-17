@@ -3,3 +3,4 @@
 {"at": "2026-10-14T07:21:36Z", "cadence": "weekly", "cadence_days": 7, "group_id": "velocity-fixture", "previous": null, "reason": "depth fixture, 2026-10-14"}
 {"at": "2026-10-14T07:35:33Z", "cadence": "weekly", "cadence_days": 7, "group_id": "energy-drinks-modes-fixture", "previous": null, "reason": "two-mode comparison, 2026-10-14"}
 {"at": "2026-10-14T07:47:31Z", "cadence": "weekly", "cadence_days": 7, "group_id": "yeti-lumpiness-fixture", "previous": null, "reason": "lumpiness correlation test 2026-10-14"}
+{"at": "2026-10-17T14:25:45Z", "cadence": "weekly", "cadence_days": 7, "group_id": "pellet-grills", "previous": null, "reason": "route verification: brand-platform collection begins 2026-10-17"}
