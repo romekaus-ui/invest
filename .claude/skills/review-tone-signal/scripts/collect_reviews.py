@@ -3133,8 +3133,16 @@ def cmd_status(args):
                 # and §5 cuts both ways: an unchecked batch must not look
                 # checked, and a checked one must not be lost behind an
                 # unchecked one.
-                checked = [b for b in ok if b.get("family_verified") is not None]
-                fv = checked[-1].get("family_verified") if checked else None
+                # Each route names its own population check: the brand route
+                # writes `family_verified`, the Amazon routes already wrote
+                # `parent_asin_matches_declared`. Reading only the former
+                # reported every Amazon product as NEVER CHECKED, which is the
+                # §5 rule inverted - a check that DID run reading as one that
+                # never did is just as misleading as the reverse.
+                vfield = ("family_verified" if prroute != "amazon"
+                          else "parent_asin_matches_declared")
+                checked = [b for b in ok if b.get(vfield) is not None]
+                fv = checked[-1].get(vfield) if checked else None
                 when = (checked[-1].get("collected_at") or "")[:10] if checked else None
                 print("    family           %s · verified: %s"
                       % (jk, ("yes, %s" % when) if fv is True
