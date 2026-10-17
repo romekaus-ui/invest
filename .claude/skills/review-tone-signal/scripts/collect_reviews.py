@@ -3505,7 +3505,324 @@ def cmd_selftest(args):
         check("--require-recency refuses a batch whose dates are not descending",
               rc != 0, "exit %s" % rc)
 
-        print("\n12 · this stage computes no tone (§1.2, §5)")
+        print("\n12 · the brand-platform route (Route C), offline")
+
+        # Every check below runs against a FAKE route. The real one would need
+        # the network, and a guard tested only against a live deployment is a
+        # guard that stops being tested the day the deployment changes.
+        bvrows = [
+            {"Id": "bv-3", "SubmissionTime": "2026-10-11T08:00:00.000+00:00",
+             "Rating": 5, "Title": "Great grill", "ReviewText": "Smokes well.",
+             "IsVerifiedPurchaser": True, "TotalPositiveFeedbackCount": 4},
+            {"Id": "bv-2", "SubmissionTime": "2025-06-02T08:00:00.000+00:00",
+             "Rating": 4, "Title": "Good", "ReviewText": "Holds temperature.",
+             "IsSyndicated": True, "SyndicationSource": {"Name": "acehardware"},
+             "TotalPositiveFeedbackCount": 0},
+            {"Id": "bv-1", "SubmissionTime": "2019-03-20T08:00:00.000+00:00",
+             "Rating": 2, "Title": "", "ReviewText": "Auger jammed twice.",
+             "TotalPositiveFeedbackCount": 11},
+            # dropped: star-only, no text to score
+            {"Id": "bv-0", "SubmissionTime": "2024-01-01T00:00:00.000+00:00",
+             "Rating": 5, "Title": "", "ReviewText": "   "},
+            # dropped: no id, so no dedup key on a route that re-walks the pool
+            {"SubmissionTime": "2024-01-01T00:00:00.000+00:00", "Rating": 5,
+             "Title": "x", "ReviewText": "y"},
+            # dropped: a date that will not parse is never inferred or filled
+            {"Id": "bv-x", "SubmissionTime": "not a date", "Rating": 5,
+             "Title": "x", "ReviewText": "y"},
+        ]
+        brows, bnotes = normalise_bazaarvoice(bvrows, "TFB57GLE")
+        check("verbatim text survives normalisation unchanged",
+              [r["text"] for r in brows]
+              == ["Smokes well.", "Holds temperature.", "Auger jammed twice."])
+        check("a star-only review with no text is dropped and COUNTED",
+              bnotes["dropped_star_only_no_text"] == 1)
+        check("a review with no id is dropped, not given a synthetic one",
+              bnotes["dropped_no_review_id"] == 1)
+        check("an unparseable date is dropped, never inferred or filled",
+              bnotes["dropped_unparseable_date"] == 1)
+        check("Amazon identifiers are left EMPTY, not filled with product_id",
+              all(r["asin"] == "" and r["parent_asin"] == "" for r in brows))
+        check("the platform's product id goes in product_id",
+              all(r["product_id"] == "TFB57GLE" for r in brows))
+        check("syndication is recorded per review, not filtered away",
+              [r["syndicated"] for r in brows] == [False, True, False]
+              and brows[1]["syndication_source"] == "acehardware")
+        check("verified purchase is read from the platform's own field",
+              brows[0]["verified_purchase"] is True)
+        check("helpful votes come from TotalPositiveFeedbackCount",
+              [r["helpful_vote"] for r in brows] == [4, 0, 11])
+        check("the route kind is brand_platform, not provider",
+              route_kind_of("bazaarvoice") == "brand_platform")
+        check("an unregistered route name is refused rather than guessed",
+              dies(route_kind_of, "nosuchroute"))
+
+        # sort_verified is derived from the DATES. A fake route that returns
+        # ascending rows while echoing Sort=SubmissionTime:desc is exactly the
+        # case the dates-not-the-parameter rule exists for.
+        mono, inv, old, new = check_recency(brows)
+        check("descending dates verify as a recency sort", mono and inv == 0)
+        mono2, inv2, _, _ = check_recency(list(reversed(brows)))
+        check("ascending dates do NOT verify, whatever the sort parameter said",
+              not mono2 and inv2 == 2)
+
+        check("newest-review age is measured from the collected date",
+              newest_age_days("2022-07-28",
+                              datetime(2026, 10, 15, tzinfo=timezone.utc)) == 1540)
+        check("a deep-but-dead deployment is past the staleness mark",
+              newest_age_days("2022-07-28",
+                              datetime(2026, 10, 15, tzinfo=timezone.utc))
+              > BRAND_STALE_DAYS)
+        check("a live deployment is not", newest_age_days(
+            "2026-10-11", datetime(2026, 10, 15, tzinfo=timezone.utc)) == 4)
+        check("an unreadable newest date gives None, not a number",
+              newest_age_days("not a date") is None)
+
+        class _FakeBV(BazaarvoiceRoute):
+            """Controlled id sets, no network. `sets` maps product_id -> ids."""
+
+            def __init__(self, sets, **kw):
+                BazaarvoiceRoute.__init__(self, client="fake", **kw)
+                self.sets = sets
+                self.probed = []
+
+            def id_set(self, product_id, limit=BV_PAGE_LIMIT):
+                self.probed.append(product_id)
+                v = self.sets.get(product_id)
+                if v is None:
+                    return None, {"http": 404, "error": "no such product"}
+                return set(v), {"http": 200, "returned": len(v)}
+
+        pooled = _FakeBV({"TFB57GLE": ["a", "b", "c"], "TFB78GLE": ["a", "b", "c"]})
+        ok, det = verify_family(pooled, {"a", "b", "c"}, "pro-575-780",
+                                ["TFB57GLE", "TFB78GLE"], "TFB57GLE")
+        check("two products serving one pooled id set verify as one family",
+              ok is True and det["probes"][0]["overlap_of_smaller"] == 1.0)
+        check("the family is established by COMPARING ID SETS",
+              det["method"] == "pairwise review-id set comparison at offset 0"
+              and pooled.probed == ["TFB78GLE"])
+
+        # A one-review shift at the live edge must not read as a mismatch.
+        shifted = _FakeBV({"A": list("abcdefghij"), "B": list("abcdefghiZ")})
+        ok, _ = verify_family(shifted, set("abcdefghij"), "fam", ["A", "B"], "A")
+        check("a one-review shift at the live edge still verifies", ok is True)
+
+        # The guard that matters. Two products that do NOT share a pool.
+        split = _FakeBV({"A": ["a", "b", "c"], "B": ["x", "y", "z"]})
+        check("DISJOINT id sets refuse the batch - the declared family is wrong",
+              dies(verify_family, split, {"a", "b", "c"}, "fam",
+                   ["A", "B"], "A"))
+
+        lone = _FakeBV({"A": ["a"]})
+        ok, det = verify_family(lone, {"a"}, "fam", ["A"], "A")
+        check("a singleton family is UNVERIFIED, never verified",
+              ok is None and "no sibling" in det["basis"])
+        unread = _FakeBV({"A": ["a", "b"]})
+        ok, det = verify_family(unread, {"a", "b"}, "fam", ["A", "GONE"], "A")
+        check("a sibling that cannot be read leaves the family UNVERIFIED",
+              ok is None and det["probes"][0]["comparable"] is False)
+        check("never-checked and checked-and-clean do not look alike (§5)",
+              verify_family(lone, {"a"}, "f", ["A"], "A")[0] is not
+              verify_family(pooled, {"a", "b", "c"}, "f",
+                            ["TFB57GLE", "TFB78GLE"], "TFB57GLE")[0])
+
+        check("no Referer and no Origin are ever sent on this route",
+              not re.search(r"\"(Referer|Origin)\"",
+                            open(os.path.abspath(__file__),
+                                 encoding="utf-8").read()))
+        check("key discovery accepts gzip, or every regex finds nothing",
+              "gzip" in inspect_source(http_get_text)
+              and "accept_gzip=True" in inspect_source(http_get_text))
+        check("Bazaarvoice's own house passkey is never used as a brand's",
+              BV_HOUSE_PASSKEY in inspect_source(BazaarvoiceRoute.discover_passkey)
+              or "BV_HOUSE_PASSKEY" in inspect_source(
+                  BazaarvoiceRoute.discover_passkey))
+        check("the bfd/v1 endpoint is not called from anywhere",
+              "bfd/v1" not in re.sub(
+                  r"#.*|\"\"\".*?\"\"\"", "",
+                  open(os.path.abspath(__file__), encoding="utf-8").read(),
+                  flags=re.S))
+
+        check("an unknown brand platform is refused even bypassing argparse",
+              dies(cmd_brand, _args(platform="nosuch", group="testgroup",
+                                    root=root, outdir=outdir, client=None,
+                                    site="main_site", locale="en_US",
+                                    passkey=None, max_pages=1,
+                                    from_cache=None, product_id="X")))
+
+        empty_cache = os.path.join(tmp, "empty-cache")
+        os.makedirs(empty_cache, exist_ok=True)
+        check("a re-parse with no cached pages is refused, never re-fetched",
+              dies(_FakeBV({}, cache_dir=empty_cache).collect,
+                   "TFB57GLE", "recent", 10, {"from_cache": True}))
+
+        # A full brand collection, end to end, against a route that returns
+        # fixture pages instead of calling out.
+        class _OfflineBV(_FakeBV):
+            def discover_passkey(self):
+                self.key_meta = {"passkey_source": "fixture"}
+                self.passkey = "cafixturekeyfixturekeyfixture"
+                return self.passkey
+
+            def collect(self, product_id, sort, limit, filters=None):
+                meta = {"platform": "bazaarvoice", "client": self.client,
+                        "pages_walked": 1, "raw_results": len(bvrows),
+                        "passkey_prefix": "cafi...", "referer_or_origin_sent": False}
+                return self._finish(product_id, bvrows, 1215,
+                                    dict(filters or {}), utcnow(), meta, None)
+
+        rootb = os.path.join(tmp, "projb")
+        _mkbrandgroup(rootb)
+        _mkcadence(rootb)
+        outb = os.path.join(rootb, "data")
+        bargs = _args(group="testgroup", company=None, root=rootb, outdir=outb,
+                      product_id="TFB57GLE", sort="recent", star="all_stars",
+                      limit=None, require_recency=False, from_cache=None,
+                      platform="bazaarvoice", client=None, site="main_site",
+                      locale="en_US", passkey=None, max_pages=1)
+        broute = _OfflineBV({"TFB57GLE": ["bv-3", "bv-2", "bv-1"],
+                             "TFB78GLE": ["bv-3", "bv-2", "bv-1"]})
+        rc = cmd_collect(bargs, broute, "self-test")
+        check("a brand batch is collected and written", rc == 0, "rc %s" % rc)
+        brev = load_reviews(outb, "testgroup", "traeger-fixture")
+        check("the reviews reach reviews.csv verbatim",
+              len(brev) == 3
+              and sorted(r["text"] for r in brev.values())
+              == ["Auger jammed twice.", "Holds temperature.", "Smokes well."])
+        check("every brand row joins on the FAMILY, not the product id",
+              {r["family"] for r in brev.values()} == {"pro-575-780"}
+              and {r["product_id"] for r in brev.values()} == {"TFB57GLE"})
+        check("the route is stamped per review",
+              {r["route"] for r in brev.values()} == {"bazaarvoice"})
+        bbat = read_jsonl(batches_path(outb, "testgroup", "traeger-fixture"))
+        check("the batch record carries every §3 field", bbat and all(
+            k in bbat[-1] for k in
+            ("route", "sort_requested", "sort_verified", "date_order",
+             "requested", "returned", "claimed_total", "claimed_total_basis",
+             "coverage_ratio", "blocked", "block_reason")))
+        check("claimed_total basis is `reviews`, not `ratings`",
+              bbat[-1]["claimed_total"] == 1215
+              and bbat[-1]["claimed_total_basis"] == "reviews")
+        check("coverage is collected over the family's own review total",
+              bbat[-1]["coverage_ratio"] == round(3 / 1215.0, 6))
+        check("sort_verified is derived from the dates and is true here",
+              bbat[-1]["sort_verified"] is True
+              and bbat[-1]["date_order"]["inversions"] == 0)
+        check("the family is recorded as verified, with its evidence",
+              bbat[-1]["family"] == "pro-575-780"
+              and bbat[-1]["family_verified"] is True
+              and bbat[-1]["family_check"]["probes"][0]["shared_ids"] == 3)
+        check("the newest review's age is recorded",
+              bbat[-1]["newest_review_age_days"] is not None
+              and bbat[-1]["newest_review_date"] == "2026-10-11")
+        check("cost is recorded as $0 - a zero is a measurement",
+              bbat[-1]["provider_cost"] == 0.0
+              and bbat[-1]["provider"] == "bazaarvoice")
+        check("route_kind is brand_platform, not provider",
+              bbat[-1]["route_kind"] == "brand_platform")
+        check("the Amazon identifiers are null, not filled with brand values",
+              bbat[-1]["asin"] is None and bbat[-1]["parent_asin"] is None)
+
+        # Re-collecting the same pool must dedupe rather than duplicate: this
+        # route re-walks the WHOLE family every cadence, so a naive append
+        # would double the corpus on the second run and then kill the scorer,
+        # which treats one review_id keying two rows as a hard failure.
+        rc2 = cmd_collect(bargs, _OfflineBV(
+            {"TFB57GLE": ["bv-3", "bv-2", "bv-1"],
+             "TFB78GLE": ["bv-3", "bv-2", "bv-1"]}), "self-test")
+        brev2 = load_reviews(outb, "testgroup", "traeger-fixture")
+        bbat2 = read_jsonl(batches_path(outb, "testgroup", "traeger-fixture"))
+        check("a second walk of the same pool adds nothing",
+              rc2 == 0 and len(brev2) == 3
+              and bbat2[-1]["merge"]["duplicates"] == 3
+              and bbat2[-1]["merge"]["new"] == 0)
+        check("the batch log is append-only across both walks", len(bbat2) == 2)
+
+        # A changed text keeps the FIRST and logs the second (§1.3).
+        edited = json.loads(json.dumps(bvrows))
+        edited[0]["ReviewText"] = "Smokes well, polished a little."
+        class _EditedBV(_OfflineBV):
+            def collect(self, product_id, sort, limit, filters=None):
+                return self._finish(product_id, edited, 1215, {}, utcnow(),
+                                    {"pages_walked": 1}, None)
+        cmd_collect(bargs, _EditedBV({"TFB57GLE": ["bv-3"], }), "self-test")
+        brev3 = load_reviews(outb, "testgroup", "traeger-fixture")
+        check("a re-observed review keeps the FIRST text, not the new one",
+              brev3["bv-3"]["text"] == "Smokes well.")
+        obs = read_jsonl(observations_path(outb, "testgroup", "traeger-fixture"))
+        check("the changed text is logged rather than merged or discarded",
+              any(o.get("review_id") == "bv-3"
+                  and "text" in (o.get("diffs") or {}) for o in obs))
+
+        # The three declaration refusals, each tripped on its own.
+        def _brand_rc(mutate):
+            rt = os.path.join(tmp, "p-" + hashlib.sha1(
+                repr(mutate).encode()).hexdigest()[:8])
+            _mkbrandgroup(rt)
+            _mkcadence(rt)
+            gp = os.path.join(rt, GROUPS_DIR, "testgroup.json")
+            g = json.load(open(gp, encoding="utf-8"))
+            mutate(g["members"][0]["products"][0])
+            write_json(gp, g)
+            return dies(cmd_collect, _args(
+                group="testgroup", company=None, root=rt,
+                outdir=os.path.join(rt, "data"), product_id="TFB57GLE",
+                sort="recent", star="all_stars", limit=None,
+                require_recency=False, from_cache=None), broute, "self-test")
+
+        check("a brand product with no `client` is refused",
+              _brand_rc(lambda p: p.pop("client")))
+        check("a brand product with no `family` is refused - the join key",
+              _brand_rc(lambda p: p.pop("family")))
+        check("a family that does not contain its own product is refused",
+              _brand_rc(lambda p: p.update(family_product_ids=["TFB78GLE"])))
+
+        # A product declared on one route may not be collected on another.
+        check("collecting an Amazon-declared product on the brand route is refused",
+              dies(cmd_collect, _args(
+                  group="testgroup", company=None, root=root, outdir=outdir,
+                  product_id="B000TEST01", asin=None, sort="recent",
+                  star="all_stars", limit=None, require_recency=False,
+                  from_cache=None), broute, "self-test"))
+
+        # --require-recency on the brand route needs an ASCENDING brand batch;
+        # the descending fixture above cannot trip it, which is the same shape
+        # as the Amazon guard that had never once run.
+        class _AscBV(_OfflineBV):
+            def collect(self, product_id, sort, limit, filters=None):
+                return self._finish(product_id, list(reversed(bvrows)), 1215,
+                                    {}, utcnow(), {"pages_walked": 1}, None)
+        rootr = os.path.join(tmp, "projr")
+        _mkbrandgroup(rootr)
+        _mkcadence(rootr)
+        check("--require-recency refuses an ascending BRAND batch",
+              dies(cmd_collect, _args(
+                  group="testgroup", company=None, root=rootr,
+                  outdir=os.path.join(rootr, "data"), product_id="TFB57GLE",
+                  sort="recent", star="all_stars", limit=None,
+                  require_recency=True, from_cache=None),
+                  _AscBV({"TFB57GLE": ["bv-3"]}), "self-test"))
+
+        # The rename must not blank the route on reviews already held.
+        legacy = os.path.join(tmp, "legacy", "g", "co")
+        os.makedirs(legacy, exist_ok=True)
+        with open(os.path.join(legacy, "reviews.csv"), "w", newline="",
+                  encoding="utf-8") as f:
+            w = csv.DictWriter(f, fieldnames=[
+                "review_id", "asin", "parent_asin", "review_date",
+                "collection_route"])
+            w.writeheader()
+            w.writerow({"review_id": "R9", "asin": "B0CHILD",
+                        "parent_asin": "B0PARENT", "review_date": "2025-01-01",
+                        "collection_route": "apify"})
+        lrows = load_reviews(os.path.join(tmp, "legacy"), "g", "co")
+        check("a pre-rename reviews.csv reads `collection_route` as `route`",
+              lrows["R9"]["route"] == "apify"
+              and "collection_route" not in lrows["R9"])
+        check("a pre-family reviews.csv back-fills the join key from parent_asin",
+              lrows["R9"]["family"] == "B0PARENT")
+
+        print("\n13 · this stage computes no tone (§1.2, §5)")
         import ast
         tree = ast.parse(open(os.path.abspath(__file__), encoding="utf-8").read())
         names = set()
@@ -3597,6 +3914,50 @@ def _mkgroup(root):
                                            "name": "fixture"}],
                              "reporting": {"calendar": "quarterly",
                                            "currency": "USD", "source": "SEC"}}]})
+
+
+def inspect_source(obj):
+    """The source of one function, for the checks that assert on HOW it works.
+
+    Used for the two invariants that have no observable output: that key
+    discovery accepts gzip, and that no Referer or Origin is ever sent. Both
+    are absences, and an absence cannot be asserted by calling the thing.
+    """
+    import inspect
+    try:
+        return inspect.getsource(obj)
+    except (OSError, TypeError):
+        return ""
+
+
+def _mkbrandgroup(root):
+    """A group declaring ONE brand-platform product, with its family.
+
+    Mirrors the Traeger declaration measured 2026-10-15: TFB57GLE (Pro 575)
+    and TFB78GLE (Pro 780) are different grills at different prices serving one
+    pooled review set, so they are one family with one representative.
+    """
+    write_json(os.path.join(root, GROUPS_DIR, "testgroup.json"),
+               {"group_id": "testgroup", "declared_at": "2026-10-15",
+                "seed": "fixture", "hash": "fixture",
+                "members": [{"company": "Traeger Fixture",
+                             "company_slug": "traeger-fixture",
+                             "venue": "NYSE:COOK", "brands": ["Traeger"],
+                             "concentration": {"dominant_line": "pellet grills",
+                                               "share_of_revenue": 1.0,
+                                               "evidence": "fixture",
+                                               "source_url": "fixture"},
+                             "products": [{"route": "bazaarvoice",
+                                           "client": "traegerservice",
+                                           "site": "main_site",
+                                           "product_id": "TFB57GLE",
+                                           "family": "pro-575-780",
+                                           "family_product_ids":
+                                               ["TFB57GLE", "TFB78GLE"],
+                                           "name": "Pro 575"}],
+                             "reporting": {"calendar": "quarterly",
+                                           "currency": "USD", "fy_end": "1231",
+                                           "source": "SEC"}}]})
 
 
 def _mkcadence(root):
