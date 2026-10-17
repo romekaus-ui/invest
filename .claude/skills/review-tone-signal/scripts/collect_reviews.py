@@ -14,10 +14,23 @@ cannot produce a series that starts today (CORE-PROMPT §0).
     Route B   a named commercial provider (Apify / Oxylabs / Rainforest).
               Scales, costs money, and its sort order is whatever the provider
               actually gives you rather than what its documentation advertises.
+    Route C   the BRAND's own review platform (Bazaarvoice today). The brand
+              pays a vendor to host and display its reviews, and that vendor's
+              display API serves them to every visitor's browser in the clear.
+              No account, no key of ours, no cap: Offset paginates to
+              exhaustion. Measured on Traeger 2026-10-15: 7.6 years, 97% text,
+              newest review 4 days old, $0.
 
-Both routes write the same contract and EVERY BATCH RECORDS WHICH ROUTE
+Every route writes the same contract and EVERY BATCH RECORDS WHICH ROUTE
 PRODUCED IT (CORE-PROMPT §1.4). A tone number whose batch cannot say how it was
 sampled is not a measurement.
+
+Why Route C exists, in one number: Amazon caps at ~100 reviews PER FILTER
+COMBINATION, which for a busy product is weeks of history, and that cap is
+Amazon's rather than any provider's - no budget moves it (references/
+live-collection.md). A brand platform has no such cap. The cost of the route is
+that it sees only the brand's own site, which is a different channel from
+Amazon and must never be pooled with it as though it were the same population.
 
 
 THE NUMBER THAT MUST TRAVEL WITH EVERY TONE NUMBER
@@ -68,9 +81,54 @@ EXTRACTOR_JS = os.path.join(SCRIPT_DIR, "capture_reviews.js")
 COLLECTOR_VERSION = "d1-collect-v1"
 
 # `data/<group_id>/<company_slug>/reviews.csv` as CONTRACTS.md §2 defines it.
+#
+# The first twelve are the original Amazon-shaped contract. The last four were
+# added when the brand-platform route landed, APPENDED rather than interleaved
+# so a reader slicing on the original twelve is unaffected:
+#
+#   route         which route served this review. Per REVIEW, not per file:
+#                 reviews.csv is merged across batches, so a per-file route
+#                 stamp becomes a lie the moment two routes meet on one
+#                 product. Previously spelled `collection_route`; load_reviews
+#                 back-fills that name so the nine files already on disk are
+#                 not blanked by the rename.
+#   client        the brand platform's deployment zone ("traegerservice").
+#                 Empty on an Amazon route.
+#   product_id    the brand platform's own product identifier ("TFB57GLE").
+#                 Empty on an Amazon route, where `asin` carries it.
+#   family        THE JOIN KEY, for every route. See below.
 REVIEW_FIELDS = ("review_id", "asin", "parent_asin", "marketplace",
                  "review_country", "review_date", "rating", "title", "text",
-                 "verified_purchase", "helpful_vote", "batch_id")
+                 "verified_purchase", "helpful_vote", "batch_id",
+                 "route", "client", "product_id", "family")
+
+# `family` is the ONE join key both routes populate, and it exists because the
+# two routes pool reviews in exactly the same way under different names.
+#
+# Amazon serves reviews at the PARENT asin, pooled across every variant.
+# Bazaarvoice serves them at a product FAMILY, pooled across every model in it.
+# Measured on Traeger 2026-10-15: TFB57GLE (Pro 575) and TFB78GLE (Pro 780) are
+# different grills at different prices and return IDENTICAL 1,215-review id
+# sets. TFB89BLF and TFB65BLF likewise. Nine products resolved to seven
+# distinct families.
+#
+# So a brand-route row keyed on the declared `product_id` claims a narrower
+# population than it holds, and - exactly as on Amazon - dedup by review_id
+# does NOT catch it, because those are genuine distinct reviews of a wider
+# product. The failure is identical in shape; only the vocabulary differs.
+#
+# `family` therefore holds the parent_asin on an Amazon route and the verified
+# family label on a brand route, so anything downstream has a single column to
+# pool on and neither route is special.
+#
+# HOW THE FAMILY IS DETERMINED, and the two ways that are forbidden:
+#   - by COMPARING RETURNED ID SETS between the declared siblings. Two products
+#     serving the same ids are one family. This is the only method that reads
+#     what the platform actually did.
+#   - NEVER inferred from the product ids differing. TFB57GLE and TFB78GLE
+#     differ and are one family; the id looks like a product and is not one.
+#   - NEVER by summing TotalReviewCount across a catalog, which double-counts
+#     a pooled family and overstated Traeger's unique count by 30%.
 
 # `parent_asin` is the join key, not `asin` (CONTRACTS.md §2).
 #
@@ -110,9 +168,21 @@ REVIEW_FIELDS = ("review_id", "asin", "parent_asin", "marketplace",
 # carried per review rather than only per batch because reviews.csv is merged
 # across batches and a per-file route stamp would be a lie the moment two
 # routes meet.
-PROVENANCE_FIELDS = ("collection_route", "collected_at", "review_id_scheme",
+PROVENANCE_FIELDS = ("collected_at", "review_id_scheme",
                      "review_date_precision", "vine_voice", "sort_requested",
-                     "sort_verified")
+                     "sort_verified", "syndicated", "syndication_source")
+
+# reviews.csv called the route column `collection_route` before the brand route
+# existed, and nine files on disk carry that spelling. CONTRACTS.md §3 spells
+# the batch-record field `route`, so the review column is spelled `route` too
+# rather than leaving one concept with two names. The old name is read back as
+# the new one in load_reviews(): reviews.csv is DERIVED and rewritten on every
+# collection, so without that mapping the first re-collection of an existing
+# group would write an empty `route` for every review already held - silently,
+# because DictWriter(extrasaction="ignore") drops the unknown key without a
+# word. A rename that blanks a provenance column is worse than the rename it
+# was trying to tidy up.
+LEGACY_FIELD_NAMES = {"collection_route": "route"}
 
 ALL_FIELDS = REVIEW_FIELDS + PROVENANCE_FIELDS
 
@@ -292,8 +362,37 @@ def load_group(root, group_id):
     return g
 
 
-def group_member(group, company=None, asin=None):
-    """The member this batch belongs to, by slug or by the ASIN it tracks."""
+def product_route(pr):
+    """Which route a declared product is collected on.
+
+    CONTRACTS.md §1 gives every product a `route`. It defaults to `amazon`
+    because the fifteen products declared before the field existed have none,
+    and silently treating one of those as a brand product would look for a
+    `product_id` that is not there.
+    """
+    return (pr or {}).get("route") or "amazon"
+
+
+def product_key(pr):
+    """The identifier a product is TRACKED by, per route.
+
+    An ASIN on the Amazon routes, the platform's own product id on a brand
+    route. One function so that batch filtering, status and the collector
+    cannot disagree about what identifies a product - which is how series
+    coverage once read "0 of 10,000 with ten reviews on disk".
+    """
+    if product_route(pr) == "amazon":
+        return (pr.get("asin") or "").upper()
+    return str(pr.get("product_id") or "")
+
+
+def group_member(group, company=None, key=None):
+    """The member this batch belongs to, by slug or by the product it tracks.
+
+    `key` is an ASIN on an Amazon product and a platform product id on a brand
+    product; product_key() decides which, from the declaration rather than
+    from the shape of the string.
+    """
     if company:
         c = company.lower()
         for m in group["members"]:
@@ -302,22 +401,24 @@ def group_member(group, company=None, asin=None):
         die("no company %r in %s; have %s"
             % (company, group["_path"],
                ", ".join(sorted(m["company_slug"] for m in group["members"]))))
+    want = str(key or "")
     hits = [(m, pr) for m in group["members"] for pr in (m.get("products") or [])
-            if (pr.get("asin") or "").upper() == (asin or "").upper()]
+            if product_key(pr) in (want, want.upper())]
     if not hits:
         die("%s is not tracked by any member of %s.\n"
             "Add it to the group file first - a product that enters a series\n"
             "because it was easy to collect is not a tracked product."
-            % (asin, group["_path"]))
+            % (key, group["_path"]))
     if len(hits) > 1:
         die("%s is tracked by %s; say which with --company"
-            % (asin, ", ".join(sorted(m["company_slug"] for m, _ in hits))))
+            % (key, ", ".join(sorted(m["company_slug"] for m, _ in hits))))
     return hits[0]
 
 
-def member_product(member, asin):
+def member_product(member, key):
+    want = str(key or "")
     for pr in member.get("products") or []:
-        if (pr.get("asin") or "").upper() == (asin or "").upper():
+        if product_key(pr) in (want, want.upper()):
             return pr
     return None
 
@@ -501,6 +602,29 @@ def payload_hash(payload):
 # Routes - one interface
 # --------------------------------------------------------------------------
 
+# Which KIND of instrument each route is. Three kinds, because they fail and
+# cost in three different ways and a reading that pooled them would be pooling
+# three instruments: `session` risks the user's own account, `provider` costs
+# money per review, `brand_platform` is free but sees only the brand's own
+# channel.
+ROUTE_KINDS = {"session": "session",
+               "apify": "provider",
+               "oxylabs": "provider",
+               "rainforest": "provider",
+               "bazaarvoice": "brand_platform"}
+
+
+def route_kind_of(route):
+    kind = ROUTE_KINDS.get(route)
+    if kind is None:
+        die("route %r has no kind in ROUTE_KINDS.\n"
+            "Every batch records what kind of instrument produced it (§1.4),\n"
+            "and guessing the kind from the name is how the brand route would\n"
+            "have been filed as a commercial provider. Add the route to\n"
+            "ROUTE_KINDS rather than defaulting it." % route)
+    return kind
+
+
 class Batch(object):
     """What a route returns. Normalised; not yet written."""
 
@@ -509,8 +633,20 @@ class Batch(object):
                  blocked=False, block_reason=None, provider=None,
                  plan_tier=None, cost=None, raw_meta=None, requested_at=None,
                  review_id_scheme="amazon_review_id", date_precision="day",
-                 parent_asin=None, parent_asin_via=None):
+                 parent_asin=None, parent_asin_via=None, route_kind=None,
+                 client=None, product_id=None):
         self.route = route
+        # Looked up from the route name rather than computed at the write site.
+        # record_batch used to derive it as `"session" if route == "session"
+        # else "provider"`, which would silently have labelled the brand route
+        # a commercial provider - a wrong provenance field, and §1.4 exists to
+        # prevent exactly that. A route name absent from the registry raises
+        # here rather than being guessed into the nearest existing kind.
+        self.route_kind = route_kind or route_kind_of(route)
+        # Brand-platform identity. Empty on the Amazon routes, where `asin`
+        # and `parent_asin` carry it.
+        self.client = client
+        self.product_id = product_id
         self.sort_observed = sort_observed
         self.filters = filters or {}
         self.reviews = reviews or []
@@ -1155,6 +1291,483 @@ PROVIDERS = {"apify": ApifyRoute, "oxylabs": OxylabsRoute,
              "rainforest": RainforestRoute}
 
 
+# ---- Route C: the brand's own review platform ----------------------------
+
+# Bazaarvoice ships this key in every scout file it serves. It is
+# Bazaarvoice's own, not any brand's, and a route that accepted it would be
+# querying the wrong deployment with full confidence.
+BV_HOUSE_PASSKEY = "b8d57893b7754e2d390348dc172b7c76"
+
+# The display endpoint. `apiversion` 5.4 is what the brands' own widgets send.
+BV_API = "https://api.bazaarvoice.com/data/reviews.json"
+BV_DEPLOY = ("https://apps.bazaarvoice.com/deployments/%s/%s/production/%s/bv.js")
+
+# Offset pagination has no cap on this route, but an unbounded loop against
+# someone else's API is not a thing to ship. 400 pages x 100 = 40,000 reviews,
+# comfortably past the deepest deployment measured (Owala, 14,029).
+BV_MAX_PAGES = 400
+BV_PAGE_LIMIT = 100          # the API's own ceiling; 200 silently returns 100
+BV_PAUSE_S = 0.4             # reading pace, not scraping pace
+
+# Past this, a deployment is reported as probably dead. CHOSEN, not measured,
+# and it only ever warns - it never refuses, because a stale deployment's old
+# reviews are still real reviews and dropping them would be worse than
+# labelling them. The number sits in a wide gap: the live deployments measured
+# on 2026-10-15 were 4-20 days stale and Owala was 1,540.
+BRAND_STALE_DAYS = 180
+
+
+def http_get_text(url, accept_gzip=True, timeout=60):
+    """GET a public URL as TEXT, decompressing gzip whatever was negotiated.
+
+    ACCEPT GZIP. Bazaarvoice gzips some deployment zones regardless of what
+    `Accept-Encoding` asked for, and a gzip body decoded as text is a binary
+    blob in which every regex below silently finds nothing. That produced FIVE
+    false negatives in the 2026-10-15 survey - Monster, Red Bull, Owala and
+    Simply Good Foods were all recorded as running no deployment when all four
+    publish a key - and one of them, Red Bull, turned out to be among the best
+    samples available. A regex finding nothing is evidence only once the body
+    is known to be text.
+
+    No Referer. No Origin. No cookies. The keys this route reads are the ones
+    the platform's own CDN publishes in the clear to every visitor's browser;
+    nothing here is authenticated and nothing here is circumvented.
+    """
+    import urllib.error
+    import urllib.request
+    req = urllib.request.Request(url, headers={
+        "User-Agent": "review-tone-monitor/%s (research; contact via repo owner)"
+                      % COLLECTOR_VERSION,
+        "Accept": "*/*",
+        "Accept-Encoding": "gzip" if accept_gzip else "identity"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            raw = r.read()
+            if (r.headers.get("Content-Encoding") or "").lower() == "gzip":
+                import gzip
+                import io
+                raw = gzip.GzipFile(fileobj=io.BytesIO(raw)).read()
+            return r.getcode(), raw.decode("utf-8", "replace"), None
+    except urllib.error.HTTPError as e:
+        return e.code, "", "http_%s" % e.code
+    except Exception as e:                                     # noqa: BLE001
+        return None, "", "transport: %s" % e
+
+
+class BazaarvoiceRoute(Route):
+    """Route C. The brand's own Bazaarvoice deployment.
+
+    WHAT THIS ROUTE IS, precisely, because the distinction decides whether it
+    may be used at all: a brand pays Bazaarvoice to host and RENDER its
+    reviews, and the renderer is JavaScript running in every visitor's browser.
+    That JavaScript needs a display key, so the brand's CDN publishes one, in
+    the clear, to everybody. This route reads the same key from the same public
+    file and calls the same documented display endpoint the widget calls.
+
+    No account is created. No key of ours is used. No credential is sent. No
+    cookie is sent. Nothing is logged into. There is no bot challenge on this
+    surface and so nothing is solved or evaded (CORE-PROMPT §9).
+
+    `apps.bazaarvoice.com/bfd/v1/...` is a DIFFERENT endpoint and it returns
+    401. It is left alone. It would answer if sent a Referer or an Origin
+    header forged to look like the brand's own site, and that is exactly the
+    thing CONTRACTS.md §5 forbids: a block is a finding, recorded and not
+    routed around. The scout route below is not a way past that refusal; it is
+    a separate endpoint that does not refuse in the first place.
+
+    What the route costs, and it is not money:
+
+      - it sees the BRAND'S OWN SITE, which is a different sales channel from
+        Amazon with a different customer. A brand-route series and an Amazon
+        series are two instruments, and pooling them would be reading channel
+        mix as tone.
+      - syndication. Bazaarvoice networks share reviews between retailers, so
+        some rows did not originate on this brand's site. `IsSyndicated` and
+        the source are recorded per review rather than filtered here, because
+        whether to include them is an aggregation decision.
+
+    Measured on Traeger (`traegerservice`, TFB57GLE) 2026-10-15: 1,215
+    reviews, 100% carrying text, Offset paginating to exhaustion with no cap,
+    dates genuinely descending, newest review 4 days old, cost $0.
+    """
+
+    name = "bazaarvoice"
+    route_kind = "brand_platform"
+    provider = "bazaarvoice"
+    platform = "bazaarvoice"
+
+    def __init__(self, client, site="main_site", locale="en_US", passkey=None,
+                 max_pages=BV_MAX_PAGES, cache_dir=None, timeout=60,
+                 pause_s=BV_PAUSE_S):
+        self.client = client
+        self.site = site or "main_site"
+        self.locale = locale or "en_US"
+        self.passkey = passkey
+        self.max_pages = max_pages
+        self.cache_dir = cache_dir
+        self.timeout = timeout
+        self.pause_s = pause_s
+        self.key_meta = {}
+
+    def describe(self):
+        return "bazaarvoice:%s/%s" % (self.client, self.site)
+
+    # -- key discovery ----------------------------------------------------
+
+    def discover_passkey(self):
+        """Read the display key the brand's own CDN publishes.
+
+            bv.js  ->  legacyScoutUrl  ->  bvapi.js  ->  passkey:"ca..."
+
+        Both files are fetched WITH gzip accepted; see http_get_text for the
+        five false negatives that cost.
+        """
+        if self.passkey:
+            self.key_meta = {"passkey_source": "supplied on the command line"}
+            return self.passkey
+        url = BV_DEPLOY % (self.client, self.site, self.locale)
+        code, js, err = http_get_text(url)
+        self.key_meta = {"bv_js_url": url, "bv_js_http": code,
+                         "bv_js_bytes": len(js)}
+        if err or code != 200:
+            return None
+        dc = re.search(r'displayCode:"(\d+)"', js)
+        self.key_meta["display_code"] = dc.group(1) if dc else None
+        scout = re.search(r'legacyScoutUrl:"([^"]+)"', js)
+        if not scout:
+            # A real, informative state rather than an error: Bazaarvoice
+            # serves a stub bv.js for a zone that exists but is provisioned to
+            # display nothing. Distinguish it from a 404 and from a gzip blob.
+            self.key_meta["scout_url"] = None
+            self.key_meta["looks_like_text"] = "legacyScoutUrl" in js or "bv" in js
+            return None
+        self.key_meta["scout_url"] = scout.group(1)
+        code2, js2, err2 = http_get_text(scout.group(1))
+        self.key_meta["scout_http"] = code2
+        self.key_meta["scout_bytes"] = len(js2)
+        if err2 or code2 != 200:
+            return None
+        keys = [k for k in sorted(set(re.findall(r'passkey:"([A-Za-z0-9]{24,})', js2)))
+                if k != BV_HOUSE_PASSKEY]
+        self.key_meta["passkeys_published"] = len(keys)
+        self.key_meta["house_passkey_seen"] = BV_HOUSE_PASSKEY in js2
+        if not keys:
+            return None
+        self.passkey = keys[0]
+        self.key_meta["passkey_source"] = "published by the brand's own CDN"
+        return self.passkey
+
+    # -- collection -------------------------------------------------------
+
+    def page_url(self, product_id, offset, limit):
+        import urllib.parse
+        return BV_API + "?" + urllib.parse.urlencode({
+            "apiversion": "5.4", "passkey": self.passkey,
+            "Filter": "ProductId:eq:%s" % product_id,
+            "Limit": limit, "Offset": offset,
+            "Sort": "SubmissionTime:desc",
+            "Include": "Products", "Stats": "Reviews"})
+
+    def _cache_page(self, product_id, offset, body):
+        """Keep the raw response. A parser bug must never cost a re-fetch.
+
+        This route is free, so the money argument does not apply - but the
+        other two reasons the Apify route learned the hard way do, and they are
+        the ones that actually bit:
+
+          - a run parsed to ZERO ROWS on a field-name mismatch. That announces
+            itself.
+          - a run recorded 0% VERIFIED PURCHASES when the truth was 100%. That
+            does not. A plausible wrong number reaches the verified-share check
+            and is read as evidence about the review population rather than
+            about the parser.
+
+        And one this route adds: the pool is live. Re-fetching next week does
+        not reproduce today's batch, so the raw response is the only thing that
+        can ever be re-parsed into the batch that was actually written.
+        """
+        if not self.cache_dir:
+            return None
+        os.makedirs(self.cache_dir, exist_ok=True)
+        p = os.path.join(self.cache_dir,
+                         "%s-offset-%06d.json" % (product_id, offset))
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(body)
+        return p
+
+    def _pages_from_cache(self):
+        out = []
+        for n in sorted(os.listdir(self.cache_dir)):
+            if not n.endswith(".json"):
+                continue
+            with open(os.path.join(self.cache_dir, n), encoding="utf-8") as f:
+                out.append((n, json.load(f)))
+        return out
+
+    def id_set(self, product_id, limit=BV_PAGE_LIMIT):
+        """The newest page's review ids, for the family comparison.
+
+        One page is enough and the whole pool is not: two products that share a
+        pool return the same ids in the same order at the same offset, and two
+        that do not share one return disjoint ids on the first page. Walking
+        both pools to exhaustion to answer that would cost ~24 extra requests
+        per sibling to learn what the first page already says.
+        """
+        code, body, err = http_get_text(self.page_url(product_id, 0, limit),
+                                        timeout=self.timeout)
+        if err or code != 200:
+            return None, {"http": code, "error": err}
+        try:
+            d = json.loads(body)
+        except ValueError:
+            return None, {"http": code, "error": "not json"}
+        if d.get("HasErrors"):
+            return None, {"http": code,
+                          "errors": [e.get("Code") for e in (d.get("Errors") or [])]}
+        res = d.get("Results") or []
+        return ({str(r.get("Id")) for r in res if r.get("Id")},
+                {"http": code, "returned": len(res),
+                 "total_results": d.get("TotalResults")})
+
+    def collect(self, product_id, sort, limit, filters=None):
+        f = dict(filters or {})
+        at = utcnow()
+        meta = {"platform": "bazaarvoice", "client": self.client,
+                "site": self.site, "locale": self.locale,
+                "endpoint": BV_API, "sort_param": "SubmissionTime:desc",
+                "pagination": "Offset, to exhaustion; the API caps Limit at %d "
+                              "and does not cap Offset" % BV_PAGE_LIMIT,
+                "account_needed": False,
+                "headers_sent": ["User-Agent", "Accept", "Accept-Encoding"],
+                "referer_or_origin_sent": False,
+                "cost_note": "no account, no key of ours, no plan; $0"}
+
+        if self.cache_dir and f.get("from_cache"):
+            return self._collect_from_cache(product_id, f, at, meta)
+
+        key = self.discover_passkey()
+        meta["key_discovery"] = self.key_meta
+        if not key:
+            # A deployment that publishes no key is a finding about the brand,
+            # recorded as a block with its own reason rather than retried from
+            # another angle. There is no other angle that does not involve
+            # forging a header.
+            return Batch(route="bazaarvoice", route_kind=self.route_kind,
+                         sort_observed=None, filters=f, reviews=[], claimed={},
+                         requested=limit, marketplace=None, blocked=True,
+                         block_reason="bazaarvoice_no_published_passkey",
+                         requested_at=at, provider="bazaarvoice",
+                         plan_tier="public display key", cost=0.0,
+                         raw_meta=meta)
+        meta["passkey_prefix"] = key[:4] + "..."
+
+        rows_raw, pages, total, blocked = [], [], None, None
+        offset = 0
+        for _ in range(self.max_pages):
+            url = self.page_url(product_id, offset, BV_PAGE_LIMIT)
+            code, body, err = http_get_text(url, timeout=self.timeout)
+            if err or code != 200:
+                pages.append({"offset": offset, "http": code, "refused": err})
+                blocked = "bazaarvoice_http_%s" % code
+                break
+            try:
+                d = json.loads(body)
+            except ValueError:
+                pages.append({"offset": offset, "http": code,
+                              "refused": "not json"})
+                blocked = "bazaarvoice_bad_json"
+                break
+            if d.get("HasErrors"):
+                codes = [e.get("Code") for e in (d.get("Errors") or [])]
+                pages.append({"offset": offset, "http": code, "errors": codes})
+                blocked = "bazaarvoice_api_error_%s" % (",".join(str(c) for c in codes)
+                                                        or "unknown")
+                break
+            self._cache_page(product_id, offset, body)
+            total = d.get("TotalResults") if d.get("TotalResults") is not None else total
+            res = d.get("Results") or []
+            pages.append({"offset": offset, "http": code, "returned": len(res)})
+            rows_raw.extend(res)
+            if not res:
+                break
+            offset += len(res)
+            if total is not None and offset >= total:
+                break
+            if limit and len(rows_raw) >= limit:
+                break
+            time.sleep(self.pause_s)
+
+        meta["pages"] = pages
+        meta["pages_walked"] = len(pages)
+        meta["raw_results"] = len(rows_raw)
+        meta["raw_cache_dir"] = self.cache_dir
+        meta["walk_exhausted"] = (total is not None and len(rows_raw) >= total)
+        meta["page_cap_reached"] = len(pages) >= self.max_pages
+
+        if blocked and not rows_raw:
+            return Batch(route="bazaarvoice", route_kind=self.route_kind,
+                         sort_observed=None, filters=f, reviews=[], claimed={},
+                         requested=limit, marketplace=None, blocked=True,
+                         block_reason=blocked, requested_at=at,
+                         provider="bazaarvoice", plan_tier="public display key",
+                         cost=0.0, raw_meta=meta)
+        if blocked:
+            # Partial walks are kept and SAID SO. Discarding them would throw
+            # away real reviews; recording them without the flag would let a
+            # truncated history read as a complete one.
+            meta["walk_truncated_by"] = blocked
+            warn("the walk stopped early (%s) after %d review(s); the batch is "
+                 "recorded as a PARTIAL pass, so its span is not this product's "
+                 "full history" % (blocked, len(rows_raw)))
+
+        return self._finish(product_id, rows_raw, total, f, at, meta, limit)
+
+    def _collect_from_cache(self, product_id, f, at, meta):
+        """Re-parse a cached walk. Costs nothing and re-fetches nothing.
+
+        The live pool moves, so this is the only way to re-parse the batch that
+        was actually written rather than a newer one that resembles it.
+        """
+        files = self._pages_from_cache()
+        meta["reparse_of_cached_walk"] = True
+        meta["cache_dir"] = self.cache_dir
+        meta["cached_pages"] = [n for n, _ in files]
+        if not files:
+            die("no cached pages in %s.\n"
+                "Nothing to re-parse. A re-parse reads the raw responses an\n"
+                "earlier walk stored; it never re-fetches, because the review\n"
+                "pool moves and a re-fetch would be a different batch wearing\n"
+                "this one's id." % self.cache_dir)
+        rows_raw, total = [], None
+        for _, d in files:
+            if d.get("TotalResults") is not None:
+                total = d.get("TotalResults")
+            rows_raw.extend(d.get("Results") or [])
+        meta["raw_results"] = len(rows_raw)
+        return self._finish(product_id, rows_raw, total, f, at, meta, None)
+
+    def _finish(self, product_id, rows_raw, total, f, at, meta, limit):
+        rows, notes = normalise_bazaarvoice(rows_raw, product_id, self.locale)
+        meta["normalise_notes"] = dict(notes)
+        if limit:
+            rows = rows[:limit]
+        claimed = {}
+        if total is not None:
+            # TotalResults counts REVIEWS in this family's pool, not ratings.
+            # Unlike Amazon this route states a review count directly, so the
+            # coverage denominator is the population actually being sampled and
+            # `claimed_total_basis` is `reviews` rather than `ratings`.
+            claimed = {"reviews_total": int(total),
+                       "reviews_source_text":
+                           "bazaarvoice reviews.json TotalResults for "
+                           "ProductId:eq:%s" % product_id}
+        return Batch(
+            route="bazaarvoice", route_kind=self.route_kind,
+            # Read back off the response, never taken from the sort parameter.
+            # The date-monotonicity check in check_recency is what actually
+            # decides sort_verified; this is only the label the API echoed.
+            sort_observed="SubmissionTime:desc",
+            filters=f, reviews=rows, claimed=claimed,
+            requested=limit, marketplace=None, requested_at=at,
+            provider="bazaarvoice", plan_tier="public display key",
+            # $0 is a MEASUREMENT, not a missing field. A route whose cost is
+            # unrecorded cannot be compared against one whose cost is known,
+            # and "free" is the single most load-bearing fact about this route.
+            cost=0.0,
+            client=self.client, product_id=product_id,
+            review_id_scheme="bazaarvoice_review_id",
+            page_url=self.page_url(product_id, 0, BV_PAGE_LIMIT).split("&passkey=")[0],
+            raw_meta=meta)
+
+
+PLATFORMS = {"bazaarvoice": BazaarvoiceRoute}
+
+
+def normalise_bazaarvoice(results, product_id, locale="en_US"):
+    """Bazaarvoice rows -> the same review dicts the other routes produce.
+
+    A row that cannot be labelled honestly is dropped and COUNTED, never
+    patched: a review with no date cannot be put in a quarter and a review with
+    no text cannot be scored. Both are reported rather than defaulted, which is
+    the same rule the other two routes follow.
+
+    `ReviewText` is taken verbatim and nothing here rewrites, trims, joins or
+    summarises it (CORE-PROMPT §1.3). There is no hash to verify on this route
+    for the same reason Route B has none: the response arrives over HTTP into
+    this process and the model never touches the text.
+    """
+    rows, notes = [], Counter()
+    country = (locale.split("_")[-1] if "_" in (locale or "") else "") or ""
+    for i, r in enumerate(results):
+        if not isinstance(r, dict):
+            notes["not_a_dict"] += 1
+            continue
+        rid = r.get("Id")
+        if not rid:
+            # No id means no dedup key, and this route re-walks the same pool
+            # every cadence. A row that cannot be deduped would be re-added for
+            # ever, so it is dropped rather than given a synthetic id that
+            # would change if any field moved.
+            notes["dropped_no_review_id"] += 1
+            continue
+        st = r.get("SubmissionTime") or ""
+        date = None
+        m = re.match(r"^(\d{4})-(\d{2})-(\d{2})", str(st))
+        if m:
+            try:
+                datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+                date = m.group(0)
+            except ValueError:
+                date = None
+        if not date:
+            notes["dropped_unparseable_date"] += 1
+            continue
+        text = r.get("ReviewText") or ""
+        title = r.get("Title") or ""
+        if not str(text).strip() and not str(title).strip():
+            # 3% of Traeger's pool. Star-only entries this pipeline can never
+            # score; counted so the 97% text share is a measurement.
+            notes["dropped_star_only_no_text"] += 1
+            continue
+        try:
+            rating = float(r.get("Rating"))
+        except (TypeError, ValueError):
+            rating = None
+        src = r.get("SyndicationSource") or {}
+        badges = r.get("Badges") or {}
+        rows.append({
+            "review_id": str(rid),
+            # Amazon identifiers do not exist on this route and are left EMPTY
+            # rather than filled with the brand's product id. A product_id in
+            # an `asin` column is a fabricated identifier that would join
+            # against the Amazon route's rows and look like it worked.
+            "asin": "",
+            "parent_asin": "",
+            "client": "",            # set by the collector from the batch
+            "product_id": product_id,
+            "review_date": date,
+            "title": str(title).replace("\x00", ""),
+            "text": str(text).replace("\x00", ""),
+            "rating": "" if rating is None else rating,
+            "verified_purchase": bool(r.get("IsVerifiedPurchaser")
+                                      or badges.get("verifiedPurchaser")),
+            "helpful_vote": int(r.get("TotalPositiveFeedbackCount") or 0),
+            "review_country": country,
+            "vine_voice": False,     # an Amazon programme; not this platform's
+            # Bazaarvoice networks share reviews between retailers, so a row
+            # may not have originated on this brand's own site. Recorded, not
+            # filtered: whether to include syndicated reviews in a company's
+            # tone is an aggregation decision, and silently dropping them here
+            # would change the population without saying so.
+            "syndicated": bool(r.get("IsSyndicated")),
+            "syndication_source": str(src.get("Name") or ""),
+            "review_id_scheme": "bazaarvoice_review_id",
+            "position_on_page": i,
+        })
+        notes["kept"] += 1
+    return rows, notes
+
+
 def normalise_provider(items, product_id, provider):
     """Provider rows -> the same review dicts Route A produces.
 
@@ -1374,6 +1987,20 @@ def load_reviews(outdir, group_id, slug):
     out = OrderedDict()
     with open(path, newline="", encoding="utf-8") as f:
         for r in csv.DictReader(f):
+            # Read the pre-rename spelling back as the current one. Without
+            # this the first re-collection of an existing group rewrites every
+            # already-held review with an EMPTY route, because reviews.csv is
+            # derived and DictWriter drops an unknown key without a word.
+            for old, new in LEGACY_FIELD_NAMES.items():
+                if old in r and not r.get(new):
+                    r[new] = r.pop(old)
+            # Same hazard, second column. A file written before `family`
+            # existed holds the join key in `parent_asin` only, and rewriting
+            # it would leave `family` empty for every review already held -
+            # which is not a cosmetic gap, it is the join key going missing on
+            # exactly the rows that are already in a series.
+            if not r.get("family") and r.get("parent_asin"):
+                r["family"] = r["parent_asin"]
             out[r["review_id"]] = r
     return out
 
@@ -1402,7 +2029,7 @@ def write_reviews(outdir, group_id, slug, rows_by_id):
 
 
 def merge_batch(outdir, group_id, slug, batch, batch_id, sort_requested,
-                sort_verified):
+                sort_verified, family=None):
     """Dedupe by review identifier across collections (CORE-PROMPT §4).
 
     The same review appearing in two batches is ONE review, and the first
@@ -1435,7 +2062,17 @@ def merge_batch(outdir, group_id, slug, batch, batch_id, sort_requested,
             "verified_purchase": r["verified_purchase"],
             "helpful_vote": r["helpful_vote"],
             "batch_id": batch_id,
-            "collection_route": batch.route,
+            "route": batch.route,
+            "client": r.get("client") or (batch.client or ""),
+            "product_id": r.get("product_id") or (batch.product_id or ""),
+            # THE JOIN KEY, and it is route-independent by design: the parent
+            # asin on an Amazon route, the verified family on a brand route.
+            # Both routes pool reviews across a group of products that are
+            # sold separately, and `family` is the one column that says which
+            # group a review actually belongs to. Falling back to the row's
+            # own parent_asin keeps a re-parse of an Amazon batch correct.
+            "family": (family or r.get("parent_asin")
+                       or (batch.parent_asin or "")),
             "collected_at": batch.requested_at,
             "review_country": r["review_country"],
             "review_id_scheme": r["review_id_scheme"],
@@ -1443,6 +2080,8 @@ def merge_batch(outdir, group_id, slug, batch, batch_id, sort_requested,
             "vine_voice": r["vine_voice"],
             "sort_requested": sort_requested,
             "sort_verified": "" if sort_verified is None else sort_verified,
+            "syndicated": r.get("syndicated", ""),
+            "syndication_source": r.get("syndication_source", ""),
         }
 
         prev = existing.get(r["review_id"])
@@ -1454,7 +2093,7 @@ def merge_batch(outdir, group_id, slug, batch, batch_id, sort_requested,
         dupes += 1
         diffs = {}
         for k in ("helpful_vote", "title", "text", "rating", "verified_purchase",
-                  "review_date", "parent_asin"):
+                  "review_date", "parent_asin", "family"):
             a, b = str(prev.get(k, "")), str(row[k])
             if a != b:
                 diffs[k] = {"first_seen": a, "now": b}
@@ -1483,7 +2122,7 @@ def merge_batch(outdir, group_id, slug, batch, batch_id, sort_requested,
             "total_after": total}
 
 
-def schedule_drift(outdir, group_id, slug, asin, cadence, collected_at):
+def schedule_drift(outdir, group_id, slug, tracked, cadence, collected_at):
     """How far off the declared cadence this batch actually ran.
 
     Recorded per batch so the spacing of the series is a property of the data,
@@ -1493,7 +2132,8 @@ def schedule_drift(outdir, group_id, slug, asin, cadence, collected_at):
     base = {"cadence": cadence["cadence"], "cadence_days": cadence["cadence_days"],
             "cadence_declared_at": cadence["declared_at"]}
     prev = [b for b in read_jsonl(batches_path(outdir, group_id, slug))
-            if (b.get("asin") or "").upper() == asin.upper() and not b.get("blocked")]
+            if str(b.get("product_key") or b.get("asin") or "").upper()
+            == str(tracked).upper() and not b.get("blocked")]
     if not prev:
         base.update({"previous_batch_at": None, "days_since_previous": None,
                      "days_off_cadence": None, "first_batch": True})
@@ -1515,7 +2155,9 @@ def schedule_drift(outdir, group_id, slug, asin, cadence, collected_at):
 
 def record_batch(outdir, group_id, member, asin, batch, cadence, batch_id,
                  sort_requested, sort_verified, inversions, oldest, newest,
-                 merge_stats, stage_note, declared_parent=None):
+                 merge_stats, stage_note, declared_parent=None,
+                 pkey=None, family=None, family_verified=None,
+                 family_detail=None):
     """Write the batch's provenance. CORE-PROMPT §1.4: or it is not data.
 
     The keys CONTRACTS.md §3 names come first and are spelled exactly as it
@@ -1523,14 +2165,22 @@ def record_batch(outdir, group_id, member, asin, batch, cadence, batch_id,
     knows §3 is unaffected by it.
     """
     slug = member["company_slug"]
-    # Counted on parent_asin, which is the join key (§2). Counting on `asin`
-    # returned zero the moment a provider started reporting the VARIANT each
-    # reviewer bought, because none of those equal the declared variant - the
-    # series coverage silently read 0 of 10,000 while ten reviews sat on disk.
-    pkey = (declared_parent or asin).upper()
+    # Counted on the FAMILY, which is the join key for both routes (§2).
+    # Counting on `asin` returned zero the moment a provider started reporting
+    # the VARIANT each reviewer bought, because none of those equal the
+    # declared variant - series coverage silently read 0 of 10,000 while ten
+    # reviews sat on disk. The brand route has the identical trap one name
+    # along: counting on the declared `product_id` would read zero for every
+    # sibling in a pooled family.
+    jkey = str(family or declared_parent or asin or "").upper()
     on_product = sum(1 for r in load_reviews(outdir, group_id, slug).values()
-                     if (r.get("parent_asin") or r.get("asin") or "").upper() == pkey)
+                     if str(r.get("family") or r.get("parent_asin")
+                            or r.get("asin") or "").upper() == jkey)
     ratio_batch, claimed_total, basis = coverage(batch.returned, batch.claimed)
+    # The identifier this product is TRACKED by, used to find this product's
+    # own earlier batches. An ASIN on the Amazon routes, a platform product id
+    # on a brand route.
+    tracked = str(pkey if pkey is not None else (asin or ""))
 
     # The SERIES denominator must be the unfiltered population, not this
     # batch's. A star-filtered batch reports the count for that star only (49
@@ -1541,7 +2191,9 @@ def record_batch(outdir, group_id, member, asin, batch, cadence, batch_id,
     wmax = (claimed_total or 0) if _is_unfiltered(batch.filters) else 0
     wsrc = "this batch" if wmax else None
     for b in read_jsonl(batches_path(outdir, group_id, slug)):
-        if (b.get("asin") or "").upper() != asin.upper():
+        # `product_key` on anything this version wrote; `asin` for the batches
+        # written before brand products existed, which had no other key.
+        if str(b.get("product_key") or b.get("asin") or "").upper() != tracked.upper():
             continue
         if not _is_unfiltered(b.get("filters")):
             continue
@@ -1558,9 +2210,20 @@ def record_batch(outdir, group_id, member, asin, batch, cadence, batch_id,
         ("collected_at", batch.requested_at),
         ("route", batch.route),
         ("filters", batch.filters),
-        ("asin", asin.upper()),
+        # §3's identifiers are Amazon-shaped, so they are kept with their own
+        # spellings and left NULL on a brand route rather than filled with the
+        # nearest-looking value. A brand `product_id` written into an `asin`
+        # column is a fabricated identifier that would join against the Amazon
+        # route's rows and look like it worked.
+        ("asin", (asin or "").upper() or None),
         ("parent_asin", batch.parent_asin),
         ("marketplace", batch.marketplace),
+        # The brand-route identifiers, alongside §3's rather than instead of
+        # them, so one reader handles both routes.
+        ("product_key", tracked),
+        ("client", batch.client),
+        ("product_id", batch.product_id),
+        ("family", family),
         ("requested", batch.requested),
         ("returned", batch.returned),
 
@@ -1585,6 +2248,20 @@ def record_batch(outdir, group_id, member, asin, batch, cadence, batch_id,
         ("block_reason", batch.block_reason),
 
         # --- additive ---
+        # DEPTH AND LIVENESS ARE SEPARATE QUESTIONS, and nothing else in this
+        # record answers the second. Owala serves 14,029 reviews flawlessly
+        # with a newest review of 2022-07-28 - 1,540 days stale - so every
+        # depth, coverage and sort field above can read healthy on a deployment
+        # that has been dead for four years, and a cadence run against it would
+        # collect nothing new for ever without a single number moving.
+        ("newest_review_age_days", newest_age_days(newest)),
+        ("newest_review_date", newest),
+        ("oldest_review_date", oldest),
+        # The family and HOW IT WAS ESTABLISHED. `family_verified` is None when
+        # nothing could be compared, because §5 forbids "never checked" and
+        # "checked and clean" looking alike.
+        ("family_verified", family_verified),
+        ("family_check", family_detail),
         ("claimed_total_source_text", batch.claimed.get("reviews_source_text") or
                                       batch.claimed.get("ratings_source_text")),
         ("claimed_reviews", batch.claimed.get("reviews_total")),
@@ -1602,16 +2279,20 @@ def record_batch(outdir, group_id, member, asin, batch, cadence, batch_id,
         ("group_id", group_id),
         ("company", member.get("company")),
         ("company_slug", slug),
-        ("route_kind", "session" if batch.route == "session" else "provider"),
+        ("route_kind", batch.route_kind),
         ("provider", batch.provider),
         ("provider_plan", batch.plan_tier),
+        # COST IS $0 ON THE BRAND ROUTE AND THE FIELD STAYS. A zero is a
+        # measurement: it is the whole reason this route is preferred over a
+        # paid one for depth, and a route whose cost were simply absent could
+        # not be compared against one whose cost is known.
         ("provider_cost", batch.cost),
         ("review_id_scheme", batch.review_id_scheme),
         ("review_date_precision", batch.date_precision),
         ("requested_at", batch.requested_at),
         ("written_at", utcnow()),
         ("merge", merge_stats),
-        ("schedule", schedule_drift(outdir, group_id, slug, asin, cadence,
+        ("schedule", schedule_drift(outdir, group_id, slug, tracked, cadence,
                                     batch.requested_at)),
         ("page_url", batch.page_url),
         ("collector_version", COLLECTOR_VERSION),
@@ -1737,6 +2418,121 @@ def resolve_sort(args, batch):
     return "%s (requested; page said %r)" % (args.sort, obs), False
 
 
+# A sibling sharing a pool returns the SAME ids at the same offset; measured on
+# Traeger, identically, over 1,215 reviews. The threshold is below 1.0 only
+# because the pool is live: a review arriving between two requests shifts the
+# 100-row window by one, so a true sibling can read 99/100 rather than 100/100.
+#
+# This constant is CHOSEN, not measured, and it is recorded as such. What makes
+# it safe is not its value but the size of the gap it sits in: a shared pool
+# measures ~1.00 and a separate pool measures 0.00, so anything between is a
+# third thing nobody has seen and the refusal below names the number rather
+# than rounding it away.
+FAMILY_OVERLAP_MIN = 0.90
+
+
+def verify_family(route, collected_ids, declared_family, siblings, collected_key):
+    """Is the declared family what the platform actually pools? MEASURED.
+
+    The brand route's analogue of the parent-asin check, and it exists for the
+    same reason: a brand platform pools reviews across a product FAMILY, so a
+    row filed under one product id can hold a whole family's reviews, and dedup
+    by review id does not notice because they are genuine distinct reviews.
+
+    The method is the only honest one: COMPARE RETURNED ID SETS. Two ways that
+    are forbidden and both of which would have given the wrong answer on
+    Traeger:
+
+      - inferring the family from the product ids DIFFERING. TFB57GLE and
+        TFB78GLE are different ids, different grills and different prices, and
+        they are one family returning one identical 1,215-review id set.
+      - summing TotalReviewCount across the declared products, which
+        double-counts a pooled family and overstated Traeger's unique count by
+        30%.
+
+    Returns (verified, detail). `verified` is None when there is no sibling to
+    compare against - a singleton family is unverifiable rather than verified,
+    and the two must never look alike.
+    """
+    others = [s for s in siblings if str(s) != str(collected_key)]
+    detail = {"declared_family": declared_family,
+              "declared_members": list(siblings),
+              "compared_against": others,
+              "method": "pairwise review-id set comparison at offset 0",
+              "overlap_min": FAMILY_OVERLAP_MIN,
+              "probes": []}
+    if not others:
+        detail["basis"] = ("one declared product in this family, so there is "
+                           "no sibling to compare id sets against")
+        return None, detail
+    if not collected_ids:
+        detail["basis"] = "this batch returned no ids to compare"
+        return None, detail
+
+    for sib in others:
+        ids, pmeta = route.id_set(sib)
+        if ids is None:
+            # A sibling that cannot be read leaves the family UNVERIFIED. It is
+            # not a mismatch - nothing was compared - and reporting it as
+            # verified would be the §5 failure: "never checked" and "checked
+            # and clean" must never look alike.
+            detail["probes"].append(dict(pmeta, product_id=sib,
+                                         comparable=False))
+            continue
+        shared = len(ids & collected_ids)
+        frac = shared / float(min(len(ids), len(collected_ids)) or 1)
+        detail["probes"].append(dict(pmeta, product_id=sib, comparable=True,
+                                     sibling_ids=len(ids),
+                                     shared_ids=shared,
+                                     overlap_of_smaller=round(frac, 4)))
+        if frac < FAMILY_OVERLAP_MIN:
+            die("FAMILY MISMATCH on the brand route.\n"
+                "  group file declares family  %s\n"
+                "  containing                  %s\n"
+                "  collected                   %s  (%d ids)\n"
+                "  sibling                     %s  (%d ids)\n"
+                "  shared ids                  %d  (%.1f%% of the smaller set)\n\n"
+                "Refusing the batch. These two products do NOT serve one pooled\n"
+                "review set, so the declared family is wrong and `family` - the\n"
+                "join key - would file two populations under one label. Nothing\n"
+                "downstream could detect it: both sets are genuine reviews with\n"
+                "genuine ids, exactly as with an Amazon re-parenting.\n"
+                "Re-resolve the family in stage G by comparing id sets; do not\n"
+                "edit the group file to match this batch, because if two members\n"
+                "have converged on one pool the peer group itself no longer holds."
+                % (declared_family, ", ".join(str(s) for s in siblings),
+                   collected_key, len(collected_ids), sib, len(ids),
+                   shared, 100.0 * frac))
+
+    comparable = [p for p in detail["probes"] if p.get("comparable")]
+    if not comparable:
+        detail["basis"] = ("no sibling could be read, so the family is "
+                           "UNVERIFIED rather than confirmed")
+        return None, detail
+    detail["basis"] = ("%d sibling(s) returned the same pooled review ids"
+                       % len(comparable))
+    return True, detail
+
+
+def newest_age_days(newest, asof=None):
+    """How stale is the freshest review? Depth and LIVENESS are separate.
+
+    Owala serves 14,029 reviews flawlessly and its newest is 2022-07-28 -
+    1,540 days stale. A deployment can be deep and dead, and a cadence run
+    against a dead one would collect nothing new for ever while every depth
+    and coverage number on the batch stayed healthy. Nothing else in the batch
+    record would show it, which is why this is its own field.
+    """
+    if not newest:
+        return None
+    try:
+        d = datetime.strptime(str(newest)[:10], "%Y-%m-%d").date()
+    except ValueError:
+        return None
+    today = (asof or datetime.now(timezone.utc)).date()
+    return (today - d).days
+
+
 def check_recency(rows):
     """Is this batch actually in date order? Measured, not read off a label.
 
@@ -1766,14 +2562,40 @@ def cmd_collect(args, route, stage_note):
     root, outdir = args.root, args.outdir
     group = load_group(root, args.group)
     cadence = load_cadence(root, args.group)
-    asin = args.asin.upper()
-    member, product = group_member(group, args.company, asin)
+    # One identifier, resolved per route. `--asin` on the Amazon routes,
+    # `--product-id` on a brand route; whichever the caller gave.
+    tracked = str(getattr(args, "product_id", None)
+                  or getattr(args, "asin", None) or "")
+    member, product = group_member(group, args.company, tracked)
     if product is None:
-        product = member_product(member, asin)
+        product = member_product(member, tracked)
     if product is None:
         die("%s is not listed under %s in %s"
-            % (asin, member["company_slug"], group["_path"]))
+            % (tracked, member["company_slug"], group["_path"]))
     slug = member["company_slug"]
+    declared_route = product_route(product)
+
+    # A product declared on one route may not be collected on another. The two
+    # routes read different channels with different customers, so filing a
+    # brand-site batch under a product declared for Amazon would pool two
+    # populations in one series - and `route` is per review precisely so that
+    # cannot happen silently.
+    if declared_route != route.name and not (
+            declared_route == "amazon" and route.route_kind in ("session", "provider")):
+        die("ROUTE MISMATCH for %s in %s.\n"
+            "  the group file declares  route %s\n"
+            "  this command collects    route %s\n\n"
+            "Refusing. A brand platform serves the BRAND'S OWN SITE and Amazon\n"
+            "serves Amazon: different channels, different customers, different\n"
+            "populations. Pooling them into one series would read channel mix\n"
+            "as tone. Declare the product on the route it is collected on, in\n"
+            "stage G." % (tracked, group["_path"], declared_route, route.name))
+
+    if route.route_kind == "brand_platform":
+        return _collect_brand(args, route, stage_note, group, cadence, member,
+                              product, tracked)
+
+    asin = tracked.upper()
     marketplace = product.get("marketplace") or "amazon.com"
 
     declared_parent = (product.get("parent_asin") or "").upper() or None
@@ -1889,11 +2711,14 @@ def cmd_collect(args, route, stage_note):
     elif not SORTS[args.sort]["produces_series"]:
         warn("%s is not a recency sort. %s" % (args.sort, SORTS[args.sort]["note"]))
 
+    # On an Amazon route the family IS the parent asin - the same pooled
+    # population under the name Amazon gives it.
     stats = merge_batch(outdir, args.group, slug, batch, batch_id, args.sort,
-                        sort_verified)
+                        sort_verified, family=declared_parent)
     rec = record_batch(outdir, args.group, member, asin, batch, cadence,
                        batch_id, args.sort, sort_verified, inversions, oldest,
-                       newest, stats, stage_note, declared_parent)
+                       newest, stats, stage_note, declared_parent,
+                       pkey=asin, family=declared_parent)
     man = update_manifest(outdir, args.group, member, cadence, rec)
 
     print("\nrequested          %s" % rec["requested"])
@@ -1935,6 +2760,229 @@ def cmd_collect(args, route, stage_note):
     print("\nNo tone number is computed here and none may be inferred from this "
           "output (CORE-PROMPT §1.2). Next: score_reviews.py.")
     return 0
+
+
+def _collect_brand(args, route, stage_note, group, cadence, member, product,
+                   tracked):
+    """Route C: collect one product's pooled family from a brand platform.
+
+    Deliberately the same shape as the Amazon path above - declare, collect,
+    VERIFY the pooled population against what the platform actually served,
+    refuse on a mismatch, then merge and record. The population check is the
+    only part that differs, because the platform states its pooling by what it
+    returns rather than by naming a parent.
+    """
+    outdir = args.outdir
+    slug = member["company_slug"]
+
+    client = product.get("client")
+    if not client:
+        die("%s in %s carries no `client`.\n"
+            "A brand-platform product is identified by its deployment zone plus\n"
+            "its product id, and without the zone there is nothing to query.\n"
+            "CONTRACTS.md §1 requires `client` on a route-%s product."
+            % (tracked, group["_path"], route.name))
+
+    # The FAMILY is required for exactly the reason `parent_asin` is required
+    # on Amazon: without it a batch cannot say which population its reviews are
+    # of, and dedup by review id will not catch the mislabelling because those
+    # are genuine reviews of a wider product.
+    family = product.get("family")
+    if not family:
+        die("%s in %s carries no `family`.\n"
+            "A brand platform pools reviews across a product FAMILY exactly as\n"
+            "Amazon pools across variants: TFB57GLE and TFB78GLE are different\n"
+            "grills at different prices and return IDENTICAL 1,215-review id\n"
+            "sets. Without `family` this batch would be filed under one product\n"
+            "id while holding a whole family's reviews, and nothing downstream\n"
+            "could detect it.\n"
+            "§1 requires `family` per brand-route product, and §2 makes it the\n"
+            "join key. Resolve it in stage G by comparing returned id sets."
+            % (tracked, group["_path"]))
+
+    siblings = product.get("family_product_ids") or [tracked]
+    if tracked not in [str(s) for s in siblings]:
+        die("%s is not listed in its own family_product_ids %s in %s.\n"
+            "The declared family must contain the product being collected, or\n"
+            "the id-set comparison below is checking a different family than\n"
+            "the one this batch is filed under."
+            % (tracked, siblings, group["_path"]))
+
+    route.client = client
+    route.site = product.get("site") or route.site
+    route.locale = product.get("locale") or route.locale
+    # Raw responses are kept per batch, keyed on the collection time, so a
+    # re-parse reads the batch that was actually written rather than a newer
+    # walk that resembles it. The pool is live; a re-fetch is a different
+    # batch.
+    stamp = (args.from_cache or utcnow().replace(":", "").replace("-", ""))
+    route.cache_dir = os.path.join(company_dir(outdir, args.group, slug),
+                                   "_raw", "%s-%s" % (route.name, stamp))
+
+    print("group / company    %s / %s" % (args.group, slug))
+    print("route              %s (%s)" % (route.name, route.route_kind))
+    print("deployment         %s / %s / %s" % (client, route.site, route.locale))
+    print("product            %s  (%s)" % (tracked, product.get("name") or ""))
+    print("family declared    %s  containing %s"
+          % (family, ", ".join(str(s) for s in siblings)))
+
+    batch = route.collect(tracked, args.sort, args.limit,
+                          {"star": args.star,
+                           "from_cache": bool(args.from_cache)})
+    batch_id = "b-" + hashlib.sha1(
+        ("%s|%s|%s|%s" % (slug, tracked, batch.requested_at,
+                          batch.route)).encode()).hexdigest()[:10]
+    print("requested at       %s" % batch.requested_at)
+
+    if batch.blocked:
+        # §9 / §5: a block is a finding, written with the same provenance as a
+        # successful batch. `bazaarvoice_no_published_passkey` is the common one
+        # and it means the brand runs no readable deployment - which is
+        # evidence about the instrument, not an obstacle to get past.
+        rec = record_batch(outdir, args.group, member, None, batch, cadence,
+                           batch_id, args.sort, None, 0, None, None,
+                           {"new": 0, "duplicates": 0, "changed": 0,
+                            "total_after": len(load_reviews(outdir, args.group, slug))},
+                           stage_note, None, pkey=tracked, family=family)
+        update_manifest(outdir, args.group, member, cadence, rec)
+        print("\n!! BLOCKED: %s" % batch.block_reason)
+        print("!! Recorded as batch %s and STOPPING." % batch_id)
+        print("!! CORE-PROMPT §9: a block is recorded, never routed around.")
+        print("!! In particular apps.bazaarvoice.com/bfd/v1/... returns 401 and")
+        print("!! is left alone: it would answer a forged Referer or Origin, and")
+        print("!! forging one to get past a refusal is the thing §5 forbids.")
+        print("\nbatch log          %s" % batches_path(outdir, args.group, slug))
+        return 2
+
+    print("passkey            %s" % (batch.raw_meta.get("passkey_prefix") or "-"))
+    print("pages walked       %d (%d raw result(s))"
+          % (batch.raw_meta.get("pages_walked") or 0,
+             batch.raw_meta.get("raw_results") or 0))
+    print("raw cache          %s" % route.cache_dir)
+
+    # THE FAMILY JOIN, measured rather than asserted.
+    collected_ids = {r["review_id"] for r in batch.reviews}
+    family_verified, family_detail = verify_family(
+        route, collected_ids, family, [str(s) for s in siblings], tracked)
+    if family_verified is True:
+        print("family             %s CONFIRMED - %s"
+              % (family, family_detail["basis"]))
+        print("                   -> these are the FAMILY's reviews, pooled "
+              "across its products;")
+        print("                      this is family tone, not %s's alone" % tracked)
+    else:
+        warn("the declared family %s could NOT be verified (%s). The batch is "
+             "recorded with family_verified = null; treat the population as "
+             "unconfirmed. §5: never-checked and checked-and-clean must not "
+             "look alike." % (family, family_detail["basis"]))
+
+    resolve_sort(args, batch)
+    monotonic, inversions, oldest, newest = check_recency(batch.reviews)
+    sort_verified = None
+    if args.sort == "recent" and batch.reviews:
+        # DERIVED FROM THE COLLECTED DATES, never from `Sort=SubmissionTime:desc`.
+        # The API echoing a sort parameter is a claim about the API; the dates
+        # are the only evidence that cannot be mislabelled, and this is the same
+        # rule the Amazon route already follows.
+        sort_verified = monotonic
+        print("date order         %s (%d inversion%s over %d dated review(s), %s .. %s)"
+              % ("descending" if monotonic else "NOT descending", inversions,
+                 "" if inversions == 1 else "s", len(batch.reviews), oldest, newest))
+        if not monotonic:
+            warn("RECENCY WAS REQUESTED AND NOT DELIVERED. The dates returned "
+                 "are not in descending order, so this batch is a RANKED "
+                 "sample, not a recency sample (CORE-PROMPT §4). Recorded with "
+                 "sort_verified=false and sort_produces_series=false.")
+            if args.require_recency:
+                die("--require-recency was given and recency was not delivered "
+                    "on the brand route. Refusing to write a batch that would "
+                    "enter a series under a sort order it does not have.")
+    elif not SORTS[args.sort]["produces_series"]:
+        warn("%s is not a recency sort. %s" % (args.sort, SORTS[args.sort]["note"]))
+
+    stats = merge_batch(outdir, args.group, slug, batch, batch_id, args.sort,
+                        sort_verified, family=family)
+    rec = record_batch(outdir, args.group, member, None, batch, cadence,
+                       batch_id, args.sort, sort_verified, inversions, oldest,
+                       newest, stats, stage_note, None, pkey=tracked,
+                       family=family, family_verified=family_verified,
+                       family_detail=family_detail)
+    man = update_manifest(outdir, args.group, member, cadence, rec)
+
+    print("\nrequested          %s" % rec["requested"])
+    print("returned           %s" % rec["returned"])
+    notes = batch.raw_meta.get("normalise_notes") or {}
+    if notes.get("dropped_star_only_no_text"):
+        print("star-only dropped  %d (no text; this pipeline cannot score them)"
+              % notes["dropped_star_only_no_text"])
+    for k in ("dropped_no_review_id", "dropped_unparseable_date"):
+        if notes.get(k):
+            print("%-18s %d" % (k.replace("dropped_", "dropped "), notes[k]))
+    print("claimed_total      %s  (basis: %s, from %r)"
+          % (rec["claimed_total"], rec["claimed_total_basis"],
+             rec["claimed_total_source_text"]))
+    if rec["coverage_ratio"] is None:
+        warn("NO COVERAGE RATIO: the response stated no total, so collected-"
+             "over-claimed cannot be computed. §4 requires that ratio beside "
+             "every tone number, so this batch is on record as unable to "
+             "supply it.")
+    else:
+        print("coverage_ratio     %.6f  (%.4f%% of %d, %s basis)"
+              % (rec["coverage_ratio"], 100.0 * rec["coverage_ratio"],
+                 rec["claimed_total"], rec["claimed_total_basis"]))
+
+    # LIVENESS, reported separately from depth because they are separate
+    # questions and a deep dead deployment passes every other check here.
+    age = rec["newest_review_age_days"]
+    if age is None:
+        warn("the newest review has no readable date, so this deployment's "
+             "LIVENESS is unknown. Depth and liveness are separate: a "
+             "deployment can be deep and dead.")
+    else:
+        print("newest review      %s (%d day%s old)"
+              % (rec["newest_review_date"], age, "" if age == 1 else "s"))
+        if age > BRAND_STALE_DAYS:
+            warn("THIS DEPLOYMENT LOOKS DEAD. Its newest review is %d days old, "
+                 "past the %d-day mark. Depth is not liveness: Owala serves "
+                 "14,029 reviews flawlessly and its newest is 2022-07-28, 1,540 "
+                 "days stale. A cadence run against a dead deployment collects "
+                 "nothing new for ever and every other number here stays "
+                 "healthy while it does." % (age, BRAND_STALE_DAYS))
+
+    syn = sum(1 for r in batch.reviews if r.get("syndicated"))
+    if syn:
+        print("syndicated         %d of %d (recorded per review, not filtered; "
+              "whether to include them is an aggregation decision)"
+              % (syn, len(batch.reviews)))
+    print("provider cost      $%.2f  (a zero is a measurement, not a missing "
+          "field)" % (rec["provider_cost"] or 0.0))
+    print("\nnew                %d" % rec["merge"]["new"])
+    print("already held       %d  (deduped by review identifier)"
+          % rec["merge"]["duplicates"])
+    if rec["merge"]["changed"]:
+        print("re-observed        %d with a changed field (logged, first kept)"
+              % rec["merge"]["changed"])
+    print("reviews.csv        %d rows" % rec["merge"]["total_after"])
+    print("\nbatch              %s -> %s"
+          % (batch_id, batches_path(outdir, args.group, slug)))
+    print("reviews            %s" % reviews_path(outdir, args.group, slug))
+    print("manifest           %s" % man)
+    print("\nNo tone number is computed here and none may be inferred from this "
+          "output (CORE-PROMPT §1.2). Next: score_reviews.py.")
+    return 0
+
+
+def cmd_brand(args):
+    cls = PLATFORMS.get(args.platform)
+    if cls is None:
+        die("unknown brand platform %r; one of %s"
+            % (args.platform, "/".join(sorted(PLATFORMS))))
+    route = cls(client=args.client or "", site=args.site, locale=args.locale,
+                passkey=args.passkey, max_pages=args.max_pages)
+    return cmd_collect(args, route,
+                       "Route C: %s, the brand's own review platform, read "
+                       "through the display key its CDN publishes to every "
+                       "visitor. No account, no cap, $0." % args.platform)
 
 
 def cmd_capture(args):
@@ -1990,17 +3038,33 @@ def cmd_status(args):
         if not batches:
             print("  no batches yet")
         for pr in m.get("products") or []:
-            asin = (pr.get("asin") or "").upper()
-            mine = [b for b in batches if (b.get("asin") or "").upper() == asin]
+            key = product_key(pr)
+            prroute = product_route(pr)
+            mine = [b for b in batches
+                    if str(b.get("product_key") or b.get("asin") or "").upper()
+                    == key.upper()]
             ok = [b for b in mine if not b.get("blocked")]
             blocked = [b for b in mine if b.get("blocked")]
+            # Counted on the FAMILY, the join key for both routes. Counting on
+            # the tracked id reads zero for every sibling in a pooled family.
+            jk = str(pr.get("family") or pr.get("parent_asin") or key).upper()
             n = sum(1 for r in rows.values()
-                    if (r.get("asin") or "").upper() == asin)
-            print("  %-12s %-30s %d batch%s (%d blocked), %d review(s)"
-                  % (asin, (pr.get("name") or "")[:30], len(ok),
-                     "" if len(ok) == 1 else "es", len(blocked), n))
+                    if str(r.get("family") or r.get("parent_asin")
+                           or r.get("asin") or "").upper() == jk)
+            print("  %-12s %-30s %d batch%s (%d blocked), %d review(s) [%s]"
+                  % (key, (pr.get("name") or "")[:30], len(ok),
+                     "" if len(ok) == 1 else "es", len(blocked), n, prroute))
             if ok:
                 last = ok[-1]
+                fv = last.get("family_verified")
+                print("    family           %s · verified: %s"
+                      % (jk, "yes" if fv is True
+                         else ("NO" if fv is False else "unverified")))
+                age = last.get("newest_review_age_days")
+                if age is not None:
+                    print("    newest review    %s (%d days old)%s"
+                          % (last.get("newest_review_date"), age,
+                             "  <- LOOKS DEAD" if age > BRAND_STALE_DAYS else ""))
                 cov = last.get("coverage_ratio_series")
                 print("    coverage         %s  of %s (%s basis)"
                       % ("%.6f" % cov if cov is not None else "UNAVAILABLE",
@@ -2013,7 +3077,8 @@ def cmd_status(args):
                       % (", ".join(sorted({str(b.get("sort_requested")) for b in ok})),
                          ", ".join(sorted(str(v) for v in ver))))
                 dates = sorted(r["review_date"] for r in rows.values()
-                               if (r.get("asin") or "").upper() == asin)
+                               if str(r.get("family") or r.get("parent_asin")
+                                      or r.get("asin") or "").upper() == jk)
                 if dates:
                     print("    review dates     %s .. %s" % (dates[0], dates[-1]))
             if blocked:
@@ -2184,7 +3249,15 @@ def cmd_selftest(args):
                   if (r.get("parent_asin") or "").upper() == "B000PARENT")
               == len(rows))
         check("batch_id joins a review to its batch record", "batch_id" in cols)
-        check("route is per review, not per file", "collection_route" in cols)
+        check("route is per review, not per file", "route" in cols)
+        check("the family is a column, and it is the join key",
+              "family" in cols)
+        check("on an Amazon route the family IS the parent asin",
+              all(r.get("family") == r.get("parent_asin") for r in rows.values()))
+        check("the brand-route identifiers exist and are EMPTY on an Amazon row",
+              "client" in cols and "product_id" in cols
+              and all(not r.get("client") and not r.get("product_id")
+                      for r in rows.values()))
         check("deterministic order (review_date, review_id)",
               [r["review_id"] for r in csv.DictReader(
                   open(reviews_path(outdir, "testgroup", "test-co"), encoding="utf-8"))]
@@ -2545,18 +3618,29 @@ def main():
                     "Every batch records which, and its coverage ratio.")
     sub = p.add_subparsers(dest="cmd")
 
-    def common(sp, collecting=True):
+    def common(sp, collecting=True, ident="asin"):
         # CONTRACTS.md §4: every stage is invoked as
         # `script --group <group_id> [--company <slug>]`, and no stage reads a
         # path it was not given.
         sp.add_argument("--group", required=True, metavar="GROUP_ID")
         sp.add_argument("--company", metavar="SLUG",
-                        help="disambiguates when two members track one ASIN")
+                        help="disambiguates when two members track one product")
         sp.add_argument("--root", default=".",
                         help="project root holding groups/ and the cadence plan")
         sp.add_argument("--outdir", default="data")
         if collecting:
-            sp.add_argument("--asin", required=True, metavar="ASIN")
+            # One identifier per route, named for what it actually is. A brand
+            # platform has no ASINs, and calling its product id `--asin` would
+            # put a non-Amazon identifier in an Amazon-shaped field - the same
+            # fabrication the `asin` column refuses at write time.
+            if ident == "asin":
+                sp.add_argument("--asin", required=True, metavar="ASIN")
+            else:
+                sp.add_argument("--product-id", required=True, dest="product_id",
+                                metavar="PRODUCT_ID",
+                                help="the brand platform's own product id, e.g. "
+                                     "TFB57GLE. ONE representative per review "
+                                     "family")
             sp.add_argument("--sort", choices=sorted(SORTS), default="recent",
                             help="recent is the only sort that can yield a series")
             sp.add_argument("--star", default="all_stars",
@@ -2605,6 +3689,27 @@ def main():
                     help="the actor's per-review price, recorded with the batch "
                          "so the budget can be reasoned about")
 
+    sp = sub.add_parser("brand", help="Route C: the brand's own review platform")
+    common(sp, ident="product_id")
+    sp.add_argument("--platform", default="bazaarvoice", choices=sorted(PLATFORMS))
+    sp.add_argument("--client", help="deployment zone; defaults to the group "
+                                     "file's `client` for this product")
+    sp.add_argument("--site", default="main_site")
+    sp.add_argument("--locale", default="en_US")
+    sp.add_argument("--passkey",
+                    help="skip key discovery and use this display key. For "
+                         "re-measuring a zone whose key is already known; the "
+                         "route reads it from the brand's own CDN otherwise")
+    sp.add_argument("--max-pages", type=int, default=BV_MAX_PAGES,
+                    dest="max_pages",
+                    help="Offset pages of %d. Offset is NOT capped by the API; "
+                         "this bounds our own loop" % BV_PAGE_LIMIT)
+    sp.add_argument("--from-cache", dest="from_cache", metavar="STAMP",
+                    help="re-parse the raw responses a previous walk stored "
+                         "under _raw/<platform>-<STAMP>/ instead of fetching. "
+                         "Costs nothing and, because the pool is live, is the "
+                         "only way to re-parse the batch actually written")
+
     sp = sub.add_parser("status", help="coverage and batch history per product")
     common(sp, collecting=False)
 
@@ -2615,7 +3720,7 @@ def main():
         p.print_help()
         return 2
     return {"plan": cmd_plan, "extractor": cmd_extractor, "capture": cmd_capture,
-            "fetch": cmd_fetch, "status": cmd_status,
+            "fetch": cmd_fetch, "brand": cmd_brand, "status": cmd_status,
             "self-test": cmd_selftest}[args.cmd](args)
 
 
