@@ -1,5 +1,111 @@
 # Changelog
 
+## 2026-10-17 — the collector learns a third route, and depth stops being the wall
+
+`collect_reviews.py` knew only Amazon: `SessionRoute`, `ApifyRoute`, `OxylabsRoute`,
+`RainforestRoute`. A group declaring a brand-platform product could not be collected at
+all, so stage C was unreachable for every company whose review depth lives on its own
+site rather than on Amazon's.
+
+### `BazaarvoiceRoute` — Route C
+
+A brand pays Bazaarvoice to host and **render** its reviews, and the renderer is
+JavaScript in every visitor's browser. That JavaScript needs a display key, so the
+brand's own CDN publishes one in the clear to everybody. The route reads the same key
+from the same public file and calls the same documented endpoint the widget calls. No
+account, no key of ours, no credential, no cookie, nothing logged into, no bot challenge
+to evade — and no cap: `Limit` tops out at 100 but **`Offset` paginates to exhaustion**.
+
+Measured on Traeger (NYSE:COOK), `traegerservice` / `TFB57GLE`, 2026-10-17:
+
+| | Route A | Route B (best) | **Route C** |
+|---|---|---|---|
+| returned | 8 | 100 | **1,183** |
+| span | — | 20 days | **7.6 years** |
+| coverage | 0.09% | 1.0% | **97.4%** |
+| newest review | 47 days | 2 days | **6 days** |
+| cost | — | $0.63 | **$0.00** |
+
+**This is the first route on the project that reaches the requested window.** Everything
+in `references/live-collection.md` establishes that Amazon caps pagination per filter
+combination, so ~100 is the ceiling per pass however much is spent, and that reaching
+2024 needs a product too slow to fill its own quarters. That conflict is Amazon's. It
+does not exist here.
+
+### `family` is now the join key, for every route
+
+Bazaarvoice pools across a product **family** exactly as Amazon pools across variants.
+`TFB57GLE` (Pro 575) and `TFB78GLE` (Pro 780) are different grills at different prices
+and return **identical 1,215-review id sets**; nine products resolved to seven families.
+So a row keyed on the declared `product_id` claims a narrower population than it holds,
+and **dedup by review id does not catch it** — the same failure as `parent_asin`, one
+vocabulary along.
+
+`family` holds the parent ASIN on an Amazon route and the verified family label on a
+brand route, so downstream has one column to pool on and neither route is special. It is
+established by **comparing returned id sets** — never inferred from the product ids
+differing, and never summed off `TotalReviewCount`, which double-counts a pooled family
+and overstated Traeger's uniques by 30%. A singleton family reads **unverified**, never
+verified.
+
+The first row of the committed Traeger file reads *"I was able to purchase the 780 pro"*
+and is filed under the declared 575. The pooling is visible in the data itself.
+
+### What the live run caught that fixtures could not
+
+**`verified_purchase` was going to read 0% for a 61%-verified pool.** Traeger carries no
+`IsVerifiedPurchaser` on any of its 1,215 rows; the information is in
+`Badges.verifiedPurchaser`, present on 744 with a badge *object* as its value. This is
+the Apify `Verified`/`VerifiedPurchase` trap one platform along and it is the dangerous
+shape — **0% verified is entirely believable**, and it would have reached the
+verified-share check as evidence about Traeger's customers rather than about the parser.
+Caught by diffing the parsed CSV against the cached raw responses, which is the second
+time caching has paid for itself on this project and the first on this route.
+
+The same badges turned up **`incentivizedReview` on 14.7% of the pool** — now a recorded
+column, because tone is exactly what an incentive moves.
+
+### Also
+
+- **gzip accepted on key discovery.** Five brands were written off as running no
+  deployment in the survey because a gzip body decoded as text is a blob in which every
+  regex silently finds nothing — and one of them, Red Bull, was among the best samples
+  available. A regex finding nothing is evidence only once the body is known to be text.
+- **`newest_review_age_days` per batch.** Depth and liveness are separate questions and
+  nothing else in the record answered the second. Owala serves 14,029 reviews flawlessly
+  with a newest review of 2022-07-28 — 1,540 days stale, and every other field on such a
+  batch reads healthy.
+- **`apps.bazaarvoice.com/bfd/v1/...` returns 401 and is left alone.** It would answer a
+  forged `Referer` or `Origin`; forging one is what §5 forbids. A self-test asserts
+  neither string appears anywhere in the collector.
+- **`sort_verified` stays derived from the collected dates**, never from
+  `Sort=SubmissionTime:desc`. On Traeger the parameter happened to be honest — 0
+  inversions over 1,183 reviews — which is a finding, not an assumption.
+- **`provider_cost: 0.0`**, because a zero is a measurement and is the whole reason to
+  prefer this route for depth.
+- `route` replaces `collection_route` in `reviews.csv`, with the old spelling read back
+  so the nine files on disk are not blanked by the rename — `reviews.csv` is derived and
+  rewritten, and `DictWriter(extrasaction="ignore")` drops an unknown key without a word.
+
+### §5
+
+Nine new refusal sites, all with a case that trips them; 36 of 36 covered, `MIN_SITES`
+raised 20 → 30, self-test 105 → 163 checks. Two were the §5 shape — the FAMILY MISMATCH
+refusal, which no real family can reach because every real family *does* share a pool,
+and `--require-recency` on the brand route, which needs an ascending brand batch the
+descending fixture cannot produce. Verified by deleting the FAMILY MISMATCH test with its
+guard left in place: the audit drops to 35 of 36 and names the site.
+
+### Left unsettled
+
+- `aggregate.py` keys its within/mix decomposition on `parent_asin`, which is
+  deliberately empty on brand rows, so they would pool into one `""` bucket. The one-line
+  fix reads `row.get("family") or row.get("parent_asin", "")` and is correct for both
+  routes. It belongs to stage A and is **not** made here.
+- The raw cache is 4.6× `reviews.csv`. Committed on the reasoning `.gitignore` already
+  gives for reviews, but a weekly cadence across a real group needs a retention policy
+  and there is none.
+
 ## 2026-10-13 — every guard now has a test that trips it
 
 `CONTRACTS.md` §5 gained the rule *a check that always passes is indistinguishable from

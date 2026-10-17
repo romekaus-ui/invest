@@ -288,6 +288,91 @@ never mix them — the same review would look edited.
 company's fiscal calendar; aggregation assigns periods, and doing it here would bake one
 company's calendar into another's data.
 
+### 2b. The brand-platform route, and `family` as the one join key
+
+Added 2026-10-17 with `BazaarvoiceRoute`. The columns above are Amazon-shaped, and
+rather than let a second route diverge quietly, four are **appended** — a reader slicing
+on the original twelve is unaffected:
+
+| column | type | notes |
+|---|---|---|
+| `route` | str | `session` \| `apify` \| … \| `bazaarvoice`. **Per review, not per file** — `reviews.csv` is merged across batches, so a per-file route stamp becomes a lie the moment two routes meet on one product |
+| `client` | str | the platform's deployment zone (`traegerservice`). Empty on an Amazon route |
+| `product_id` | str | the platform's own product id (`TFB57GLE`). Empty on an Amazon route, where `asin` carries it |
+| `family` | str | **THE JOIN KEY, for every route.** See below |
+
+`route` was spelled `collection_route` before this and nine files on disk carry that
+name. The collector reads the old spelling back as the new one, because `reviews.csv` is
+**derived and rewritten** on every collection: without that mapping the first
+re-collection of an existing group would write an empty `route` for every review already
+held — silently, since `DictWriter(extrasaction="ignore")` drops an unknown key without a
+word. A rename that blanks a provenance column is worse than the untidiness it fixes.
+`family` has the same hazard and is back-filled from `parent_asin` the same way.
+
+**`family` exists because both platforms pool reviews the same way under different
+names.** Amazon serves at the parent ASIN, pooled across every variant. Bazaarvoice
+serves at a product **family**, pooled across every model in it. So a brand row keyed on
+the declared `product_id` claims a narrower population than it holds, and — exactly as on
+Amazon — **dedup by `review_id` does not catch it**, because those are genuine distinct
+reviews of a wider product. The failure is identical in shape; only the vocabulary
+differs.
+
+`family` therefore holds the **parent ASIN** on an Amazon route and the **verified family
+label** on a brand route, so anything downstream has one column to pool on and neither
+route is special.
+
+**How the family is determined, and the two ways that are forbidden:**
+
+- by **comparing returned review-id sets** between the declared siblings. Two products
+  serving the same ids are one family. This is the only method that reads what the
+  platform actually did.
+- **never** inferred from the product ids differing. `TFB57GLE` and `TFB78GLE` are
+  different ids, different grills and different prices, and they are one family returning
+  one identical 1,215-review id set.
+- **never** by summing `TotalReviewCount` across a catalog, which double-counts a pooled
+  family and overstated Traeger's unique count by 30%.
+
+The group file declares the family and the collector **verifies it**, refusing the batch
+on a mismatch — the same discipline as the parent-ASIN check, and for the same reason: a
+declaration that was right when written can stop being right with no id anywhere
+changing. A `family` of one declared product is reported **unverified**, never verified:
+there is no sibling to compare against, and §5 forbids never-checked and
+checked-and-clean looking alike. So a brand product declares:
+
+```jsonc
+{"route": "bazaarvoice",
+ "client": "traegerservice",          // the deployment zone
+ "site": "main_site",                 // optional, defaults to main_site
+ "product_id": "TFB57GLE",            // ONE representative per family
+ "family": "pro-575-780",             // REQUIRED - the join key
+ "family_product_ids": ["TFB57GLE", "TFB78GLE"],  // verified by id-set comparison
+ "name": "Pro 575"}
+```
+
+Three more columns the brand route populates, all recorded rather than filtered because
+each changes the population and **whether to include them is an aggregation decision**:
+
+- `syndicated` / `syndication_source` — Bazaarvoice networks share reviews between
+  retailers, so a row may not have originated on this brand's site. Zero of Traeger's
+  1,215.
+- `incentivized` — **179 of Traeger's 1,215 (14.7%)** carry an `incentivizedReview`
+  badge. A brand that solicited a review with an incentive sampled a different
+  population, and tone is precisely what an incentive moves.
+
+**A brand route and an Amazon route are two instruments, not two sources.** They read
+different sales channels with different customers. `route` is per review so that a
+reading which pooled them is visible rather than silent; pooling them without saying so
+would read channel mix as tone, which is the Monster/Celsius failure in §1 wearing
+different clothes.
+
+> **Unsettled, and flagged rather than worked around:** `aggregate.py` keys its
+> within/mix decomposition on `row.get("parent_asin", "")`, so brand-route rows — whose
+> `parent_asin` is deliberately empty — would all pool into one `""` bucket and collapse
+> the family distinction that §7's decomposition depends on. The one-line fix is to read
+> `row.get("family") or row.get("parent_asin", "")`, which is correct for both routes
+> because `family` holds the parent ASIN on an Amazon route. That change belongs to
+> whoever owns stage A; it is **not** made here.
+
 ## 3. Every collection batch
 
 `data/<group_id>/<company_slug>/batches.jsonl` — append-only, one line per batch.
@@ -353,6 +438,95 @@ The second is what this rule actually protects against.
 `coverage_ratio` travels with every tone number downstream (CORE-PROMPT §4). A tone mean
 over 0.6% of a product's reviews is not that product's tone and must never be rendered
 as if it were.
+
+### 3b. What a brand-platform batch adds
+
+Added 2026-10-17. Every field above keeps its spelling and its meaning. §3's identifiers
+are Amazon-shaped, so on a brand route they are **null** rather than filled with the
+nearest-looking value — a brand `product_id` written into an `asin` column is a
+fabricated identifier that would join against the Amazon route's rows and look like it
+worked.
+
+```jsonc
+{
+  "route": "bazaarvoice",
+  "asin": null, "parent_asin": null, "marketplace": null,   // not this route's
+
+  "product_key": "TFB57GLE",      // what this product is TRACKED by, either route
+  "client": "traegerservice",
+  "product_id": "TFB57GLE",
+  "family": "pro-575-780",        // the join key
+  "family_verified": true,        // true | false | null (nothing to compare)
+  "family_check": {               // and the EVIDENCE for it
+    "method": "pairwise review-id set comparison at offset 0",
+    "compared_against": ["TFB78GLE"],
+    "probes": [{"product_id": "TFB78GLE", "sibling_ids": 100,
+                "shared_ids": 100, "overlap_of_smaller": 1.0}]},
+
+  "requested": null,              // null means "everything there was"
+  "returned": 1183,
+  "claimed_total": 1215,
+  "claimed_total_basis": "reviews",   // this route states a REVIEW count
+  "coverage_ratio": 0.973663,
+
+  "sort_requested": "recent",
+  "sort_verified": true,          // DERIVED FROM THE DATES, as everywhere else
+  "newest_review_date": "2026-10-11",
+  "newest_review_age_days": 6,    // LIVENESS, and it is not depth
+
+  "route_kind": "brand_platform", // session | provider | brand_platform
+  "provider": "bazaarvoice",
+  "provider_cost": 0.0,           // a zero is a MEASUREMENT
+
+  "blocked": false, "block_reason": null
+}
+```
+
+**`claimed_total_basis` is `reviews` here, and that is a real difference from Amazon.**
+Bazaarvoice's `TotalResults` counts reviews in the family's pool, not ratings, so the
+coverage denominator is the population actually being sampled. Amazon usually states only
+a ratings count. The field exists so the two are never compared as though they meant the
+same thing.
+
+**`sort_verified` is still derived from the collected dates, never from the sort
+parameter.** The endpoint echoing `Sort=SubmissionTime:desc` is a claim about the
+endpoint; providers advertise sorts that do not arrive, and the dates are the only
+evidence that cannot be mislabelled. Measured on Traeger: 0 inversions over 1,183 dated
+reviews, so here the parameter happened to be honest — which is a finding, not an
+assumption.
+
+**`newest_review_age_days` is its own field because depth and liveness are separate
+questions and nothing else in the record answers the second.** Owala serves **14,029
+reviews flawlessly and its newest is 2022-07-28** — 1,540 days stale. Every depth,
+coverage and sort field on such a batch reads healthy, and a cadence pointed at it would
+collect nothing new for ever without a single number moving. Past 180 days the collector
+warns and never refuses: a stale deployment's old reviews are still real reviews, and
+dropping them would be worse than labelling them.
+
+**`provider_cost` is `0.0`, and the field stays.** A zero is the single most load-bearing
+fact about this route — it is why it is preferred over a paid one for depth — and a route
+whose cost were simply absent could not be compared against one whose cost is known.
+
+**Raw responses are cached per batch and re-parsed with `--from-cache`, free.** The Apify
+route established the rule (a run that parsed to zero rows; a run that recorded 0%
+verified purchases when the truth was 100%) and this route adds a reason of its own: the
+pool is **live**, so a re-fetch is not a re-read, it is a different batch wearing this
+one's id. The cache is the only thing that can ever be re-parsed into the batch that was
+actually written. It paid for itself on the first live run here, catching a verified
+share that would have read 0% for a 61%-verified pool.
+
+> **Unsettled:** the raw cache is 4.6× `reviews.csv` (2.7 MB against 588 KB for one
+> product), and it is committed on the same reasoning `.gitignore` already gives for
+> `reviews.csv` — live collection is the only copy there will ever be. A weekly cadence
+> across a real group needs a retention policy, and there is none. Recorded here rather
+> than solved, because the right answer depends on how many products a declared group
+> ends up tracking.
+
+**A block is recorded and left alone.** `apps.bazaarvoice.com/bfd/v1/...` returns 401; it
+would answer a forged `Referer` or `Origin`, and forging one to get past a refusal is
+exactly what §5 forbids. The collector sends neither header on any route, and a self-test
+asserts the strings appear nowhere in the file. The scout route it does use is not a way
+past that refusal — it is a separate, unauthenticated endpoint that does not refuse.
 
 ## 4. Workflow stages
 

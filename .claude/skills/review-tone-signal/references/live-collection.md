@@ -5,7 +5,7 @@ group tracks. It replaces the archived corpus extractor: the 2023 corpus is a fr
 snapshot ending 2023-09, and a frozen snapshot cannot produce a series that starts today
 (CORE-PROMPT §0).
 
-One interface, two routes, and **every batch records which produced it** (§1.4).
+One interface, **three** routes, and **every batch records which produced it** (§1.4).
 
 ```bash
 S=.claude/skills/review-tone-signal/scripts/collect_reviews.py
@@ -14,6 +14,7 @@ python3 $S plan   --group <group_id> --cadence weekly --reason '...'
 python3 $S extractor                                  # the Route A browser script
 python3 $S capture --group <group_id> --asin <ASIN> --capture <payload.json>
 python3 $S fetch   --group <group_id> --asin <ASIN> --provider apify
+python3 $S brand  --group <group_id> --product-id <ID>   # Route C, the brand's platform
 python3 $S status  --group <group_id>
 python3 $S self-test
 ```
@@ -546,6 +547,168 @@ the process, so the model never touches the text and there is nothing to hash-ve
 
 ---
 
+## Route C — the brand's own review platform
+
+Added 2026-10-17. **This is the route that solves depth**, and it solves it by not being
+on Amazon at all.
+
+Everything above establishes that Amazon caps pagination at ~10 pages of ~10 **per filter
+combination**, so ~100 reviews is the ceiling per pass however much is spent, and reaching
+2024 needs a product averaging ≤0.10 reviews/day — which is by construction too slow to
+fill its own quarters. That conflict is Amazon's, not a provider's. A brand that pays a
+vendor to host its reviews has no such cap.
+
+### What the route is, precisely
+
+A brand pays Bazaarvoice to host and **render** its reviews, and the renderer is
+JavaScript running in every visitor's browser. That JavaScript needs a display key, so
+the brand's own CDN publishes one, in the clear, to everybody. This route reads the same
+key from the same public file and calls the same documented display endpoint the widget
+calls.
+
+```
+GET apps.bazaarvoice.com/deployments/<client>/main_site/production/en_US/bv.js
+  -> legacyScoutUrl: display.ugc.bazaarvoice.com/static/<Client>/main_site/en_US/bvapi.js
+  -> that file publishes passkey:"ca..."
+GET api.bazaarvoice.com/data/reviews.json?apiversion=5.4&passkey=<key>
+    &Filter=ProductId:eq:<id>&Limit=100&Offset=<n>&Sort=SubmissionTime:desc
+```
+
+`Limit` caps at 100. **`Offset` does not cap** — it paginates to exhaustion.
+
+**No account is created. No key of ours is used. No credential, no cookie, nothing logged
+into. There is no bot challenge on this surface, so nothing is solved or evaded** (§9).
+
+**Ignore `b8d57893b7754e2d390348dc172b7c76`.** It is Bazaarvoice's own key and appears in
+every scout file; a route that accepted it would query the wrong deployment with full
+confidence.
+
+### Two things that will cost you if you skip them
+
+**Accept gzip.** Bazaarvoice gzips some deployment zones regardless of what
+`Accept-Encoding` asked for, and a gzip body decoded as text is a binary blob in which
+every regex above silently finds nothing. That produced **five false negatives** in the
+2026-10-15 survey — Monster, Red Bull, Owala and Simply Good Foods were all written off as
+running no deployment when all four publish a key, and **Red Bull turned out to be among
+the best samples available**. A regex finding nothing is evidence only once the body is
+known to be text.
+
+**`apps.bazaarvoice.com/bfd/v1/...` returns 401. Leave it alone.** It would answer a
+`Referer` or `Origin` header forged to look like the brand's own site, and forging one to
+get past a refusal is exactly what §5 forbids: a block is a finding, recorded and not
+routed around. The scout route is a different endpoint that does not refuse in the first
+place. A self-test asserts neither header string appears anywhere in the collector.
+
+### Measured on Traeger (NYSE:COOK), 2026-10-17
+
+`client: traegerservice`, product `TFB57GLE` (Pro 575), one pass:
+
+| | Route A (session) | Route B (apify, best) | **Route C (bazaarvoice)** |
+|---|---|---|---|
+| returned | 8 | 100 | **1,183** |
+| span | — | 20 days | **7.6 years** (2019-03-20 → 2026-10-11) |
+| pages | dead at 1 | 10, then Amazon's cap | **13, to exhaustion** |
+| dates descending | no, 4 inversions | yes | **yes, 0 inversions** |
+| carrying text | — | — | **97.4%** (32 star-only dropped) |
+| claimed basis | ratings | reviews (likely a display cap) | **reviews, 1,215** |
+| coverage | 0.09% | 1.0% | **97.4%** |
+| newest review | 47 days | 2 days | **6 days** |
+| account | the user's own | a provider's | **none** |
+| cost | — | $0.63 | **$0.00** |
+
+### The family, and why it is `parent_asin` again
+
+**Bazaarvoice pools across a product family exactly as Amazon pools across variants.**
+`TFB57GLE` (Pro 575) and `TFB78GLE` (Pro 780) are different grills at different prices
+and return **identical 1,215-review id sets**. `TFB89BLF` and `TFB65BLF` likewise. Nine
+products measured resolved to **seven distinct families**.
+
+So the join key is the **family**, never the declared `product_id` — and as on Amazon,
+**dedup by review id does not catch the mislabelling**, because those are genuine distinct
+reviews of a wider product. The first row of the committed Traeger file says *"I was able
+to purchase the 780 pro"* and is filed under the declared 575. The pooling is visible in
+the data itself, the same way one Hydro Flask batch carried `Style: 20 Oz`, `40 Oz` and
+`64 Oz`.
+
+**Determine the family by comparing returned id sets.** Not by the product ids differing —
+they do differ, and they are one family. Not by summing `TotalReviewCount`, which
+double-counts a pooled family and **overstated Traeger's unique count by 30%**. The group
+file declares the family and the collector verifies it against the ids, refusing on a
+mismatch; a singleton family is reported **unverified**, never verified.
+
+**One product cannot carry a series.** The Pro 575 family clears the 30-review quarter
+floor in only **11 of 32** quarters, because review flow decays as a model ages. Seven
+families together clear it in **30 of 44**, with a 28-quarter consecutive run. On this
+route **product coverage, not depth per product, is the binding constraint** — which is
+the opposite of Amazon, where depth per pass is the wall.
+
+### Depth is not liveness
+
+**Owala serves 14,029 reviews flawlessly and its newest is 2022-07-28** — 1,540 days
+stale. Every depth, coverage and sort field on such a batch reads healthy, and a cadence
+pointed at it would collect nothing new for ever without a single number moving. So
+`newest_review_age_days` is recorded per batch, and past 180 days the collector warns.
+
+It **warns and never refuses**: a stale deployment's old reviews are still real reviews,
+and dropping them would be worse than labelling them.
+
+### What the live run caught that the fixtures could not
+
+**`verified_purchase` was going to read 0% for a 61%-verified pool.** Traeger carries no
+`IsVerifiedPurchaser` on any of its 1,215 rows; the information lives in
+`Badges.verifiedPurchaser`, present on 744 of them with a badge **object** as its value,
+so presence is the whole semantics. This is the Apify `Verified` / `VerifiedPurchase`
+trap one platform along, and it is the dangerous shape — **0% verified is entirely
+believable** and would have reached the verified-share check as evidence about Traeger's
+customers rather than about the parser. Caught by diffing the parsed CSV against the
+cached raw responses.
+
+Reading the same badges turned up **`incentivizedReview` on 179 of 1,215 (14.7%)**. A
+brand that solicited a review with an incentive sampled a different population and tone
+is precisely what an incentive moves, so it is recorded per review — like
+`syndicated`, and not filtered, because whether to include them is an aggregation
+decision.
+
+Also: `--limit` defaulted to 10, inherited from the Amazon routes where that is about
+what a page serves. On a route whose whole point is that Offset is uncapped, that quietly
+turned a 1,215-review family into the same thin slice Amazon gives for free. The brand
+route defaults to **0, meaning walk to exhaustion**.
+
+### Re-parsing, and the cache
+
+```bash
+python3 $S brand --group <g> --product-id <ID> --from-cache 20261017T142638Z
+```
+
+Raw responses are written to `_raw/<platform>-<stamp>/` per batch. The Apify rule applies
+(never re-run a provider to fix a parser) and this route adds a reason of its own: **the
+pool is live, so a re-fetch is not a re-read — it is a different batch wearing this one's
+id.** The cache is the only thing that can ever be re-parsed into the batch that was
+actually written.
+
+A re-parse makes **no network call**, so it verifies no family and says so in its own
+words rather than reporting a failed probe: "could not be checked here" and "the sibling
+was unreachable" are different findings.
+
+**Unsettled:** the cache is 4.6× `reviews.csv` (2.7 MB against 588 KB for one product). It
+is committed on the reasoning `.gitignore` already gives for `reviews.csv` — live
+collection is the only copy there will ever be — but a weekly cadence across a real group
+needs a retention policy and there is none.
+
+### What this route is not
+
+**It sees the brand's own site, which is a different sales channel from Amazon**, with a
+different customer. A brand-route series and an Amazon series are **two instruments**, and
+`route` is a per-review column so that a reading which pooled them is visible rather than
+silent. Pooling them without saying so would read channel mix as tone — the
+Monster/Celsius failure in CONTRACTS.md §1 wearing different clothes.
+
+And it is not a reason to retire Route A or B. A company with no brand-platform
+deployment is still only reachable on Amazon, and the gap between "structurally eligible"
+and "has usable review data" is a recorded finding either way (CORE-PROMPT §2).
+
+---
+
 ## Cadence
 
 CORE-PROMPT §4: repeated collection at a fixed cadence is what creates the series; the
@@ -566,7 +729,15 @@ cadence" condition is read from here until that is settled.
 
 Reviews are deduplicated by **review identifier** across collections (§4) — Amazon's own
 `R…` id where present, which is the identifier Amazon itself dedupes on, falling back to
-a stable hash and recording per row which scheme was used.
+a stable hash and recording per row which scheme was used. Route C uses Bazaarvoice's own
+`Id` (scheme `bazaarvoice_review_id`); a row arriving without one is **dropped and
+counted** rather than given a synthetic id, because this route re-walks the whole family
+every cadence and a row that cannot be deduped would be re-added for ever.
+
+That re-walk is why dedup matters more here than on Amazon: a brand pass returns the
+**entire** pool, not a slice, so a naive append would double the corpus on the second run
+and then kill the scorer, which treats one `review_id` keying two different rows as a hard
+failure. Verified: a second walk of Traeger's pool recorded 1,183 duplicates and 0 new.
 
 The first observation is canonical. This is not a preference, it is a requirement:
 `helpful_vote` grows between collections, so a re-collected review differs from the stored
@@ -594,6 +765,21 @@ passes.** So it is audited mechanically. The audit parses this collector for its
 `die(...)` sites, runs the self-test suite with `COLLECT_REFUSAL_LOG` set so every
 refusal records the line it fired from — in subprocesses too, which is where most of the
 interesting ones live — and asserts each site fired at least once.
+
+As of 2026-10-17: **36 of 36 covered**, 163 self-test checks, `MIN_SITES` raised to 30.
+The brand route added nine refusal sites and two of them are the §5 shape — written,
+plausible, and unreachable from any real collection:
+
+- the **FAMILY MISMATCH** refusal only fires when two declared siblings do *not* share a
+  pool. Every real Traeger family does share one, so nothing in a live collection can
+  reach it. Tripped with disjoint id sets from a fake route.
+- **`--require-recency` on the brand route** needs an *ascending* brand batch, and the
+  descending fixture cannot produce one — exactly how the Amazon `--require-recency`
+  guard sat unreachable against a single-review fixture until a two-review ascending one
+  was built for it.
+
+Verified end to end by deleting the FAMILY MISMATCH test with its guard left in place:
+the audit drops to 35 of 36 and names the site.
 
 **First run: 0 of 26 covered**, which was the audit catching itself. The instrumentation
 walked the stack to the wrong frame and recorded `die()`'s own line for every refusal:
