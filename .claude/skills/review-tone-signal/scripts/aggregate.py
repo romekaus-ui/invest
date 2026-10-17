@@ -260,7 +260,7 @@ def load_quarters(ticker, datadir, win=None):
         return None, "%s has no rows" % spath
 
     buckets = defaultdict(lambda: {
-        "included": [],           # (parent_asin, tone)
+        "included": [],           # (family, tone) - see CONTRACTS.md s2b
         "n_excluded_seller": 0,
         "n_scoring_failed": 0,
         "n_verified": 0,
@@ -308,7 +308,14 @@ def load_quarters(ticker, datadir, win=None):
                 return None, ("review %s has tone %d outside the frozen -2..+2 "
                               "scale (tone-rubric-v1.md)" % (row["review_id"], tone))
 
-            b["included"].append((row.get("parent_asin", ""), tone))
+            # `family` is the join key on every route (CONTRACTS.md §2b): the
+            # parent ASIN on Amazon, the verified family label on a brand
+            # platform. Keying on parent_asin alone pooled every brand-route
+            # review into one "" bucket and collapsed the within/mix
+            # decomposition §7 depends on - measured on Traeger, 1,183 rows all
+            # with parent_asin "" and family "pro-575-780". Falls back to
+            # parent_asin so archived Amazon data aggregates exactly as before.
+            b["included"].append((row.get("family") or row.get("parent_asin", ""), tone))
             if as_bool(row.get("verified_purchase")):
                 b["n_verified"] += 1
             if as_bool(s.get("defect")):
