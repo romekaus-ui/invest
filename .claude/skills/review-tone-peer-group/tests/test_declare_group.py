@@ -804,8 +804,8 @@ try:
     gv = dg.read_json(dg.versions_of(gid)[-1][1])
     plog = dg.parents_log(gid)
 
-    check("declared_parents lists every tracked product",
-          len(dg.declared_parents(gv)) == len(gv["members"]), dg.declared_parents(gv))
+    check("declared_units lists every tracked product",
+          len(dg.declared_units(gv)) == len(gv["members"]), dg.declared_units(gv))
     check("stage G refuses a group whose parents were never re-resolved",
           dg.main(["--group", gid]) == 2)
     check("the refusal says why, not just that",

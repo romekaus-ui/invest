@@ -35,7 +35,11 @@ Modes
 -----
   draft           skeleton for a seed -> data/peer_groups/<id>.draft.json
   resolve-us      fill CIK + reporting calendar for US registrants from EDGAR
-  check-products  resolve each ASIN on its recorded marketplace
+  check-products  resolve each product on its declared route: an ASIN on its
+                  marketplace, or a brand platform's product id against the
+                  deployment's display API, whose returned review-id sets are
+                  then compared PAIRWISE - the only evidence that two declared
+                  products are not one pooled family
   check           validate a draft against the contract; freeze nothing
   declare         validate -> <id>.v1.json + .hash  (refuses to overwrite)
   revise          validate -> <id>.v<N+1>.json with --reason and a hash chain
@@ -59,6 +63,7 @@ import subprocess
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
 
@@ -73,6 +78,16 @@ GROUPS_DIR = os.path.join("data", "peer_groups")
 # broken. Without this, one schema change would make every past declaration
 # look like an integrity violation forever, and the real ones would be lost in
 # the noise. Schema 1 is the CONTRACTS.md §1 shape (2026-10-12).
+#
+# NOT bumped by the `route` field (2026-10-15), and the reason is recorded
+# because it is a judgement rather than an oversight. `route` is an ADDITIVE
+# extension with a default: a product with no `route` is an `amazon` product,
+# so every declaration frozen under schema 1 still satisfies the current
+# validator exactly as written. Bumping would mark all six existing
+# declarations STALE and stop revalidating them - trading a real, continuing
+# check for a nominal one. The cost of not bumping is that an older copy of
+# this script would read a brand-route product as a malformed amazon one; that
+# is accepted, because there is one copy and it is this one.
 SCHEMA_VERSION = 1
 READINGS = os.path.join("results", "readings.jsonl")
 
@@ -154,6 +169,68 @@ MARKETPLACES = {
     "amazon.com.tr": "www.amazon.com.tr",
     "amazon.com.be": "www.amazon.com.be",
 }
+
+# CONTRACTS.md §1 `products[].route`, amended 2026-10-15. Amazon was the only
+# sensor this project had; brand-owned review platforms are the second. A
+# declaration carries products on either, and every product says which, because
+# CORE-PROMPT §3 is explicit that a route change can move tone on its own.
+#
+# `route` is REQUIRED in the sense that every product resolves to one, and
+# ABSENT means `amazon`. That default is deliberate and it is what keeps the six
+# declarations frozen before this field existed valid without being rewritten -
+# rewriting a frozen file is what §1.5 forbids, so the reader defaults instead.
+ROUTES = ("amazon", "bazaarvoice", "yotpo", "powerreviews")
+DEFAULT_ROUTE = "amazon"
+
+# The brand-platform routes. They share one identifier shape - a deployment
+# zone plus a product id in that zone - and one structural property: the
+# platform pools reviews across a product FAMILY, which is the same defect as
+# Amazon's parent/child pooling arriving by a different door.
+BRAND_ROUTES = ("bazaarvoice", "yotpo", "powerreviews")
+
+# What `check-products` can actually resolve. Measured and implemented for
+# Bazaarvoice on 2026-10-15; Yotpo and PowerReviews are reachable (both
+# measured in data/_route-tests/brand-widget-routes-2026-10-15.json) but their
+# key discovery and paging differ and NO resolver is wired here. A route named
+# in the contract but unresolvable here cannot produce a `verification`, so a
+# product on one is refused rather than declared on an unchecked identifier.
+# The honest position is "not implemented", not "assumed to work".
+RESOLVABLE_ROUTES = ("amazon", "bazaarvoice")
+
+# A deployment zone as the platform's own CDN spells it (`traegerservice`,
+# `weber`, `yeti`), and a product id within it (`TFB57GLE`, `44010001`).
+BRAND_CLIENT_RE = re.compile(r"^[a-z0-9][a-z0-9_.-]{1,48}$")
+BRAND_PRODUCT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+
+# The Bazaarvoice deployment SITE within a client. Nearly always `main_site`,
+# but not always: YETI publishes a key under both `yeticom_sfra` and
+# `main_site`, and www.yeti.com loads the former (brand-widget-routes
+# 2026-10-15). So it is a per-product field with a default, not a constant.
+DEFAULT_BRAND_SITE = "main_site"
+BRAND_SITE_RE = re.compile(r"^[a-z0-9][a-z0-9_.-]{1,48}$")
+
+# How many reviews the family fingerprint is taken over. The first page of
+# `Sort=SubmissionTime:desc`, which is deterministic for a given product, so two
+# products in one pooled family produce the SAME fingerprint and two genuinely
+# distinct products produce different ones. Verified live 2026-10-15: Traeger
+# TFB57GLE and TFB78GLE both fingerprint f7142071d5e80c8d over 100 shared ids,
+# TFB89BLF and TFB65BLF both 189a1080b52f4ed5, and TFB57GLE against TFB89BLF
+# share zero.
+FAMILY_SAMPLE = 100
+
+# A deployment can be deep and dead. Owala serves 14,029 reviews flawlessly and
+# its newest is 2022-07-28 - 1,540 days old on the day this was written. Depth
+# says nothing about liveness, so the newest review's age is recorded on every
+# brand-route check and a year without a review is a FINDING the declaration has
+# to carry in writing. It is not a refusal: an abandoned deployment is still
+# usable inside a window that ends before it went quiet, and refusing would hide
+# that by pushing the product out of the file.
+LIVENESS_STALE_DAYS = 365
+
+# Where the route measurement lives. Reused rather than reimplemented: it is the
+# tool that produced brand-widget-routes-2026-10-15.json, and a second
+# implementation of the same walk would be a second thing to be wrong.
+WIDGET_ROUTE_TOOL = os.path.join("data", "_route-tests", "measure_widget_route.py")
 
 # The question asked of every candidate, in the same words every time. Frozen
 # deliberately: the test a company is put to must not vary with how interesting
@@ -403,6 +480,32 @@ def _s(obj, key):
     return v.strip() if isinstance(v, str) else ""
 
 
+def route_of(pr):
+    """Which sensor this product is read through. Absent means `amazon`.
+
+    The single place the default lives. Every other reader asks this rather
+    than reaching for `pr["route"]`, so the six declarations frozen before the
+    field existed are read as amazon products everywhere at once, instead of in
+    whichever branches someone remembered.
+    """
+    return _s(pr, "route") or DEFAULT_ROUTE
+
+
+def brand_site_of(pr):
+    return _s(pr, "site") or DEFAULT_BRAND_SITE
+
+
+def family_of(pr):
+    """The review family this product resolves to, or "".
+
+    The brand-route analogue of `parent_asin`, and read the same way: off the
+    product where `normalise_for_contract` lifted it, else out of the
+    verification record `check-products` wrote.
+    """
+    return _s(pr, "review_family") or _s(
+        (pr.get("verification") or {}), "family_fingerprint")
+
+
 def validate(group, allow_unverified=False):
     """Every reason this draft is not a peer group. Empty list means it is.
 
@@ -455,8 +558,9 @@ def validate(group, allow_unverified=False):
         p.append("peer_relative_reading: must be true for a group of two or more")
 
     seen_company = {}
-    seen_asin = {}
-    seen_parent = {}
+    # One bag of cross-member identifier registries, so a new route adds a key
+    # here rather than a sixth positional argument to _validate_products.
+    seen = {"asin": {}, "parent": {}, "brand_product": {}, "family": {}}
     for i, m in enumerate(members):
         tag = "members[%d]" % i
         if not isinstance(m, dict):
@@ -484,8 +588,7 @@ def validate(group, allow_unverified=False):
 
         p.extend(_validate_concentration(m, tag))
         p.extend(_validate_reason(m, tag, brands))
-        p.extend(_validate_products(m, tag, brands, seen_asin, seen_parent, i,
-                                    allow_unverified))
+        p.extend(_validate_products(m, tag, brands, seen, i, allow_unverified))
 
     return p
 
@@ -727,8 +830,16 @@ def _validate_reason(m, tag, brands):
     return p
 
 
-def _validate_products(m, tag, brands, seen_asin, seen_parent, idx, allow_unverified):
-    """§2: the specific product identifiers, chosen for continuity."""
+def _validate_products(m, tag, brands, seen, idx, allow_unverified):
+    """§2: the specific product identifiers, chosen for continuity.
+
+    Route-aware since 2026-10-15. What a product IS differs by route - an ASIN
+    on a marketplace, or a product id in a deployment zone - and so does how
+    the review pool is identified. What does NOT differ: a name, a brand, a
+    continuity reason and a verification record are required on every route.
+    The brand route gets its own equivalents of the Amazon guards, never an
+    exemption from them.
+    """
     p = []
     products = m.get("products")
     if not isinstance(products, list) or not products:
@@ -740,50 +851,158 @@ def _validate_products(m, tag, brands, seen_asin, seen_parent, idx, allow_unveri
         if not isinstance(pr, dict):
             p.append("%s: not an object" % ptag)
             continue
-        asin = _s(pr, "asin")
-        if not ASIN_RE.match(asin):
-            p.append("%s.asin %r: must be 10 characters, A-Z0-9" % (ptag, asin))
-        elif asin in seen_asin:
-            p.append("%s.asin %s: already tracked by members[%d]. One product "
-                     "cannot be two companies'" % (ptag, asin, seen_asin[asin]))
-        else:
-            seen_asin[asin] = idx
-        mk = _s(pr, "marketplace")
-        if mk not in MARKETPLACES:
-            p.append("%s.marketplace %r: unknown. Known: %s"
-                     % (ptag, mk, ", ".join(sorted(MARKETPLACES))))
+
+        declared_route = _s(pr, "route")
+        if declared_route and declared_route not in ROUTES:
+            p.append("%s.route %r: unknown. CONTRACTS.md §1 names %s. An absent "
+                     "route is %r" % (ptag, declared_route, ", ".join(ROUTES),
+                                      DEFAULT_ROUTE))
+            continue
+        route = route_of(pr)
+
         if not _s(pr, "name"):
             p.append("%s.name: empty. The name at declaration is how a silently "
-                     "relisted ASIN is caught later" % ptag)
+                     "relisted product is caught later" % ptag)
         brand = _s(pr, "brand")
         if not brand:
             p.append("%s.brand: empty" % ptag)
         elif brands and canon(brand) not in [canon(b) for b in brands]:
             p.append("%s.brand %r: not among the member's declared brands (%s)"
                      % (ptag, brand, ", ".join(brands)))
+
+        if route == "amazon":
+            p.extend(_validate_amazon_product(pr, ptag, seen, idx))
+        else:
+            p.extend(_validate_brand_product(pr, ptag, route, seen, idx))
+
         p.extend(_validate_continuity(pr, ptag, brands))
         p.extend(_validate_verification(pr, ptag, allow_unverified))
         p.extend(_validate_title_agreement(pr, ptag, brand))
+    return p
 
-        # Amazon serves reviews at the PARENT asin, pooled across variants, so
-        # two members tracking children of one parent would be handed the same
-        # reviews and their "peer-relative" tone would be a comparison of a
-        # series with itself. Caught here because nothing downstream could tell.
-        parent = _s(pr, "parent_asin") or _s(
-            (pr.get("verification") or {}), "parent_asin_seen")
-        if not parent:
-            p.append("%s.parent_asin: empty. CONTRACTS.md §1 requires it - "
-                     "Amazon serves reviews at the parent, so this is where the "
-                     "reviews actually come from and what the collector joins "
-                     "on. `check-products` records it" % ptag)
-        if parent:
-            if parent in seen_parent and seen_parent[parent] != idx:
-                p.append("%s: parent ASIN %s is already tracked by members[%d]. "
-                         "Reviews are served at the parent, so both members "
-                         "would be scored on the same reviews"
-                         % (ptag, parent, seen_parent[parent]))
-            else:
-                seen_parent[parent] = idx
+
+def _validate_amazon_product(pr, ptag, seen, idx):
+    """The Amazon identifiers: an ASIN, a marketplace, and the parent."""
+    p = []
+    asin = _s(pr, "asin")
+    if not ASIN_RE.match(asin):
+        p.append("%s.asin %r: must be 10 characters, A-Z0-9" % (ptag, asin))
+    elif asin in seen["asin"]:
+        p.append("%s.asin %s: already tracked by members[%d]. One product "
+                 "cannot be two companies'" % (ptag, asin, seen["asin"][asin]))
+    else:
+        seen["asin"][asin] = idx
+    mk = _s(pr, "marketplace")
+    if mk not in MARKETPLACES:
+        p.append("%s.marketplace %r: unknown. Known: %s"
+                 % (ptag, mk, ", ".join(sorted(MARKETPLACES))))
+
+    # Amazon serves reviews at the PARENT asin, pooled across variants, so
+    # two members tracking children of one parent would be handed the same
+    # reviews and their "peer-relative" tone would be a comparison of a
+    # series with itself. Caught here because nothing downstream could tell.
+    parent = _s(pr, "parent_asin") or _s(
+        (pr.get("verification") or {}), "parent_asin_seen")
+    if not parent:
+        p.append("%s.parent_asin: empty. CONTRACTS.md §1 requires it - "
+                 "Amazon serves reviews at the parent, so this is where the "
+                 "reviews actually come from and what the collector joins "
+                 "on. `check-products` records it" % ptag)
+    if parent:
+        if parent in seen["parent"] and seen["parent"][parent] != idx:
+            p.append("%s: parent ASIN %s is already tracked by members[%d]. "
+                     "Reviews are served at the parent, so both members "
+                     "would be scored on the same reviews"
+                     % (ptag, parent, seen["parent"][parent]))
+        else:
+            seen["parent"][parent] = idx
+    return p
+
+
+def _validate_brand_product(pr, ptag, route, seen, idx):
+    """The brand-platform identifiers, and the family the reviews pool into.
+
+    `parent_asin` has a direct analogue here and it is not optional. A brand
+    review platform pools across a product FAMILY exactly as Amazon pools
+    across variants: measured on Traeger 2026-10-15, `TFB57GLE` (Pro 575) and
+    `TFB78GLE` (Pro 780) are different grills at different prices and return
+    IDENTICAL 1,215-review id sets; `TFB89BLF` and `TFB65BLF` likewise. Nine
+    products resolved to seven distinct families.
+
+    So the family is what the collector joins on, and it is never inferred from
+    the product ids differing - that is precisely the inference the measurement
+    falsified. It comes from `check-products` comparing the returned review-id
+    sets pairwise, and it is refused when two declared products land in one
+    family, whether inside one member (where it double-counts: summing
+    TotalReviewCount overstated the unique count by 30%) or across two (where
+    it compares a series with itself).
+    """
+    p = []
+    client = _s(pr, "client")
+    if not BRAND_CLIENT_RE.match(client):
+        p.append("%s.client %r: the deployment zone on the %s platform, as its "
+                 "own CDN spells it (e.g. 'traegerservice', 'weber'). Required "
+                 "on this route: the product id alone does not say whose "
+                 "catalogue it is in" % (ptag, client, route))
+    site = _s(pr, "site")
+    if site and not BRAND_SITE_RE.match(site):
+        p.append("%s.site %r: the deployment site within the client (default "
+                 "%r). YETI publishes a key under two of them, so it is "
+                 "recorded when it is not the default"
+                 % (ptag, site, DEFAULT_BRAND_SITE))
+    pid = _s(pr, "product_id")
+    if not BRAND_PRODUCT_ID_RE.match(pid):
+        p.append("%s.product_id %r: required on the %s route - ONE "
+                 "representative per review family, as CONTRACTS.md §1 has it"
+                 % (ptag, pid, route))
+
+    key = "%s/%s/%s" % (route, client, pid)
+    if client and pid:
+        if key in seen["brand_product"]:
+            p.append("%s: %s is already tracked by members[%d]. One product "
+                     "cannot be two companies'"
+                     % (ptag, key, seen["brand_product"][key]))
+        else:
+            seen["brand_product"][key] = idx
+
+    # A half-converted draft is the likeliest way this goes wrong: the route
+    # flipped to the brand platform and the Amazon identifiers left behind, so
+    # the file carries two contradictory claims about where the reviews come
+    # from and a reader cannot tell which one the collector will follow.
+    for stale in ("asin", "parent_asin", "marketplace"):
+        if _s(pr, stale):
+            p.append("%s.%s %r: set on a %s product. These are Amazon "
+                     "identifiers; a product reads through ONE route and this "
+                     "one does not read through amazon"
+                     % (ptag, stale, _s(pr, stale), route))
+
+    family = family_of(pr)
+    if not family:
+        p.append("%s.review_family: empty. This route's equivalent of "
+                 "`parent_asin`, and no more optional: the platform pools "
+                 "reviews across a product family, so the family is where the "
+                 "reviews actually come from and what the collector joins on. "
+                 "`check-products` records it by comparing the returned "
+                 "review-id sets pairwise" % ptag)
+        return p
+
+    if family in seen["family"]:
+        other_idx, other_key = seen["family"][family]
+        if other_idx == idx:
+            p.append("%s: %s resolves to the SAME review family as %s (%s). "
+                     "CONTRACTS.md §1: declare ONE representative per family. "
+                     "Both would be collected and the same reviews counted "
+                     "twice - summing across a pooled family overstated the "
+                     "unique count by 30%% when it was measured"
+                     % (ptag, key, other_key, family[:16]))
+        else:
+            p.append("%s: review family %s is already tracked by members[%d] "
+                     "(%s). The platform serves these reviews pooled, so both "
+                     "members would be scored on the same reviews - the same "
+                     "refusal the amazon route makes for a shared parent"
+                     % (ptag, family[:16], other_idx, other_key))
+    else:
+        seen["family"][family] = (idx, key)
     return p
 
 
@@ -798,6 +1017,15 @@ def _validate_title_agreement(pr, ptag, brand):
     It does NOT catch an accessory: "Earpads Replacement for JBL Tour One M3"
     carries the brand too. That one is on the reader of the title, and it is
     why `name` is compared to what was served rather than trusted.
+
+    The brand-in-the-title half does not apply on a brand route, and the reason
+    is measured rather than assumed: a brand's own catalogue does not repeat its
+    name in its product names. Of the five Weber grills declared here, four are
+    served as "Spirit II E-210 Gas Grill (Liquid Propane)" and only one carries
+    "Weber" at all. Requiring it would refuse four correct products, which is
+    how a guard teaches people to write around it. The name comparison - the
+    half that actually catches a transposed identifier - applies on every route,
+    and it caught six of seven on the first brand-route draft.
     """
     out = []
     v = pr.get("verification") or {}
@@ -807,7 +1035,7 @@ def _validate_title_agreement(pr, ptag, brand):
     if not seen:
         out.append("%s.verification: resolved but recorded no title_seen" % ptag)
         return out
-    if brand and canon(brand) not in canon(seen):
+    if route_of(pr) == "amazon" and brand and canon(brand) not in canon(seen):
         out.append("%s: declared brand %r does not appear in the title the "
                    "marketplace served (%r). Either the ASIN belongs to a "
                    "different product or the brand is mis-recorded"
@@ -875,6 +1103,107 @@ def _validate_verification(pr, ptag, allow_unverified):
         p.append("%s.verification.status is %r, not 'resolved'. Either fix the "
                  "identifier or declare with --allow-unverified, which records "
                  "the count in the hash file" % (ptag, status))
+    route = route_of(pr)
+    if route not in RESOLVABLE_ROUTES and not allow_unverified:
+        p.append("%s: route %r is named in CONTRACTS.md §1 but `check-products` "
+                 "has no resolver for it, so nothing here has established that "
+                 "the identifier resolves to anything. Implement the resolver "
+                 "or declare with --allow-unverified, which records the count "
+                 "in the hash file" % (ptag, route))
+    if route in BRAND_ROUTES and status == "resolved":
+        p.extend(_validate_brand_measurement(pr, ptag, v))
+    return p
+
+
+def _validate_brand_measurement(pr, ptag, v):
+    """What `check-products` must have measured on a brand route.
+
+    The route is a display API rather than a page, so the check can and does
+    establish more than "it resolves": how many reviews the deployment holds for
+    this family, when the newest one arrived, what fraction carry text at all,
+    and whether the dates are genuinely in descending order.
+
+    Each of these is required because each has already been got wrong somewhere
+    in this project:
+
+      - `dates_descending_verified` is checked AGAINST THE DATES. CORE-PROMPT §3
+        and CONTRACTS.md §3 both record the same failure on Amazon: a sort taken
+        from the request parameter is a claim about the platform that was false.
+        A record claiming verified order while also recording inversions is
+        therefore a contradiction and refused - that combination is what a
+        parameter-trusting check looks like from outside.
+      - `newest_review_age_days` because liveness is its OWN question. Owala
+        serves 14,029 reviews perfectly and its newest is 1,540 days old; depth
+        says nothing about whether a deployment is alive.
+      - `with_text_pct` because star-only reviews can never be scored, and the
+        fraction is not stable - Weber ran 100% in 2019 and ~34% in 2026, so the
+        scored population drifts away from the rated one over a series.
+    """
+    p = []
+    total = v.get("total_claimed")
+    if not isinstance(total, int) or isinstance(total, bool) or total <= 0:
+        p.append("%s.verification.total_claimed %r: the review count the "
+                 "deployment reports for this family, as a positive integer"
+                 % (ptag, total))
+
+    newest = _s(v, "newest")
+    if not re.match(r"^\d{4}-\d{2}-\d{2}", newest):
+        p.append("%s.verification.newest %r: the newest review's date, "
+                 "YYYY-MM-DD. Liveness is its own check and this is the only "
+                 "field that answers it" % (ptag, newest))
+
+    pct = v.get("with_text_pct")
+    if not isinstance(pct, (int, float)) or isinstance(pct, bool) or not 0 <= pct <= 100:
+        p.append("%s.verification.with_text_pct %r: the percentage of sampled "
+                 "reviews carrying text, 0-100. A star-only review cannot be "
+                 "scored, so this says what share of the count is reachable"
+                 % (ptag, pct))
+
+    desc = v.get("dates_descending_verified")
+    if not isinstance(desc, bool):
+        p.append("%s.verification.dates_descending_verified %r: must be a "
+                 "boolean established from the DATES. §3 - a sort order taken "
+                 "from the request parameter is a claim about the platform, and "
+                 "on Amazon that claim was false" % (ptag, desc))
+    inversions = v.get("date_inversions")
+    if not isinstance(inversions, int) or isinstance(inversions, bool) or inversions < 0:
+        p.append("%s.verification.date_inversions %r: the number of date "
+                 "inversions counted in the sample, as a non-negative integer. "
+                 "It is the evidence behind dates_descending_verified"
+                 % (ptag, inversions))
+    elif desc is True and inversions > 0:
+        p.append("%s.verification: dates_descending_verified is true while "
+                 "date_inversions is %d. The order was taken from the sort "
+                 "parameter rather than verified against the dates - which is "
+                 "exactly the mistake §3 records against Amazon"
+                 % (ptag, inversions))
+
+    age = v.get("newest_review_age_days")
+    if not isinstance(age, int) or isinstance(age, bool) or age < 0:
+        p.append("%s.verification.newest_review_age_days %r: how old the newest "
+                 "review is, in days. A deployment can be deep and dead - Owala "
+                 "serves 14,029 reviews and its newest is 1,540 days old"
+                 % (ptag, age))
+    elif age > LIVENESS_STALE_DAYS and not _s(pr, "liveness_finding"):
+        p.append("%s.liveness_finding: empty, but the newest review is %d days "
+                 "old - past the %d-day line. A deployment that has not seen a "
+                 "review in a year is a FINDING the declaration has to carry in "
+                 "writing: say what window it is still usable for and that a "
+                 "forward cadence cannot be run on it"
+                 % (ptag, age, LIVENESS_STALE_DAYS))
+
+    if not _s(v, "family_fingerprint"):
+        p.append("%s.verification.family_fingerprint: empty. Without it nothing "
+                 "has compared this product's review ids against the other "
+                 "declared products, so a pooled family would pass unseen"
+                 % ptag)
+    shared = v.get("family_shared_with")
+    if shared:
+        p.append("%s.verification.family_shared_with %s: `check-products` found "
+                 "this product's returned review ids overlapping another "
+                 "declared product's. They are one pooled family however "
+                 "different the product ids look"
+                 % (ptag, ", ".join(sorted(str(x) for x in shared))))
     return p
 
 
@@ -1218,22 +1547,262 @@ def resolve_product(asin, marketplace, rate, route):
     return out
 
 
+# ------------------------------------------- brand review platforms (§1 route)
+
+def _widget_route_tool():
+    """The route measurement tool, loaded from where it lives beside its output.
+
+    Reused rather than reimplemented. It is the tool that produced
+    brand-widget-routes-2026-10-15.json, it already accepts gzip (Bazaarvoice
+    gzips some zones regardless of Accept-Encoding, and decoding one of those as
+    text gives a binary blob in which every regex silently finds nothing - five
+    false negatives in one session), and it already verifies date order against
+    the dates. A second implementation of that walk would be a second thing to
+    get wrong.
+    """
+    import importlib.util
+    if not os.path.exists(WIDGET_ROUTE_TOOL):
+        sys.exit("%s not found. The brand-platform route is measured by that "
+                 "tool and this script reuses it rather than carrying a second "
+                 "copy of the same walk. Run from the repository root."
+                 % WIDGET_ROUTE_TOOL)
+    spec = importlib.util.spec_from_file_location("measure_widget_route",
+                                                  WIDGET_ROUTE_TOOL)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+class _Quiet(object):
+    """Swallow the tool's own report print; this script prints one line each."""
+
+    def write(self, *_a):
+        pass
+
+    def flush(self):
+        pass
+
+
+def brand_passkey(mod, client, site, cache):
+    """The display key the platform's own CDN publishes, read once per zone.
+
+    No account, no login, no header spoofing: this is the key the brand's own
+    page hands every visitor's browser. The `apps.bazaarvoice.com/bfd/v1/`
+    endpoint returns 401 and is left alone - a block is a finding (§9), not an
+    obstacle, and no Referer or Origin is ever sent to get past it.
+    """
+    key = (client, site)
+    if key not in cache:
+        out, sys.stdout = sys.stdout, _Quiet()
+        try:
+            cache[key] = mod.bv_key(client, site)
+        except Exception as exc:                      # noqa: BLE001
+            cache[key] = None
+            print("  %s/%s: key discovery failed: %s" % (client, site, exc))
+        finally:
+            sys.stdout = out
+    return cache[key]
+
+
+def resolve_brand_product(mod, pr, route, rate, cache, max_pages):
+    """Resolve one brand-platform product against the live display API.
+
+    Records what CONTRACTS.md §1 and CORE-PROMPT §3 require of this route: the
+    review count the deployment reports, the newest review's date and its age,
+    the fraction carrying text, whether the dates are in descending order
+    VERIFIED AGAINST THE DATES, and the fingerprint of the returned review-id
+    set, which is what the pairwise family comparison is made on.
+    """
+    client, site = _s(pr, "client"), brand_site_of(pr)
+    pid = _s(pr, "product_id")
+    base = {"checked_at": now_iso(), "route": "%s-display-api" % route,
+            "client": client, "site": site, "product_id_seen": pid}
+
+    if route != "bazaarvoice":
+        return dict(base, status="error",
+                    note="no resolver for route %r; see RESOLVABLE_ROUTES" % route)
+
+    passkey = brand_passkey(mod, client, site)
+    if not passkey:
+        return dict(base, status="not_found",
+                    note="deployment zone %s/%s publishes no display key - "
+                         "either it does not exist or it is an unprovisioned "
+                         "stub serving no reviews" % (client, site))
+
+    try:
+        rows, pages, total = mod.walk_bv(passkey, pid, max_pages)
+    except Exception as exc:                          # noqa: BLE001
+        return dict(base, status="error", note="walk failed: %s" % exc)
+
+    refused = [pg for pg in pages if pg.get("refused_http")]
+    if refused:
+        return dict(base, status="blocked",
+                    http_status=refused[0]["refused_http"],
+                    note="the display API refused the request (HTTP %s). §9: "
+                         "recorded, not routed around"
+                         % refused[0]["refused_http"])
+    errored = [pg for pg in pages if pg.get("errors")]
+    if errored:
+        return dict(base, status="error",
+                    note="display API errors: %s" % errored[0]["errors"])
+    if not rows:
+        return dict(base, status="not_found",
+                    note="the deployment answered and holds no reviews for "
+                         "product id %r" % pid)
+
+    out, sys.stdout = sys.stdout, _Quiet()
+    try:
+        rep = mod.report(route, pid, rows, pages, total, None)
+    finally:
+        sys.stdout = out
+
+    ids = [r["id"] for r in rows if r.get("id")]
+    sample = ids[:FAMILY_SAMPLE]
+    time.sleep(max(0.0, rate))
+    return dict(
+        base,
+        status="resolved",
+        total_claimed=rep["total_claimed"],
+        collected=rep["collected"],
+        newest=(rep["newest"] or "")[:10],
+        oldest=(rep["oldest"] or "")[:10],
+        newest_review_age_days=rep["newest_review_age_days"],
+        with_text_pct=rep["with_text_pct"],
+        dates_descending_verified=rep["dates_descending_verified"],
+        date_inversions=rep["date_inversions"],
+        pagination_caps=rep["pagination_caps"],
+        sampled=len(sample),
+        sample_window="%s..%s" % ((rep["oldest"] or "")[:10],
+                                  (rep["newest"] or "")[:10]),
+        family_fingerprint=sha256_bytes("\n".join(sorted(sample)).encode("utf-8")),
+        family_sample_ids=sample,
+        family_shared_with=[],
+    )
+
+
+def brand_product_name(mod, pr, cache):
+    """The product name the deployment's own catalogue serves for this id.
+
+    The brand-route counterpart of reading `#productTitle`: the cheap check that
+    catches a transposed identifier, which is the error no amount of careful
+    prose catches because the prose and the id are written in different moments.
+    It caught six of the seven products in the first brand-route draft.
+    """
+    client, site = _s(pr, "client"), brand_site_of(pr)
+    passkey = brand_passkey(mod, client, site)
+    if not passkey:
+        return ""
+    q = urllib.parse.urlencode({
+        "apiversion": "5.4", "passkey": passkey,
+        "Filter": "Id:eq:%s" % _s(pr, "product_id"), "Limit": 1})
+    try:
+        _, d = mod._json("https://api.bazaarvoice.com/data/products.json?" + q)
+    except Exception:                                 # noqa: BLE001
+        return ""
+    for row in d.get("Results") or []:
+        return (row.get("Name") or "").strip()
+    return ""
+
+
+def compare_families(draft):
+    """Compare the returned review-id sets PAIRWISE across the whole draft.
+
+    The refusal this feeds is the brand route's equivalent of the shared-parent
+    refusal, and the comparison is the only admissible evidence for it. Never
+    infer the grouping from the product ids differing - Traeger's TFB57GLE and
+    TFB78GLE differ and are one family - and never sum the reported review
+    counts, which overstated uniques by 30% when it was tried.
+    """
+    units = []
+    for i, m in enumerate(draft.get("members") or []):
+        for pr in m.get("products") or []:
+            if route_of(pr) not in BRAND_ROUTES:
+                continue
+            v = pr.get("verification") or {}
+            ids = set(v.get("family_sample_ids") or [])
+            if ids:
+                units.append((i, m.get("company"), pr, ids))
+
+    for _, _, pr, _ in units:
+        pr["verification"]["family_shared_with"] = []
+    pairs = []
+    for a in range(len(units)):
+        for b in range(a + 1, len(units)):
+            ia, ca, pa, sa = units[a]
+            ib, cb, pb, sb = units[b]
+            shared = len(sa & sb)
+            if not shared:
+                continue
+            ka = "%s/%s" % (_s(pa, "client"), _s(pa, "product_id"))
+            kb = "%s/%s" % (_s(pb, "client"), _s(pb, "product_id"))
+            pa["verification"]["family_shared_with"].append(kb)
+            pb["verification"]["family_shared_with"].append(ka)
+            pairs.append((ka, ca, kb, cb, shared, min(len(sa), len(sb))))
+    return len(units), pairs
+
+
 def mode_check_products(args):
-    """Resolve every ASIN in the draft, and write what happened into the draft.
+    """Resolve every product in the draft, and write what happened into it.
 
     Stops on the first block rather than working through the rest, because a
     block means the route is refusing and the remaining checks would be noise.
+
+    Route-aware since 2026-10-15: an amazon product is resolved against its
+    marketplace's product page, a brand-platform product against the
+    deployment's display API. Afterwards the brand products' returned review-id
+    sets are compared pairwise, which is the only evidence that two of them are
+    not one pooled family.
     """
     draft = read_json(args.draft)
     counts = {}
     blocked = False
+    mod, keycache = None, {}
     for m in draft.get("members") or []:
         for pr in m.get("products") or []:
-            asin = _s(pr, "asin")
-            mk = _s(pr, "marketplace")
             if args.only_missing and (pr.get("verification") or {}).get("status") == "resolved":
                 counts["skipped"] = counts.get("skipped", 0) + 1
                 continue
+            route = route_of(pr)
+
+            if route in BRAND_ROUTES:
+                if mod is None:
+                    mod = _widget_route_tool()
+                label = "%s/%s" % (_s(pr, "client"), _s(pr, "product_id"))
+                if not BRAND_CLIENT_RE.match(_s(pr, "client")) or \
+                        not BRAND_PRODUCT_ID_RE.match(_s(pr, "product_id")):
+                    pr["verification"] = {
+                        "status": "error", "checked_at": now_iso(),
+                        "route": "none",
+                        "note": "client or product_id not well-formed"}
+                    counts["error"] = counts.get("error", 0) + 1
+                    continue
+                v = resolve_brand_product(mod, pr, route, args.rate, keycache,
+                                          args.max_pages)
+                if v.get("status") == "resolved":
+                    v["title_seen"] = brand_product_name(mod, pr, keycache)
+                pr["verification"] = v
+                counts[v["status"]] = counts.get(v["status"], 0) + 1
+                print("  %-22s %-12s %-10s total=%-6s newest=%s (%sd) text=%s%%"
+                      % (label, route, v["status"], v.get("total_claimed", "-"),
+                         v.get("newest", "-"),
+                         v.get("newest_review_age_days", "-"),
+                         v.get("with_text_pct", "-")))
+                if v.get("title_seen"):
+                    print("  %-22s served: %s" % ("", v["title_seen"][:70]))
+                if v["status"] == "blocked":
+                    blocked = True
+                    break
+                continue
+
+            if route != "amazon":
+                pr["verification"] = {
+                    "status": "error", "checked_at": now_iso(), "route": "none",
+                    "note": "no resolver for route %r" % route}
+                counts["error"] = counts.get("error", 0) + 1
+                continue
+
+            asin = _s(pr, "asin")
+            mk = _s(pr, "marketplace")
             if not ASIN_RE.match(asin) or mk not in MARKETPLACES:
                 pr["verification"] = {
                     "status": "error", "checked_at": now_iso(),
@@ -1251,14 +1820,25 @@ def mode_check_products(args):
                 break
         if blocked:
             break
+
+    n_brand, pairs = compare_families(draft)
     write_json(args.draft, draft)
     print("\n" + "  ".join("%s=%d" % kv for kv in sorted(counts.items())))
+    if n_brand:
+        print("\npairwise review-id comparison across %d brand-route product(s): "
+              "%d overlapping pair(s)" % (n_brand, len(pairs)))
+        for ka, ca, kb, cb, shared, smaller in pairs:
+            print("  ! %s (%s) and %s (%s) share %d of %d sampled review ids - "
+                  "ONE pooled family" % (ka, ca, kb, cb, shared, smaller))
+        if pairs:
+            print("  CONTRACTS.md §1: declare ONE representative per family. "
+                  "Drop one of each pair; `check` refuses until you do.")
     if blocked:
-        print("\nSTOPPED: the marketplace refused the request. CORE-PROMPT §3 - "
+        print("\nSTOPPED: the route refused the request. CORE-PROMPT §3 - "
               "a block is a finding to report, not an obstacle to route around.\n"
-              "Options: check the remaining ASINs by hand in a browser and fill\n"
-              "verification by hand with route='browser-manual', or declare with\n"
-              "--allow-unverified so the count travels in the hash file.")
+              "Options: check the remaining products by hand in a browser and\n"
+              "fill verification by hand with route='browser-manual', or declare\n"
+              "with --allow-unverified so the count travels in the hash file.")
         return 2
     return 0 if not counts.get("error") and not counts.get("not_found") else 1
 
@@ -1277,13 +1857,16 @@ def comparability(group):
     partly a language difference, before any company enters into it.
     """
     members = group.get("members") or []
-    mk, cal, cur = {}, {}, {}
+    mk, cal, cur, routes, by_member = {}, {}, {}, {}, {}
     no_public = []
     for m in members:
         for pr in m.get("products") or []:
             k = _s(pr, "marketplace")
             if k:
                 mk[k] = mk.get(k, 0) + 1
+            r = route_of(pr)
+            routes[r] = routes.get(r, 0) + 1
+            by_member.setdefault(m.get("company"), set()).add(r)
         rep = m.get("reporting") or {}
         if rep.get("calendar"):
             cal[rep["calendar"]] = cal.get(rep["calendar"], 0) + 1
@@ -1294,6 +1877,14 @@ def comparability(group):
     return {
         "marketplaces": mk,
         "cross_marketplace": len(mk) > 1,
+        # The route is a property of the instrument, not of the company.
+        # CORE-PROMPT §3 requires a route change to be recorded IN a series;
+        # a group whose members sit on different routes has the change ACROSS
+        # members at one instant, which a peer-relative reading subtracts
+        # without ever seeing. Computed, never asserted (§1.2).
+        "routes": routes,
+        "mixed_routes": len(routes) > 1,
+        "routes_differ_between_members": len({frozenset(v) for v in by_member.values()}) > 1,
         "reporting_calendars": cal,
         "mixed_reporting_calendars": len(cal) > 1,
         "currencies": cur,
@@ -1315,6 +1906,21 @@ def print_comparability(c):
             "before any company difference. Either keep the group to one "
             "marketplace or read the tone per marketplace, never pooled."
             % ", ".join("%s (%d)" % kv for kv in sorted(c["marketplaces"].items())))
+    if c.get("routes_differ_between_members"):
+        out.append(
+            "ROUTE DIFFERS BETWEEN MEMBERS: %s. \u00a73 requires a route change "
+            "to be recorded IN a series; here the route differs ACROSS members "
+            "at the same instant, and a peer-relative reading subtracts a peer "
+            "mean computed on a different instrument. Read the tone per route, "
+            "and never attribute the gap to the companies."
+            % ", ".join("%s (%d)" % kv for kv in sorted((c.get("routes") or {}).items())))
+    elif c.get("mixed_routes"):
+        out.append(
+            "MIXED ROUTES: %s. Every member is read through more than one "
+            "sensor, so the comparison between members is sound and each "
+            "member's own series carries a route mix that \u00a73 requires to be "
+            "recorded with it."
+            % ", ".join("%s (%d)" % kv for kv in sorted((c.get("routes") or {}).items())))
     if c["mixed_reporting_calendars"]:
         out.append(
             "MIXED CALENDARS: %s. \u00a75 - tone is comparable across these, "
@@ -1498,6 +2104,11 @@ def mode_concentration(args):
 CONTRACT_MEMBER_KEYS = ("company", "venue", "brands", "concentration",
                         "products", "reporting")
 CONTRACT_PRODUCT_KEYS = ("asin", "parent_asin", "marketplace", "name")
+# The brand-platform product, as CONTRACTS.md §1 shapes it: the deployment zone
+# and one representative product id, plus the review family the platform
+# actually pools them into - this route's `parent_asin`.
+CONTRACT_BRAND_PRODUCT_KEYS = ("client", "site", "product_id", "review_family",
+                               "name")
 CONTRACT_REPORTING_KEYS = ("calendar", "currency", "fy_end", "source")
 
 
@@ -1509,6 +2120,31 @@ def content_hash(view):
     """
     bare = {k: v for k, v in view.items() if k != "hash"}
     return sha256_bytes(dumps(bare).encode("utf-8"))
+
+
+def contract_product(pr):
+    """One product in the §1 view, shaped by the route it is read through.
+
+    An amazon product carries the ASIN, the parent and the marketplace; a
+    brand-platform product carries the deployment zone, the product id and the
+    review family. Projecting one through the other's keys would write a row of
+    nulls and invite a reader to join on them.
+
+    `route` is written explicitly even when it is the default, because a view is
+    read by the workflow rather than by a person who knows the default.
+    """
+    keys = (CONTRACT_PRODUCT_KEYS if route_of(pr) == "amazon"
+            else CONTRACT_BRAND_PRODUCT_KEYS)
+    out = {"route": route_of(pr)}
+    for k in keys:
+        if k == "site" and not _s(pr, "site"):
+            continue
+        out[k] = pr.get(k)
+    out["continuity_reason"] = pr.get("continuity_reason")
+    if _s(pr, "liveness_finding"):
+        out["liveness_finding"] = pr["liveness_finding"]
+    out["verification"] = pr.get("verification")
+    return out
 
 
 def contract_view(group):
@@ -1530,11 +2166,7 @@ def contract_view(group):
     members = []
     for m in group.get("members") or []:
         out = {k: m.get(k) for k in CONTRACT_MEMBER_KEYS}
-        out["products"] = [
-            dict({k: pr.get(k) for k in CONTRACT_PRODUCT_KEYS},
-                 continuity_reason=pr.get("continuity_reason"),
-                 verification=pr.get("verification"))
-            for pr in m.get("products") or []]
+        out["products"] = [contract_product(pr) for pr in m.get("products") or []]
         rep = m.get("reporting") or {}
         out["reporting"] = dict({k: rep.get(k) for k in CONTRACT_REPORTING_KEYS},
                                 **{k: v for k, v in rep.items()
@@ -1591,15 +2223,29 @@ def parents_log(group_id, groups_dir=GROUPS_DIR):
     return os.path.join(groups_dir, "%s.parents.jsonl" % group_id)
 
 
-def declared_parents(group):
-    """[(company_index, company, asin, marketplace, declared_parent)]"""
+def declared_units(group):
+    """Every tracked product, with the review pool it was declared against.
+
+    One row per product on either route, because the thing being watched is the
+    same on both: the pool the platform actually serves this product's reviews
+    from, which can move after declaration with no identifier changing
+    anywhere. On amazon that pool is the parent ASIN; on a brand platform it is
+    the review family.
+    """
     out = []
     for i, m in enumerate(group.get("members") or []):
         for pr in m.get("products") or []:
-            out.append((i, m.get("company"), _s(pr, "asin"),
-                        _s(pr, "marketplace"),
-                        _s(pr, "parent_asin") or
-                        _s((pr.get("verification") or {}), "parent_asin_seen")))
+            route = route_of(pr)
+            out.append({
+                "index": i, "company": m.get("company"), "route": route,
+                "product": pr,
+                "label": (_s(pr, "asin") if route == "amazon"
+                          else "%s/%s" % (_s(pr, "client"), _s(pr, "product_id"))),
+                "declared_pool": (
+                    _s(pr, "parent_asin") or
+                    _s((pr.get("verification") or {}), "parent_asin_seen")
+                    if route == "amazon" else family_of(pr)),
+            })
     return out
 
 
@@ -1633,16 +2279,40 @@ def mode_reresolve(args):
     log = parents_log(gid)
 
     seen, findings, blocked = {}, [], False
-    for idx, company, asin, marketplace, declared in declared_parents(group):
-        if not ASIN_RE.match(asin) or marketplace not in MARKETPLACES:
+    mod, keycache = None, {}
+    units = declared_units(group)
+    for unit in units:
+        idx, company, pr = unit["index"], unit["company"], unit["product"]
+        asin, marketplace = _s(pr, "asin"), _s(pr, "marketplace")
+        declared = unit["declared_pool"]
+
+        if unit["route"] in BRAND_ROUTES:
+            if unit["route"] != "bazaarvoice":
+                continue
+            if mod is None:
+                mod = _widget_route_tool()
+            v = resolve_brand_product(mod, pr, unit["route"], args.rate,
+                                      keycache, 1)
+            now_parent = _s(v, "family_fingerprint")
+            rec = {"action": "resolve", "group_version": n, "company": company,
+                   "route": unit["route"], "product": unit["label"],
+                   "declared_parent": declared, "parent_now": now_parent or None,
+                   "status": v.get("status"), "newest": v.get("newest"),
+                   "newest_review_age_days": v.get("newest_review_age_days")}
+        elif unit["route"] == "amazon":
+            if not ASIN_RE.match(asin) or marketplace not in MARKETPLACES:
+                continue
+            v = resolve_product(asin, marketplace, args.rate, args.route)
+            now_parent = _s(v, "parent_asin_seen")
+            rec = {"action": "resolve", "group_version": n, "company": company,
+                   "route": "amazon",
+                   "asin": asin, "marketplace": marketplace,
+                   "declared_parent": declared, "parent_now": now_parent or None,
+                   "status": v.get("status"), "title_seen": v.get("title_seen"),
+                   "http_status": v.get("http_status")}
+        else:
             continue
-        v = resolve_product(asin, marketplace, args.rate, args.route)
-        now_parent = _s(v, "parent_asin_seen")
-        rec = {"action": "resolve", "group_version": n, "company": company,
-               "asin": asin, "marketplace": marketplace,
-               "declared_parent": declared, "parent_now": now_parent or None,
-               "status": v.get("status"), "title_seen": v.get("title_seen"),
-               "http_status": v.get("http_status")}
+        asin = unit["label"]
 
         if v.get("status") == "blocked":
             rec["finding"] = "blocked"
@@ -1654,12 +2324,14 @@ def mode_reresolve(args):
                             "another product" % (company, asin, v.get("status")))
         elif not now_parent:
             rec["finding"] = "no_parent_on_page"
-            findings.append("%s %s: the page served no parentAsin" % (company, asin))
+            findings.append("%s %s: the route served no review pool identifier"
+                            % (company, asin))
         elif declared and now_parent != declared:
             rec["finding"] = "reparented"
-            findings.append("%s %s: parent moved %s -> %s. The review pool is a "
-                            "different variation family than the one declared"
-                            % (company, asin, declared, now_parent))
+            findings.append("%s %s: the review pool moved %s -> %s. The reviews "
+                            "now come from a different family than the one "
+                            "declared" % (company, asin, declared[:16],
+                                          now_parent[:16]))
         else:
             rec["finding"] = "unchanged"
 
@@ -1668,28 +2340,40 @@ def mode_reresolve(args):
                 rec["finding"] = "converged"
                 rec["converged_with"] = seen[now_parent][1]
                 findings.append(
-                    "CONVERGED: %s (%s) and %s now share parent %s. They would "
-                    "be handed identical reviews and compared against each "
-                    "other" % (company, asin, seen[now_parent][1], now_parent))
+                    "CONVERGED: %s (%s) and %s now share review pool %s. They "
+                    "would be handed identical reviews and compared against "
+                    "each other"
+                    % (company, asin, seen[now_parent][1], now_parent[:16]))
             else:
                 seen[now_parent] = (idx, company)
 
+        # Liveness is its own question on every route, and it moves after
+        # declaration: a deployment that was 4 days fresh when declared can go
+        # quiet without a single identifier changing.
+        age = v.get("newest_review_age_days")
+        if isinstance(age, int) and age > LIVENESS_STALE_DAYS:
+            rec["finding"] = "stale"
+            findings.append(
+                "%s %s: newest review is %d days old, past the %d-day line. The "
+                "deployment has stopped receiving reviews; a forward cadence "
+                "cannot be run on it" % (company, asin, age, LIVENESS_STALE_DAYS))
+
         chain.append(log, rec)
-        print("  %-34s %-11s %-11s -> %-11s %s"
-              % (company[:34], asin, declared or "-", now_parent or "-",
-                 rec["finding"]))
+        print("  %-34s %-22s %-18s -> %-18s %s"
+              % (company[:34], asin, (declared or "-")[:18],
+                 (now_parent or "-")[:18], rec["finding"]))
         if blocked:
             break
 
     summary = {"action": "sweep", "group_version": n,
-               "products": len(declared_parents(group)),
+               "products": len(units),
                "findings": findings, "blocked": blocked,
                "complete": not blocked}
     chain.append(log, summary)
 
-    print("\n%s v%d: %d product(s) re-resolved" % (gid, n, len(declared_parents(group))))
+    print("\n%s v%d: %d product(s) re-resolved" % (gid, n, len(units)))
     if blocked:
-        print("STOPPED: the marketplace refused the request. \u00a73 - recorded, "
+        print("STOPPED: the route refused the request. \u00a73 - recorded, "
               "not routed around. The sweep is incomplete and stage G will say so.")
         return 2
     for f in findings:
@@ -1794,8 +2478,13 @@ def _member_skeleton():
         "reason": "",
         "reporting": {"calendar": "", "currency": "", "source": "",
                       "regime": "", "fy_end": "", "resolved_by": "agent"},
-        "products": [{"asin": "", "marketplace": "amazon.com", "brand": "",
-                      "name": "", "continuity_reason": ""}],
+        # CONTRACTS.md §1: every product says which route it is read through.
+        # The skeleton is an amazon one; a brand-platform product replaces
+        # `asin`/`marketplace` with `client` and `product_id` (one
+        # representative per review FAMILY) and is documented in
+        # references/peer-group-contract.md.
+        "products": [{"route": "amazon", "asin": "", "marketplace": "amazon.com",
+                      "brand": "", "name": "", "continuity_reason": ""}],
     }
 
 
@@ -1823,6 +2512,16 @@ def normalise_for_contract(group):
 
     `parent_asin` is lifted from the verification record onto the product,
     because §1 requires it on the product and the collector joins on it.
+    `review_family` is lifted the same way for a brand-platform product: it is
+    that route's `parent_asin`, it is where the reviews actually come from, and
+    it exists only because `check-products` compared the returned id sets.
+
+    `route` is made explicit on every product at freeze time. A reader defaults
+    an absent route to `amazon` - that is what keeps the declarations frozen
+    before the field existed valid - but a file being frozen NOW has no reason
+    to be implicit, and an explicit value is one fewer thing for a later reader
+    to infer.
+
     `no_public_report` / `revenue_readable` are made explicit on every member:
     §1 shows them on a listed member as false/true, and leaving them absent
     would make "not private" and "not yet checked" look the same.
@@ -1838,9 +2537,17 @@ def normalise_for_contract(group):
             c["no_public_report"] = False
         c["revenue_readable"] = not c.get("no_public_report")
         for pr in m.get("products") or []:
-            seen = _s((pr.get("verification") or {}), "parent_asin_seen")
-            if seen and not _s(pr, "parent_asin"):
-                pr["parent_asin"] = seen
+            if not isinstance(pr, dict):
+                continue
+            pr["route"] = route_of(pr)
+            if pr["route"] == "amazon":
+                seen = _s((pr.get("verification") or {}), "parent_asin_seen")
+                if seen and not _s(pr, "parent_asin"):
+                    pr["parent_asin"] = seen
+            else:
+                fam = _s((pr.get("verification") or {}), "family_fingerprint")
+                if fam and not _s(pr, "review_family"):
+                    pr["review_family"] = fam
     return group
 
 
@@ -1996,7 +2703,9 @@ def mode_show(args):
         print("    %-34s %-16s %-12s %s" % (
             m.get("company"), _s(m, "venue"),
             "%s/%s" % (rep.get("calendar"), rep.get("currency")),
-            ", ".join(p.get("asin") for p in m.get("products") or [])))
+            ", ".join(_s(p, "asin") or "%s:%s/%s" % (route_of(p), _s(p, "client"),
+                                                     _s(p, "product_id"))
+                      for p in m.get("products") or [])))
     return 0 if recorded == digest else 1
 
 
@@ -2176,11 +2885,18 @@ def build_parser():
     r.add_argument("draft")
     r.set_defaults(fn=mode_resolve_us)
 
-    c = sub.add_parser("check-products", help="resolve each ASIN")
+    c = sub.add_parser("check-products",
+                       help="resolve each product on its declared route")
     c.add_argument("draft")
     c.add_argument("--rate", type=float, default=3.0,
                    help="minimum seconds between requests (default 3)")
-    c.add_argument("--route", default="http-direct")
+    c.add_argument("--route", default="http-direct",
+                   help="how the AMAZON check is being made, for the record")
+    c.add_argument("--max-pages", type=int, default=2,
+                   help="brand-route pages of 100 to sample per product "
+                        "(default 2). The family fingerprint is always taken "
+                        "over the first %d ids, so it stays comparable however "
+                        "many pages are walked" % FAMILY_SAMPLE)
     c.add_argument("--only-missing", action="store_true")
     c.set_defaults(fn=mode_check_products)
 
