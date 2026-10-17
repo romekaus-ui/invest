@@ -79,16 +79,18 @@ GROUPS_DIR = os.path.join("data", "peer_groups")
 # look like an integrity violation forever, and the real ones would be lost in
 # the noise. Schema 1 is the CONTRACTS.md §1 shape (2026-10-12).
 #
-# NOT bumped by the `route` field (2026-10-15), and the reason is recorded
-# because it is a judgement rather than an oversight. `route` is an ADDITIVE
-# extension with a default: a product with no `route` is an `amazon` product,
-# so every declaration frozen under schema 1 still satisfies the current
-# validator exactly as written. Bumping would mark all six existing
-# declarations STALE and stop revalidating them - trading a real, continuing
-# check for a nominal one. The cost of not bumping is that an older copy of
-# this script would read a brand-route product as a malformed amazon one; that
-# is accepted, because there is one copy and it is this one.
-SCHEMA_VERSION = 1
+# The `route` field itself (2026-10-15) did NOT bump this, and that was right:
+# it is an ADDITIVE extension with a default, so a product with no `route` is an
+# `amazon` product and every declaration frozen under schema 1 still satisfies
+# the current validator exactly as written.
+#
+# Schema 2 (2026-10-17) is a different kind of change and does bump it. The
+# brand-route family fingerprint moved from the newest page to the OLDEST, and
+# the record now has to say which end it sampled - a TIGHTENING, so a record
+# written the old way is genuinely no longer judgeable by this validator. Only
+# one file was ever frozen in that shape (barbecue-grills v3, superseded within
+# the hour by v4).
+SCHEMA_VERSION = 2
 READINGS = os.path.join("results", "readings.jsonl")
 
 GROUP_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,48}$")
@@ -209,13 +211,23 @@ BRAND_PRODUCT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 DEFAULT_BRAND_SITE = "main_site"
 BRAND_SITE_RE = re.compile(r"^[a-z0-9][a-z0-9_.-]{1,48}$")
 
-# How many reviews the family fingerprint is taken over. The first page of
-# `Sort=SubmissionTime:desc`, which is deterministic for a given product, so two
-# products in one pooled family produce the SAME fingerprint and two genuinely
-# distinct products produce different ones. Verified live 2026-10-15: Traeger
-# TFB57GLE and TFB78GLE both fingerprint f7142071d5e80c8d over 100 shared ids,
-# TFB89BLF and TFB65BLF both 189a1080b52f4ed5, and TFB57GLE against TFB89BLF
-# share zero.
+# How many reviews the family fingerprint is taken over, and from which END.
+#
+# The OLDEST page - `Sort=SubmissionTime:asc` - and that detail is the whole
+# design. Taken over the newest page instead, the fingerprint changes the moment
+# a single review arrives, so `reresolve` would report `reparented` on every
+# live product within a week of declaration and stage G would refuse the group.
+# That is not a hypothetical: it was measured and fixed before the first cadence
+# ran. A family is identified by its history, not by its last page.
+#
+# The oldest page is stable against arrivals - on Traeger's Pro 575 it spans
+# 2019-03-20..2019-06-30 while the newest page spans 2024-06-13..2026-10-11, and
+# the two are disjoint - and it costs nothing in discrimination, verified live
+# 2026-10-17: pooled TFB57GLE and TFB78GLE share 100 of 100 oldest ids and
+# fingerprint identically (d9aa93cb2b20ffb0), while TFB89BLF shares zero.
+#
+# What DOES move it is an old review being deleted, which is a finding worth
+# having on a route where the company being measured runs the moderation queue.
 FAMILY_SAMPLE = 100
 
 # A deployment can be deep and dead. Owala serves 14,029 reviews flawlessly and
@@ -1197,6 +1209,14 @@ def _validate_brand_measurement(pr, ptag, v):
                  "has compared this product's review ids against the other "
                  "declared products, so a pooled family would pass unseen"
                  % ptag)
+    elif _s(v, "family_sample_end") != "oldest":
+        p.append("%s.verification.family_sample_end %r: the fingerprint must be "
+                 "taken over the OLDEST ids and say so. Over the newest page it "
+                 "changes the moment a review arrives, so every live product "
+                 "would read as re-parented within a week and the gate would "
+                 "refuse a healthy group. A record that cannot say which end it "
+                 "sampled cannot be compared with one that can"
+                 % (ptag, _s(v, "family_sample_end")))
     shared = v.get("family_shared_with")
     if shared:
         p.append("%s.verification.family_shared_with %s: `check-products` found "
@@ -1656,12 +1676,15 @@ def resolve_brand_product(mod, pr, route, rate, cache, max_pages):
     finally:
         sys.stdout = out
 
-    ids = [r["id"] for r in rows if r.get("id")]
-    sample = ids[:FAMILY_SAMPLE]
+    # The family is fingerprinted over the OLDEST ids, not these ones. See
+    # FAMILY_SAMPLE: a fingerprint over the newest page changes the moment a
+    # review arrives, which would read as a re-parenting every single week.
+    sample, first_review = brand_family_sample(mod, pr, cache)
     time.sleep(max(0.0, rate))
     return dict(
         base,
         status="resolved",
+        first_review=first_review,
         total_claimed=rep["total_claimed"],
         collected=rep["collected"],
         newest=(rep["newest"] or "")[:10],
@@ -1671,7 +1694,9 @@ def resolve_brand_product(mod, pr, route, rate, cache, max_pages):
         dates_descending_verified=rep["dates_descending_verified"],
         date_inversions=rep["date_inversions"],
         pagination_caps=rep["pagination_caps"],
-        sampled=len(sample),
+        sampled=len(rows),
+        family_sampled=len(sample),
+        family_sample_end="oldest",
         sample_window="%s..%s" % ((rep["oldest"] or "")[:10],
                                   (rep["newest"] or "")[:10]),
         # The text fraction above is measured over the SAMPLE, which is the most
@@ -1686,32 +1711,47 @@ def resolve_brand_product(mod, pr, route, rate, cache, max_pages):
     )
 
 
-def brand_first_review(mod, pr, cache):
-    """The date of the OLDEST review in this family, in one request.
+def brand_family_sample(mod, pr, cache):
+    """The OLDEST `FAMILY_SAMPLE` review ids in this family, and the first date.
 
-    Reach is two numbers - how far back and how far forward - and the sample
-    taken above answers only the forward one. Its oldest row is the oldest of
-    the *sample*, which is not the family's reach: Traeger's Pro 575 sample
-    bottoms out in 2024 while the family itself reaches 2019-03-20. Recording
-    the sample's oldest date under a name like `oldest` invites exactly that
-    misreading, so the real one is asked for directly - `Sort=SubmissionTime:asc`
-    with `Limit=1` - and the sample's own bounds are named as the sample's.
+    Two jobs in one request, both of which need the oldest end rather than the
+    newest:
+
+    The FAMILY. The fingerprint has to survive a week of normal trading, and a
+    fingerprint over the newest page does not: one arriving review changes it,
+    `reresolve` reads that as `reparented`, and stage G refuses a group that is
+    perfectly healthy. The oldest page does not move when a review arrives.
+
+    The REACH BACK. Reach is two numbers - how far back and how far forward -
+    and the descending walk answers only the forward one. Its oldest row is the
+    oldest of the *sample*, which is not the family's reach: Traeger's Pro 575
+    sample bottoms out in 2024 while the family reaches 2019-03-20. Recording
+    the sample's bound under a name like `oldest` invites exactly that
+    misreading, so the real one is asked for here and the sample's own bounds
+    are named as the sample's.
+
+    Returns ([ids], first_review_date) - ([], "") if the request fails.
     """
     client, site = _s(pr, "client"), brand_site_of(pr)
     passkey = brand_passkey(mod, client, site, cache)
     if not passkey:
-        return ""
+        return [], ""
     q = urllib.parse.urlencode({
         "apiversion": "5.4", "passkey": passkey,
         "Filter": "ProductId:eq:%s" % _s(pr, "product_id"),
-        "Limit": 1, "Offset": 0, "Sort": "SubmissionTime:asc"})
+        "Limit": FAMILY_SAMPLE, "Offset": 0, "Sort": "SubmissionTime:asc"})
     try:
         _, d = mod._json("https://api.bazaarvoice.com/data/reviews.json?" + q)
     except Exception:                                 # noqa: BLE001
-        return ""
-    for row in d.get("Results") or []:
-        return (row.get("SubmissionTime") or "")[:10]
-    return ""
+        return [], ""
+    rows = d.get("Results") or []
+    ids = [r.get("Id") for r in rows if r.get("Id")]
+    first = ""
+    for r in rows:
+        when = (r.get("SubmissionTime") or "")[:10]
+        if when and (not first or when < first):
+            first = when
+    return ids, first
 
 
 def brand_product_name(mod, pr, cache):
@@ -1821,8 +1861,7 @@ def mode_check_products(args):
                                           args.max_pages)
                 if v.get("status") == "resolved":
                     v["title_seen"] = brand_product_name(mod, pr, keycache)
-                    v["first_review"] = brand_first_review(mod, pr, keycache)
-                    if v["first_review"] and v.get("newest"):
+                    if v.get("first_review") and v.get("newest"):
                         v["reach_years"] = round(
                             (dt.date.fromisoformat(v["newest"])
                              - dt.date.fromisoformat(v["first_review"])).days
@@ -2765,6 +2804,31 @@ def _recorded_hash(version_path):
         return first[0] if first else None
 
 
+def revalidatable(group):
+    """Can the CURRENT validator legitimately judge this frozen file's shape?
+
+    The blunt version of this test is `schema_version == SCHEMA_VERSION`, and it
+    would be a real loss here: schema 2 changed only the BRAND-ROUTE product
+    shape, so declaring every schema-1 file unjudgeable would stop
+    contract-revalidating the six amazon declarations - twelve frozen versions -
+    over a change that cannot touch them. A check that stops checking is the
+    §5 failure wearing a version number.
+
+    So the test says what actually changed. A file at the current schema is
+    revalidated. A file at an older schema is revalidated too if it carries no
+    brand-route product, because nothing schema 2 tightened can apply to it.
+    Anything else is reported STALE - hash-checked, not revalidated - which is
+    what `schema_version` has always existed to express.
+    """
+    if group.get("schema_version") == SCHEMA_VERSION:
+        return True
+    for m in group.get("members") or []:
+        for pr in m.get("products") or []:
+            if isinstance(pr, dict) and route_of(pr) in BRAND_ROUTES:
+                return False
+    return True
+
+
 def mode_verify(args):
     """Re-hash every version of every group. This is the edit-in-place detector.
 
@@ -2801,7 +2865,7 @@ def mode_verify(args):
                 if not _s(group, "revision_reason"):
                     chain_broken.append("%s v%d: no revision_reason" % (gid, n))
             prev_sha = digest
-            if group.get("schema_version") != SCHEMA_VERSION:
+            if not revalidatable(group):
                 stale.append("%s v%d: schema %s, current is %d - hash checked, "
                              "contract not revalidated"
                              % (gid, n, group.get("schema_version"), SCHEMA_VERSION))

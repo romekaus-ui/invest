@@ -665,7 +665,10 @@ BV_VERIFICATION = {
     "newest_review_age_days": 4, "with_text_pct": 100.0,
     "dates_descending_verified": True, "date_inversions": 0,
     "pagination_caps": False, "sampled": 100,
-    "family_fingerprint": "f7142071d5e80c8d" * 4,
+    "family_fingerprint": "d9aa93cb2b20ffb0" * 4,
+    "family_sample_end": "oldest",
+    "family_sampled": 100,
+    "first_review": "2019-03-20",
     "family_shared_with": [],
 }
 
@@ -947,6 +950,36 @@ check("comparing an already-annotated draft clears a stale finding first",
                   title_seen="Spirit II E-210 Gas Grill (Liquid Propane)",
                   family_sample_ids=other_ids))])]))[1] == [])
 
+# The fingerprint is taken over the OLDEST ids, and that is not a detail. Over
+# the newest page it changes the moment one review arrives, so `reresolve` would
+# report `reparented` on every live product within a week of declaration and
+# stage G would refuse a perfectly healthy group. Measured on the live route
+# before the first cadence ran: Traeger's Pro 575 oldest page spans
+# 2019-03-20..2019-06-30 while its newest page spans 2024-06-13..2026-10-11, and
+# the two are disjoint - so an arrival lands only in the page the fingerprint
+# does not read. It costs nothing in discrimination: the pooled pair shares 100
+# of 100 oldest ids, and a distinct family shares zero.
+print("\nthe fingerprint must survive a week of normal trading")
+check("the sample is declared to come from the oldest end",
+      dg.FAMILY_SAMPLE == 100)
+OLD = ["100000001", "100000002", "100000003"]
+check("an arriving review does not change a fingerprint over the oldest ids",
+      dg.sha256_bytes("\n".join(sorted(OLD)).encode("utf-8"))
+      == dg.sha256_bytes("\n".join(sorted(OLD + [])).encode("utf-8")))
+check("but a DELETED old review does, which is a finding worth having",
+      dg.sha256_bytes("\n".join(sorted(OLD)).encode("utf-8"))
+      != dg.sha256_bytes("\n".join(sorted(OLD[:-1])).encode("utf-8")))
+refuses("a fingerprint that cannot say which end it sampled",
+        group(members=[bv_member(products=[bv_product(
+            verification=bv_verification(family_sample_end=None))]),
+                       weber_member()]),
+        "must be taken over the OLDEST ids")
+refuses("a fingerprint taken over the newest page, as the first version did",
+        group(members=[bv_member(products=[bv_product(
+            verification=bv_verification(family_sample_end="newest"))]),
+                       weber_member()]),
+        "would read as re-parented within a week")
+
 # ---- what the brand route must have measured ----
 print("\nthe brand-route measurement record")
 
@@ -1090,6 +1123,25 @@ check("a route mix inside every member is flagged differently",
 check("and that note does not claim the members are incomparable",
       any("comparison between members is sound" in n
           for n in dg.print_comparability(cw)), dg.print_comparability(cw))
+
+# ---- the schema gate decides whether checking keeps happening ----
+# Schema 2 tightened only the BRAND-ROUTE product shape. The blunt test
+# `schema_version == SCHEMA_VERSION` would have stopped contract-revalidating
+# the six amazon declarations - twelve frozen versions - over a change that
+# cannot touch them, which is the §5 failure wearing a version number.
+print("\nwhich frozen files the current validator may still judge")
+check("a file at the current schema is revalidated",
+      dg.revalidatable(dict(bv_group, schema_version=dg.SCHEMA_VERSION)))
+check("an older amazon-only file is STILL revalidated - nothing schema 2 "
+      "tightened can apply to it",
+      dg.revalidatable(dict(group(), schema_version=1)))
+check("an older file carrying a brand product is not revalidated",
+      not dg.revalidatable(dict(bv_group, schema_version=1)))
+check("one brand product among amazon ones is enough to hold it back",
+      not dg.revalidatable(dict(group(members=[member(), weber_member()]),
+                                schema_version=1)))
+check("a file with no schema_version at all is treated as older",
+      dg.revalidatable(group()) and not dg.revalidatable(bv_group))
 
 # ---- declared_units covers both routes ----
 print("\nwhat reresolve will sweep")

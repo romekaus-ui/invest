@@ -253,7 +253,7 @@ API and records what that API can establish:
 | `oldest_in_sample`, `sample_window`, `sampled` | the bounds of what was actually walked, named as the sample's |
 | `with_text_pct`, `with_text_pct_basis` | a star-only review can never be scored. Measured over the most recent reviews, which is the useful reading — Weber ran 100% text in 2019 and 29–37% now — and labelled so it is not mistaken for a whole-history figure |
 | `dates_descending_verified`, `date_inversions` | **verified against the dates, never trusted from the sort parameter.** Claiming verified order while recording inversions is a contradiction and is refused: that is what a parameter-trusting check looks like from outside. §3 records the same failure on Amazon, where the claim was false |
-| `family_fingerprint`, `family_sample_ids`, `family_shared_with` | the family, below |
+| `family_fingerprint`, `family_sample_ids`, `family_sample_end`, `family_sampled`, `family_shared_with` | the family, below |
 
 #### The review pool must be unique across the group, on either route
 
@@ -271,6 +271,21 @@ So the family is established by **comparing the returned review-id sets pairwise
 `check-products` does across the whole draft after resolving it. It is never inferred from
 the product ids differing — that is precisely the inference the measurement falsified —
 and `TotalReviewCount` is never summed across products, which overstated uniques by 30%.
+
+**The fingerprint is taken over the OLDEST 100 ids, and that is not a detail.** Over the
+newest page it changes the moment one review arrives, so the next cadenced `reresolve`
+would report every live product as `reparented` and stage G would refuse a healthy group.
+That was measured and fixed before the first cadence ran (schema 2, and `barbecue-grills`
+v3 → v4). The oldest page is stable against arrivals — Traeger's Pro 575 oldest page
+spans 2019-03-20..2019-06-30 while its newest spans 2024-06-13..2026-10-11, and the two
+are **disjoint** — and it costs nothing in discrimination: the pooled pair still shares
+100 of 100 oldest ids and fingerprints identically, and a distinct family shares zero.
+A family is identified by its history, not by its last page.
+
+What *does* move it is an **old review being deleted**, which is a finding worth having on
+a route where the company being measured runs the moderation queue. `family_sample_end`
+records which end was sampled, and a record that cannot say is refused — one sampled from
+the other end cannot be compared with one sampled from this one.
 
 Two declared products in one family are refused, both ways round:
 

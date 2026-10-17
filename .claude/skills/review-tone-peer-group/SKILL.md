@@ -128,6 +128,8 @@ The brand route gets its **own equivalent of every Amazon guard, never an exempt
   the returned review-id sets pairwise** across the whole draft, and two products in one
   family are refused — inside one member and across two. Never infer it from the product
   ids differing, and never sum the reported counts, which overstated uniques by 30%.
+  The fingerprint is over the **oldest** 100 ids: over the newest page it changes the
+  moment a review arrives, and every live product would read as re-parented within a week.
 - **`brand` and `continuity_reason` stay required**, unchanged.
 - **`verification` stays required** and records what the display API establishes: the
   count, how far the family reaches **back** and **forward**, the text fraction, and
@@ -203,7 +205,7 @@ the contract is the same either way.
 ## Tests
 
 ```bash
-python3 .claude/skills/review-tone-peer-group/tests/test_declare_group.py   # 267
+python3 .claude/skills/review-tone-peer-group/tests/test_declare_group.py   # 277
 python3 .claude/skills/review-tone-peer-group/tests/test_evidence_log.py    # 27
 python3 .claude/skills/review-tone-peer-group/tests/test_guard_coverage.py  # audit
 ```

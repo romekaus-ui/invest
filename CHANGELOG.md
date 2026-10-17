@@ -59,21 +59,50 @@ brand-route product as a malformed Amazon one. There is one copy and it is this 
    two numbers; the sample answers only the forward one. Renamed `oldest_in_sample`, with
    `first_review` asked for directly in one request and `reach_years` beside it.
 
-### §5: 90 refusal sites, all tripped
+### The defect that would have broken the cadence in a week
 
-20 new sites arrived with the route field; 20 cases that demonstrably trip them arrived
-with them, and the suite went from 187 to 267 checks. The must-pass half is pinned as
+The family fingerprint was first taken over the **newest** page of review ids. That is
+wrong in a way nothing in the test suite or the first live run could show, because it only
+appears on the *second* measurement: one arriving review changes the newest page, so the
+next cadenced `reresolve` would have reported **every live product as `reparented`** and
+stage G would have refused a perfectly healthy group within seven days.
+
+Found by asking what the next sweep would see rather than what this one saw, and fixed to
+the **oldest** page, which is stable against arrivals and costs nothing in discrimination.
+Measured 2026-10-17: Traeger's Pro 575 oldest page spans 2019-03-20..2019-06-30 while its
+newest spans 2024-06-13..2026-10-11 and the two are **disjoint**; the pooled pair
+`TFB57GLE`/`TFB78GLE` still shares 100 of 100 oldest ids and fingerprints identically, and
+a distinct family shares zero. A family is identified by its history, not its last page.
+What still moves the fingerprint is an old review being **deleted** — a finding worth
+having on a route where the company being measured runs the moderation queue.
+
+This is a tightening rather than an addition, so it **did** bump `SCHEMA_VERSION`, to 2,
+and `barbecue-grills` v3 was superseded by v4 within the hour, before any collection. v3
+is kept, not rewritten.
+
+But the blunt staleness test — `schema_version == SCHEMA_VERSION` — would then have
+stopped contract-revalidating the six amazon declarations, twelve frozen versions, over a
+change that cannot touch them. **That is the §5 failure wearing a version number**: a
+check that quietly stops checking. So `revalidatable()` says what actually changed: a file
+at the current schema is revalidated, and so is an older file carrying no brand-route
+product. Only `barbecue-grills` v3 is reported STALE, and `verify` has no breaks.
+
+### §5: 91 refusal sites, all tripped
+
+21 new sites arrived with the route field; 21 cases that demonstrably trip them arrived
+with them, and the suite went from 187 to 277 checks. The must-pass half is pinned as
 hard as the refusals, because a verifier that fires on a legitimate declaration gets
 switched off within a week and then guards nothing. A new validator helper has to be
 added to the audit's `GUARD_FUNCS` or its refusals are silently excluded — the same
 invisible failure the audit exists to catch.
 
-### `barbecue-grills` v3, the revision this unblocked
+### `barbecue-grills` v4, the revision this unblocked
 
 Both members moved from the Amazon route to their own Bazaarvoice deployments: Traeger 7
 families, Weber 5, measured 2026-10-17 as **12 distinct families with zero review-id
 overlap between any pair**. Declared with `readings_at_declare: 0` — no review text has
-been collected for this group, so it is still declared before collection.
+been collected for this group, so it is still declared before collection. (v3 was the
+same declaration with newest-end fingerprints; see above.)
 
 Why: Amazon caps a pass at ~100 reviews per filter combination, which on these grills
 buys weeks; Traeger's own deployment serves 7.6 years at 97–100% text with no cap and a
