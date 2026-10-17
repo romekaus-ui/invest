@@ -1,5 +1,13 @@
 {
   "groups": {
+    "barbecue-grills": {
+      "cadence": "weekly",
+      "cadence_days": 7,
+      "collector_version": "d1-collect-v1",
+      "declared_at": "2026-10-17T14:48:00Z",
+      "group_id": "barbecue-grills",
+      "last_changed_at": "2026-10-17T14:48:00Z"
+    },
     "energy-drinks-modes-fixture": {
       "cadence": "weekly",
       "cadence_days": 7,

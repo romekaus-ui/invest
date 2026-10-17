@@ -1,0 +1,28 @@
+{
+  "company": "Weber Inc.",
+  "company_slug": "weber-inc",
+  "coverage_method": "collected/3442 claimed (reviews basis), route bazaarvoice, sort recent",
+  "coverage_ratio": 0.450901,
+  "group_id": "barbecue-grills",
+  "live_collection": {
+    "any_sort_verified": true,
+    "cadence": "weekly",
+    "cadence_days": 7,
+    "cadence_declared_at": "2026-10-17T14:48:00Z",
+    "collector_version": "d1-collect-v1",
+    "last_batch_id": "b-0de3dab210",
+    "last_collected_at": "2026-10-17T15:15:58Z",
+    "n_batches": 9,
+    "review_date_precision": "day",
+    "review_id_schemes": [
+      "bazaarvoice_review_id"
+    ],
+    "routes_used": [
+      "bazaarvoice"
+    ],
+    "sorts_requested": [
+      "recent"
+    ]
+  },
+  "source": "live Amazon collection (CORE-PROMPT §3), not the 2023 corpus"
+}

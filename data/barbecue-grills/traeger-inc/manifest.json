@@ -1,0 +1,28 @@
+{
+  "company": "Traeger, Inc.",
+  "company_slug": "traeger-inc",
+  "coverage_method": "collected/215 claimed (reviews basis), route bazaarvoice, sort recent",
+  "coverage_ratio": 1.0,
+  "group_id": "barbecue-grills",
+  "live_collection": {
+    "any_sort_verified": true,
+    "cadence": "weekly",
+    "cadence_days": 7,
+    "cadence_declared_at": "2026-10-17T14:48:00Z",
+    "collector_version": "d1-collect-v1",
+    "last_batch_id": "b-4194979073",
+    "last_collected_at": "2026-10-17T14:48:59Z",
+    "n_batches": 7,
+    "review_date_precision": "day",
+    "review_id_schemes": [
+      "bazaarvoice_review_id"
+    ],
+    "routes_used": [
+      "bazaarvoice"
+    ],
+    "sorts_requested": [
+      "recent"
+    ]
+  },
+  "source": "live Amazon collection (CORE-PROMPT §3), not the 2023 corpus"
+}
