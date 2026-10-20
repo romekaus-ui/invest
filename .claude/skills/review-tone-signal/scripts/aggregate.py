@@ -112,6 +112,31 @@ TONE_MIN, TONE_MAX = -2, 2
 # fiscal quarter arithmetic
 # ---------------------------------------------------------------------------
 
+def sample_drawn_ids(datadir):
+    """The review ids a sampled run drew, or None when the run was not sampled.
+
+    Written by `score_reviews.py --sample-per-quarter` into manifest.json. The
+    distinction this enables is the whole point: a row outside the draw was
+    never meant to be scored, while a row inside it with no score is the
+    pipeline inconsistency the original refusal exists to catch.
+    """
+    p = os.path.join(datadir, "manifest.json")
+    if not os.path.exists(p):
+        return None
+    try:
+        with open(p, encoding="utf-8") as f:
+            m = json.load(f)
+    except (OSError, ValueError):
+        return None
+    blk = m.get("scoring_sample")
+    if not blk:
+        return None
+    ids = set()
+    for q in (blk.get("drawn_review_ids") or {}).values():
+        ids.update(q)
+    return ids or None
+
+
 def period_label(row):
     """The quarter a review belongs to.
 
@@ -266,10 +291,20 @@ def load_quarters(ticker, datadir, win=None):
         "n_verified": 0,
         "n_defect": 0,
         "n_price_complaint": 0,
+        # Rows seen in this quarter, scored or not. Carried on the bucket so
+        # the (buckets, err) signature and both self-test callers are unchanged.
+        "n_population": 0,
     })
     unscored = 0
     out_of_window = 0
     bad_quarter = defaultdict(int)
+    # A sampled run deliberately scores a subset. The drawn ids come from the
+    # manifest, written by score_reviews.py as a function of (review ids,
+    # quarter, seed) - so a row outside the draw is an intended omission, while
+    # a row INSIDE it with no score is still the original pipeline bug. Both
+    # must stay distinguishable; collapsing them would let a half-finished run
+    # pass as a sampled one.
+    drawn = sample_drawn_ids(os.path.dirname(rpath))
     with open(rpath, newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):
             label = period_label(row)
@@ -280,8 +315,11 @@ def load_quarters(ticker, datadir, win=None):
             if qi is None:
                 bad_quarter[label or ""] += 1
                 continue
+            buckets[qi]["n_population"] += 1
             s = scores.get(row["review_id"])
             if s is None:
+                if drawn is not None and row["review_id"] not in drawn:
+                    continue          # not drawn: deliberately unscored
                 # A review with no score row is not a zero and not a failure -
                 # it means the scoring stage did not cover the extract. That is
                 # a pipeline inconsistency, reported and then fatal.
@@ -455,6 +493,11 @@ def aggregate_ticker(ticker, buckets, args):
         row = {
             "fiscal_quarter": label,
             "n_reviews": n,
+            # Rows present in the quarter, scored or not. Without it a quarter
+            # of 150 sampled from 509 is indistinguishable from one that held
+            # 150, and any coverage figure computed off n_reviews reads as
+            # though the whole quarter were scored.
+            "n_population": b.get("n_population", n) or n,
             "n_excluded_seller": b["n_excluded_seller"],
             "n_scoring_failed": b["n_scoring_failed"],
             "verified_share": (b["n_verified"] / float(n)) if n else None,
@@ -558,7 +601,7 @@ def aggregate_ticker(ticker, buckets, args):
 # output
 # ---------------------------------------------------------------------------
 
-COLUMNS = ["fiscal_quarter", "n_reviews", "n_excluded_seller", "n_scoring_failed",
+COLUMNS = ["fiscal_quarter", "n_reviews", "n_population", "n_excluded_seller", "n_scoring_failed",
            "verified_share", "tone_mean", "tone_ci_low", "tone_ci_high",
            "tone_within", "tone_mix", "tone_residual", "baseline_prior4",
            "signal", "defect_rate", "price_complaint_rate", "sufficient"]

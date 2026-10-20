@@ -1,0 +1,41 @@
+{
+  "backend": "api",
+  "conversation_history": false,
+  "failure_rate": 0.9489027186374058,
+  "n_attempted": 6106,
+  "n_defect": 27,
+  "n_failed": 5794,
+  "n_failed_malformed": 0,
+  "n_failed_transport": 5794,
+  "n_in_tone_aggregate": 307,
+  "n_ok_after_retry": 0,
+  "n_price_complaint": 3,
+  "n_scored": 312,
+  "n_seller_or_shipping_only": 5,
+  "per_quarter": {
+    "(none)": {
+      "failed": 5794,
+      "failure_rate": 0.9489027186374058,
+      "flagged_over_10pct": true,
+      "n": 6106,
+      "seller_only": 5
+    }
+  },
+  "reviews_path": "data/barbecue-grills-2024/WEBER-INC/reviews.csv",
+  "reviews_per_call": 1,
+  "rubric_sha256": "4ce22feb1c52b4b4f2063a774fd542abfc59211667c2c5c349af30a9bdc48b14",
+  "rubric_version": "v1",
+  "scored_at": "2026-10-17T15:24:18+00:00",
+  "scorer_model_id": "claude-haiku-4-5-20251001",
+  "scores_path": "data/barbecue-grills-2024/WEBER-INC/scores.csv",
+  "temperature": 0,
+  "tone_distribution": {
+    "-1": 17,
+    "-2": 11,
+    "0": 3,
+    "1": 50,
+    "2": 231
+  },
+  "tone_star_pearson": 0.7869045811969541,
+  "tone_star_pearson_n": 312
+}
