@@ -131,9 +131,14 @@ def sample_drawn_ids(datadir):
     blk = m.get("scoring_sample")
     if not blk:
         return None
+    # The ids live per quarter under `per_quarter`, each with its own
+    # `drawn_review_ids` list - read from the file rather than assumed. The
+    # top-level shape guessed here first produced an empty set, which silently
+    # disabled the sample-awareness and surfaced as the original
+    # "run the scoring stage to completion" refusal.
     ids = set()
-    for q in (blk.get("drawn_review_ids") or {}).values():
-        ids.update(q)
+    for q in (blk.get("per_quarter") or {}).values():
+        ids.update(q.get("drawn_review_ids") or [])
     return ids or None
 
 
