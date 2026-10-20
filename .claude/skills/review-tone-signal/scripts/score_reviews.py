@@ -28,7 +28,53 @@ F13 - SILENT SCORING FAILURES. Malformed output is retried once, then written as
 Reviews are scored INDEPENDENTLY: one review per request, a single user message,
 no conversation history, temperature 0. `--workers` runs several of those
 independent requests at once; it never batches reviews into one call, so batch
-ordering cannot leak one review's context into the next.
+ordering cannot leak one review's context into the next. `--batch` sends the
+same one-review requests through the Batches API, which is also one review per
+request - a batch of 5,794 requests, not 5,794 reviews in one request.
+
+THE THREE COST CHANGES, AND THE CONSTRAINT OVER ALL OF THEM
+-----------------------------------------------------------
+Scoring measured $0.0040/review on 2026-10-17: $5 of credit bought 1,241
+reviews and ran out mid-run on Weber, leaving 5,794 unscored at $23. Three
+changes cut that (`--sample-per-quarter`, `--batch`, prompt caching), and the
+constraint that outranks all three is that the scorer must keep producing the
+SAME SCORES FOR THE SAME INPUT. The calibration gate passed for
+(v1, claude-haiku-4-5-20251001) at temperature 0 - kappa 0.811, adjacent 0.900
+against 100 human labels - and it covers that scorer and no other.
+
+So the request body is built in ONE place, `request_params()`, for both the
+synchronous and the batch path, and `validate_request_params()` refuses six ways
+the body could stop being that scorer: a non-zero temperature, more than one
+user message, system text that is not the frozen rubric extraction byte for
+byte, per-review text that leaked into the system block, a cache breakpoint
+anywhere but at the end of the stable prefix, and a changed output schema. A
+guard is not enough on its own - `--self-test` trips every one of them, and
+re-scoring 40 already-scored reviews through the new path is what actually
+establishes agreement.
+
+`--sample-per-quarter N` is a METHODOLOGY change and is built as one. The draw
+is a function of (review ids, quarter, seed) and nothing else - never of a
+score, which would make it selection - seeded from `env_stamp.stage_seed`
+("scoring_sample") so two sessions cannot each invent a seed, and recorded in
+the manifest and the scoring report with N, the seed, the drawn ids per quarter
+and the population each was drawn from. A quarter sampled down to 150 and a
+quarter that genuinely held 150 must be tellable apart, so the population and
+its id-set hash travel with every number. A quarter shorter than N is taken
+whole; a quarter under MIN_REVIEWS_PER_QUARTER is insufficient exactly as it
+always was, never silently dropped.
+
+Prompt caching puts `cache_control` on the system block carrying the rubric.
+**Measured 2026-10-18: it does not engage on this model.** Haiku 4.5's minimum
+cacheable prefix is 4,096 tokens and the rubric prompt is ~940, so the marker is
+accepted and silently caches nothing. Every run reports
+`usage.cache_read_input_tokens` and a `cache.engaged` verdict rather than
+assuming the discount; `--require-cache` turns a non-engaging cache into a
+refusal for the day a model with a lower minimum makes the saving real.
+
+Downstream note, deliberately not fixed here: `aggregate.py` refuses a reviews
+row with no score row ("run the scoring stage to completion"), so a sampled
+company cannot be aggregated without a change to that file. See the
+`SAMPLING_DOWNSTREAM` note below; this script does not edit `aggregate.py`.
 
 Script, not a subagent. The rubric fixes the model, temperature 0, one review per
 call and no history. A Claude Code subagent runs on the session's model with the
@@ -53,6 +99,9 @@ Usage
     export ANTHROPIC_API_KEY=...
     python3 score_reviews.py HELE
     python3 score_reviews.py HELE --limit 200 --workers 4
+
+    # B4 - score a seeded per-quarter subsample through the Batches API
+    python3 score_reviews.py HELE --sample-per-quarter 50 --batch
 
     # B3 - calibration, step 1: draw a blind labelling sheet
     python3 score_reviews.py HELE --calibrate
@@ -79,12 +128,46 @@ import re
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import aggregate as aggmod  # noqa: E402
+import env_stamp  # noqa: E402
 import window as windowmod  # noqa: E402
+
+# --------------------------------------------------------------------------
+# Refusal instrumentation (CONTRACTS.md s5)
+# --------------------------------------------------------------------------
+
+# Set by refusal_audit.py to the path of its log. When present, every refusal
+# records the source line it fired from, so the audit can assert that each one
+# has a test that trips it. Unset in normal use, where it costs nothing.
+REFUSAL_LOG_ENV = "SCORE_REFUSAL_LOG"
+
+
+def _record_refusal():
+    path = os.environ.get(REFUSAL_LOG_ENV)
+    if not path:
+        return
+    try:
+        import traceback
+        st = traceback.extract_stack()
+        here = os.path.abspath(__file__)
+        for fr in reversed(st):
+            # Skip this helper AND die() itself, or every refusal records die()'s
+            # own line - one distinct "site" for all of them, which reads as a
+            # working audit finding nothing.
+            if fr.name in ("_record_refusal", "die"):
+                continue
+            if os.path.abspath(fr.filename) == here:
+                with open(path, "a", encoding="utf-8") as f:
+                    f.write("%d\n" % fr.lineno)
+                return
+    except Exception:            # noqa: BLE001 - never let auditing break a run
+        pass
 
 # --------------------------------------------------------------------------
 # Frozen rubric
@@ -135,6 +218,71 @@ GATE_ADJACENT = 0.85
 
 STUB_MODEL_ID = "stub:deterministic-v1"
 SELFTEST_MIN = 300
+
+# --------------------------------------------------------------------------
+# Cost model
+# --------------------------------------------------------------------------
+#
+# Published list prices, USD per million tokens, recorded 2026-10-18 with the
+# date so a stale figure is visible rather than inferred. A model absent from
+# this table yields a null cost rather than a guessed one: an invented price is
+# worse than no price, because it reads like a measurement.
+PRICES_USD_PER_MTOK = {
+    "claude-haiku-4-5-20251001": {"input": 1.00, "output": 5.00},
+    "claude-haiku-4-5": {"input": 1.00, "output": 5.00},
+}
+PRICES_RECORDED = "2026-10-18, Anthropic published list prices"
+
+CACHE_WRITE_MULTIPLIER = 1.25     # 5-minute TTL
+CACHE_READ_MULTIPLIER = 0.10
+BATCH_MULTIPLIER = 0.50           # Batches API: 50% off every token
+
+# The minimum cacheable prefix is MODEL-DEPENDENT (512-4096 tokens) and a prefix
+# below it silently does not cache: no error, just cache_creation_input_tokens
+# and cache_read_input_tokens both zero. Recorded here so the run can say
+# whether the discount it is claiming is even available, instead of discovering
+# it from a bill. Measured 2026-10-18: the rubric prompt is ~940 tokens, so on
+# Haiku 4.5 (minimum 4,096) caching cannot engage and does not.
+MIN_CACHEABLE_PREFIX_TOKENS = {
+    "claude-haiku-4-5-20251001": 4096,
+    "claude-haiku-4-5": 4096,
+}
+
+# --------------------------------------------------------------------------
+# SAMPLING_DOWNSTREAM - flagged, not worked around
+# --------------------------------------------------------------------------
+#
+# `aggregate.py` reads every row of reviews.csv and refuses the company if any
+# row has no matching row in scores.csv:
+#
+#     "%d reviews in reviews.csv have no row in scores.csv - run the scoring
+#      stage to completion before aggregating"
+#
+# That is correct for a full run and is exactly wrong for a sampled one, where
+# unscored rows are the intended outcome. So `--sample-per-quarter` cannot be
+# aggregated without a change to `aggregate.py`, which this task is not
+# permitted to edit. What it needs, stated precisely so whoever owns that stage
+# can make it in one place:
+#
+#   1. `load_quarters` must read the `scoring_sample` block from manifest.json
+#      and, when present, treat a review whose id is not in that quarter's
+#      `drawn_review_ids` as DELIBERATELY UNSCORED rather than as a pipeline
+#      inconsistency - while still refusing a review that was drawn and has no
+#      score row, because that one is the original bug.
+#   2. `quarters.csv` needs one more column, `n_population`, beside the existing
+#      `n_reviews`. `n_reviews` already reflects what was scored, which is
+#      right; without `n_population` a 150-review sampled quarter and a quarter
+#      that genuinely held 150 are indistinguishable, and any coverage figure
+#      computed from `n_reviews` reads as though the whole quarter were scored.
+#
+# Until both land, a sampled company scores but does not aggregate, and this
+# script says so at the end of every sampled run rather than leaving it to be
+# discovered at the next stage.
+SAMPLING_DOWNSTREAM = (
+    "aggregate.py refuses a reviews row with no score row, so a sampled company "
+    "will not aggregate until it learns to read the manifest's scoring_sample "
+    "block and carries an n_population column beside n_reviews. See "
+    "SAMPLING_DOWNSTREAM in score_reviews.py.")
 
 
 def rubric_path(version):
@@ -194,6 +342,156 @@ def build_system_prompt(rubric_text):
     return ("You score one Amazon customer review against the rubric below. "
             "Follow it exactly. Respond with the JSON object only, no prose, no "
             "code fences.\n\n" + extract_sections(rubric_text, PROMPT_SECTIONS))
+
+
+def build_system_blocks(rubric_text, cache=True):
+    """The system field as a list of one text block, optionally cached.
+
+    The rubric is 833 of roughly 940 input tokens on every call and is
+    byte-identical every time, so it is the whole of the cacheable prefix.
+    Render order is `tools` -> `system` -> `messages`: the rubric is first and
+    stable, the per-review text goes after the breakpoint in the user message,
+    and `validate_request_params` refuses the inverse.
+
+    A string and a single text block are the same prompt to the API - the
+    string form is normalised to exactly this - so turning caching on does not
+    change what the scorer reads. That is an assertion about the API, not a
+    licence to assume it: `--verify-prompt-identity` measures both forms through
+    count_tokens, and the 40-review agreement re-score is what establishes it
+    for the scores themselves.
+    """
+    block = {"type": "text", "text": build_system_prompt(rubric_text)}
+    if cache:
+        # Ephemeral, 5-minute TTL. Whether it engages is MODEL-DEPENDENT and is
+        # reported from usage rather than assumed - see MIN_CACHEABLE_PREFIX_TOKENS.
+        block["cache_control"] = {"type": "ephemeral"}
+    return [block]
+
+
+def request_params(model, system_blocks, prompt, max_tokens):
+    """The one request body, for the synchronous path and the batch path alike.
+
+    Both paths call this. If they built their own, the batch path could drift
+    into being a different scorer - a different temperature, a reordered system
+    field, a loosened schema - and the calibration gate, which passed for one
+    exact scorer, would silently stop covering the run. Nothing that reaches
+    the API is assembled anywhere else.
+    """
+    params = {
+        "model": model,
+        "max_tokens": max_tokens,
+        "temperature": 0,
+        "system": system_blocks,
+        # Exactly one user message. No assistant turns, no prior reviews.
+        "messages": [{"role": "user", "content": prompt}],
+        # The rubric's output contract, enforced by the API rather than
+        # asked for in prose. Measured 2026-10-14: without it the model
+        # wrapped correct JSON in a ```json fence on 10 of 10 reviews,
+        # despite the system prompt saying "no code fences", and the strict
+        # parser rejected every one. Loosening the parser to strip fences
+        # was the alternative and is worse: it starts the slide toward
+        # rescuing JSON out of prose, which is guessing. This makes the
+        # malformed case impossible instead of recoverable.
+        "output_config": {"format": {"type": "json_schema",
+                                     "schema": RESPONSE_SCHEMA}},
+    }
+    validate_request_params(params)
+    return params
+
+
+def validate_request_params(params):
+    """Refuse six ways the body could stop being the calibrated scorer.
+
+    Every one of these is exact rather than heuristic. A near-miss guard gets
+    switched off after it fires on something innocent, and then it guards
+    nothing at all (CONTRACTS.md s5) - so none of these matches on wording. In
+    particular there is no lexical scan for "rating" anywhere near the review
+    text: a reviewer writing "the rating system is broken" would trip it, it
+    would be removed, and F8 would lose its request-level check. The system text
+    is compared byte for byte against the frozen extraction instead.
+    """
+    if params.get("temperature") != 0:
+        die("temperature is %r, not 0.\n"
+            "The calibration gate passed for this rubric at temperature 0. Any\n"
+            "other value is a different scorer and the gate does not cover it."
+            % (params.get("temperature"),))
+
+    msgs = params.get("messages") or []
+    if len(msgs) != 1 or msgs[0].get("role") != "user":
+        die("the request carries %d message(s) %s, not exactly one user "
+            "message.\nReviews are scored independently so that batch ordering\n"
+            "cannot leak one review's context into the next; a second turn\n"
+            "breaks that and is not the scorer the gate covers."
+            % (len(msgs), [m.get("role") for m in msgs]))
+
+    blocks = params.get("system") or []
+    if not blocks:
+        die("the request carries no system block, so the scorer would be shown\n"
+            "no rubric at all and would answer from whatever it already thinks\n"
+            "a tone score is.")
+    want = expected_system_text()
+    got = "".join(b.get("text", "") for b in blocks)
+    if got != want:
+        die("SYSTEM TEXT IS NOT THE FROZEN RUBRIC EXTRACTION\n\n"
+            "  expected %d chars, sha256 %s\n  got      %d chars, sha256 %s\n\n"
+            "Every score ever stamped with this rubric version was produced\n"
+            "under the extraction build_system_prompt() returns. A paraphrase,\n"
+            "a reordering or an extra sentence is a different prompt, and the\n"
+            "calibration gate covers the original and nothing else (F10)."
+            % (len(want), hashlib.sha256(want.encode()).hexdigest()[:12],
+               len(got), hashlib.sha256(got.encode()).hexdigest()[:12]))
+
+    # Render order is tools -> system -> messages. The per-review text must sit
+    # AFTER the breakpoint, or the cached prefix changes on every call and the
+    # cache is a pure write surcharge on bytes nothing ever reads back.
+    user_text = msgs[0].get("content") or ""
+    if isinstance(user_text, str) and user_text and user_text in got:
+        die("the per-review text appears inside the system block.\n\n"
+            "The rubric is the stable prefix and the review is the volatile\n"
+            "suffix. With the review above the cache breakpoint the prefix\n"
+            "changes on every call: nothing is ever read back, every request\n"
+            "pays the write premium, and the 'saving' is a surcharge.")
+
+    for i, b in enumerate(blocks):
+        if "cache_control" in b and i != len(blocks) - 1:
+            die("cache_control is on system block %d of %d, not the last one.\n"
+                "The breakpoint has to close the stable prefix. Anything after\n"
+                "it is uncached, so a breakpoint in the middle silently drops\n"
+                "the rest of the rubric out of the cache." % (i + 1, len(blocks)))
+
+    schema = (((params.get("output_config") or {}).get("format") or {})
+              .get("schema"))
+    if schema != RESPONSE_SCHEMA:
+        die("output_config schema is not RESPONSE_SCHEMA.\n"
+            "The schema and the strict parser are the same contract written\n"
+            "twice; a schema that allowed other keys would make the parser the\n"
+            "only thing catching it, and a looser one would let a differently\n"
+            "shaped answer through as if it were a score.")
+
+
+_EXPECTED_SYSTEM = []
+
+
+def set_expected_system(rubric_text):
+    """Pin the system text this process may send, from the hash-checked rubric.
+
+    Called once, with the text `load_rubric` has already verified against the
+    pinned sha256. The validator compares against this rather than re-deriving
+    it per request, so a request cannot be validated against itself.
+    """
+    del _EXPECTED_SYSTEM[:]
+    _EXPECTED_SYSTEM.append(build_system_prompt(rubric_text))
+    return _EXPECTED_SYSTEM[0]
+
+
+def expected_system_text():
+    if not _EXPECTED_SYSTEM:
+        # Reached only if a caller builds a request before loading the rubric,
+        # which would mean the pinned-hash check had been skipped.
+        die("no rubric has been loaded, so there is nothing to validate the\n"
+            "system text against. load_rubric() runs the pinned-hash check and\n"
+            "must happen before any request is built (F10).")
+    return _EXPECTED_SYSTEM[0]
 
 
 # --------------------------------------------------------------------------
@@ -282,6 +580,40 @@ def parse_response(raw, review_id):
 # Backends
 # --------------------------------------------------------------------------
 
+class UsageTally(object):
+    """Token usage, summed across calls, so cost is measured and not estimated.
+
+    `cache_read_input_tokens` is the only honest answer to "is caching
+    happening". The minimum cacheable prefix is model-dependent and a prefix
+    below it caches nothing while raising no error, so a run that assumed the
+    discount from the presence of the marker would report a saving it never got.
+    """
+
+    FIELDS = ("input_tokens", "output_tokens",
+              "cache_creation_input_tokens", "cache_read_input_tokens")
+
+    def __init__(self):
+        self.totals = dict((f, 0) for f in self.FIELDS)
+        self.n_calls = 0
+        self.n_with_usage = 0
+
+    def add(self, usage):
+        self.n_calls += 1
+        if not usage:
+            return
+        self.n_with_usage += 1
+        for f in self.FIELDS:
+            v = usage.get(f)
+            if isinstance(v, int):
+                self.totals[f] += v
+
+    def as_dict(self):
+        d = dict(self.totals)
+        d["n_calls"] = self.n_calls
+        d["n_calls_reporting_usage"] = self.n_with_usage
+        return d
+
+
 class ApiBackend(object):
     """One independent Messages API call per review, temperature 0, no history.
 
@@ -292,6 +624,7 @@ class ApiBackend(object):
     """
 
     kind = "api"
+    batched = False
 
     def __init__(self, model, system, base_url=DEFAULT_BASE_URL,
                  max_tokens=256, transport_retries=4, timeout=120):
@@ -304,40 +637,35 @@ class ApiBackend(object):
                 "To check the plumbing without an API key, use --self-test.")
         self._key = key
         self.model = model
-        self.system = system
-        self.url = base_url.rstrip("/") + "/v1/messages"
+        # A list of system blocks (see build_system_blocks), carrying the cache
+        # breakpoint. A bare string is accepted so older callers keep working.
+        self.system = ([{"type": "text", "text": system}]
+                       if isinstance(system, str) else system)
+        self.base_url = base_url.rstrip("/")
+        self.url = self.base_url + "/v1/messages"
         self.max_tokens = max_tokens
         self.transport_retries = transport_retries
         self.timeout = timeout
         self.resolved_models = Counter()
+        self.usage = UsageTally()
 
-    def __call__(self, prompt):
-        body = json.dumps({
-            "model": self.model,
-            "max_tokens": self.max_tokens,
-            "temperature": 0,
-            "system": self.system,
-            # Exactly one user message. No assistant turns, no prior reviews.
-            "messages": [{"role": "user", "content": prompt}],
-            # The rubric's output contract, enforced by the API rather than
-            # asked for in prose. Measured 2026-10-14: without it the model
-            # wrapped correct JSON in a ```json fence on 10 of 10 reviews,
-            # despite the system prompt saying "no code fences", and the strict
-            # parser rejected every one. Loosening the parser to strip fences
-            # was the alternative and is worse: it starts the slide toward
-            # rescuing JSON out of prose, which is guessing. This makes the
-            # malformed case impossible instead of recoverable.
-            "output_config": {"format": {"type": "json_schema",
-                                         "schema": RESPONSE_SCHEMA}},
-        }).encode("utf-8")
-        assert json.loads(body)["messages"].__len__() == 1
-
-        req = urllib.request.Request(self.url, data=body, headers={
+    def headers(self):
+        return {
             "x-api-key": self._key,
             "anthropic-version": "2023-06-01",
             "content-type": "application/json",
             "user-agent": "review-tone-signal/1.0 (research; tone scorer)",
-        })
+        }
+
+    def params_for(self, prompt):
+        return request_params(self.model, self.system, prompt, self.max_tokens)
+
+    def __call__(self, prompt):
+        body = json.dumps(self.params_for(prompt)).encode("utf-8")
+        assert json.loads(body)["messages"].__len__() == 1
+
+        req = urllib.request.Request(self.url, data=body,
+                                     headers=self.headers())
 
         payload = None
         last = None
@@ -365,15 +693,26 @@ class ApiBackend(object):
         if payload is None:
             raise Transport(last or "exhausted transport retries")
 
-        # The model that actually answered, not the alias that was asked for.
-        resolved = payload.get("model") or self.model
-        self.resolved_models[resolved] += 1
+        return read_message(payload, self.model, self.resolved_models, self.usage)
 
-        parts = [c.get("text", "") for c in payload.get("content", [])
-                 if c.get("type") == "text"]
-        if payload.get("stop_reason") == "max_tokens":
-            raise Malformed("response truncated at max_tokens")
-        return "".join(parts), resolved
+
+def read_message(payload, requested_model, resolved_models, usage):
+    """Pull (text, resolved model) out of one Message, tallying its usage.
+
+    Shared by the synchronous and the batch path: a batch result's
+    `.result.message` is an ordinary Message, so reading it anywhere else would
+    be a second place that could disagree about what counts as truncated.
+    """
+    # The model that actually answered, not the alias that was asked for.
+    resolved = payload.get("model") or requested_model
+    resolved_models[resolved] += 1
+    usage.add(payload.get("usage") or {})
+
+    parts = [c.get("text", "") for c in payload.get("content", [])
+             if c.get("type") == "text"]
+    if payload.get("stop_reason") == "max_tokens":
+        raise Malformed("response truncated at max_tokens")
+    return "".join(parts), resolved
 
 
 class StubBackend(object):
@@ -386,10 +725,12 @@ class StubBackend(object):
     """
 
     kind = "stub"
+    batched = False
 
     def __init__(self, fail_transport=29, fail_malformed=23, retry_ok=17):
         self.model = STUB_MODEL_ID
         self.resolved_models = Counter()
+        self.usage = UsageTally()
         # Keyed on the prompt, not on a call counter: at temperature 0 a retry
         # sends an identical prompt and gets an identical answer, so a
         # systematically malformed review stays malformed on the second attempt.
@@ -400,6 +741,9 @@ class StubBackend(object):
 
     def __call__(self, prompt):
         self.resolved_models[STUB_MODEL_ID] += 1
+        # No tokens are billed and none are invented: a stub that reported
+        # plausible usage would let a cost figure be quoted from synthetic data.
+        self.usage.add(None)
         h = int(hashlib.sha1(prompt.encode("utf-8")).hexdigest(), 16)
         first = prompt not in self._seen
         self._seen.add(prompt)
@@ -420,6 +764,368 @@ class StubBackend(object):
             "price_complaint": (h >> 24) % 9 == 0,
         }
         return json.dumps(obj), STUB_MODEL_ID
+
+
+# --------------------------------------------------------------------------
+# Batches API
+# --------------------------------------------------------------------------
+
+BATCH_MAX_REQUESTS = 100000       # API limit per batch
+BATCH_TERMINAL = ("succeeded", "errored", "canceled", "expired")
+
+
+class HttpBatchTransport(object):
+    """Raw POST/GET against /v1/messages/batches. No SDK (stdlib-only policy)."""
+
+    kind = "api"
+
+    def __init__(self, api, timeout=300):
+        self._api = api
+        self.timeout = timeout
+
+    def _call(self, url, data=None):
+        req = urllib.request.Request(url, data=data,
+                                     headers=self._api.headers())
+        delay = 1.0
+        last = None
+        for attempt in range(self._api.transport_retries + 1):
+            try:
+                with urllib.request.urlopen(req, timeout=self.timeout) as r:
+                    return json.loads(r.read().decode("utf-8"))
+            except urllib.error.HTTPError as e:
+                detail = ""
+                try:
+                    detail = e.read().decode("utf-8", "replace")[:400]
+                except Exception:
+                    pass
+                last = "HTTP %s %s" % (e.code, detail)
+                if e.code not in RETRY_STATUS:
+                    raise Transport(last)
+            except Exception as e:
+                last = "%s: %s" % (type(e).__name__, e)
+            if attempt < self._api.transport_retries:
+                time.sleep(delay)
+                delay = min(delay * 2, 30.0)
+        raise Transport(last or "exhausted transport retries")
+
+    def create(self, requests_):
+        body = json.dumps({"requests": requests_}).encode("utf-8")
+        return self._call(self._api.base_url + "/v1/messages/batches", body)
+
+    def retrieve(self, batch_id):
+        return self._call(self._api.base_url + "/v1/messages/batches/"
+                          + urllib.parse.quote(batch_id))
+
+    def results(self, results_url):
+        """Stream the JSONL result file, one parsed object per line."""
+        req = urllib.request.Request(results_url, headers=self._api.headers())
+        with urllib.request.urlopen(req, timeout=self.timeout) as r:
+            for raw in r:
+                line = raw.decode("utf-8").strip()
+                if line:
+                    yield json.loads(line)
+
+
+class BatchBackend(object):
+    """The same one-review requests, submitted through the Batches API.
+
+    50% off every token, for work nobody is waiting on. It is one review per
+    REQUEST and many requests per BATCH - never several reviews in one request,
+    which would let batch ordering leak one review's context into the next and
+    would not be the scorer the calibration gate covers.
+
+    Results arrive in ANY ORDER, so everything here is keyed on `custom_id`.
+    Nothing is read by position: a results file that came back in a different
+    order would otherwise attach every score to the wrong review, and the rows
+    would all look perfectly well-formed.
+
+    `.result.type` is one of succeeded / errored / canceled / expired, and only
+    a success carries `.result.message`. An `errored` result is a TRANSPORT
+    failure, not a malformed response: the model never answered, so counting it
+    as malformed would read an outage as a scorer problem - the exact confusion
+    the existing split exists to prevent.
+    """
+
+    kind = "batch"
+    batched = True
+
+    def __init__(self, api, transport, poll_seconds=20, max_wait=24 * 3600,
+                 chunk=BATCH_MAX_REQUESTS, quiet=False):
+        self._api = api
+        self._t = transport
+        self.model = api.model
+        self.resolved_models = api.resolved_models
+        self.usage = api.usage
+        self.poll_seconds = poll_seconds
+        self.max_wait = max_wait
+        self.chunk = min(chunk, BATCH_MAX_REQUESTS)
+        self.quiet = quiet
+        self.batch_ids = []
+
+    def params_for(self, prompt):
+        return self._api.params_for(prompt)
+
+    # -- submission ------------------------------------------------------
+
+    def _submit(self, rows):
+        reqs = []
+        seen = set()
+        for r in rows:
+            rid = r["review_id"]
+            if rid in seen:
+                # Two requests under one custom_id would collapse into one
+                # result and silently lose a review. read_reviews already
+                # refuses a genuine id collision; this catches the case where
+                # the batch builder itself duplicated a row.
+                die("review_id %r appears twice in one batch submission.\n"
+                    "Results are keyed on custom_id, so two requests sharing\n"
+                    "one id return a single result and the other review\n"
+                    "vanishes without appearing as a failure." % rid)
+            seen.add(rid)
+            reqs.append({"custom_id": rid,
+                         "params": self.params_for(prompt_for_row(r))})
+        created = self._t.create(reqs)
+        bid = created.get("id")
+        if not bid:
+            die("the Batches API accepted the submission but returned no batch\n"
+                "id, so there is nothing to poll and %d requests are in flight\n"
+                "with no way to collect them." % len(reqs))
+        self.batch_ids.append(bid)
+        return bid, set(seen)
+
+    # -- polling ---------------------------------------------------------
+
+    def _await(self, batch_id):
+        t0 = time.time()
+        while True:
+            info = self._t.retrieve(batch_id)
+            status = info.get("processing_status")
+            if status == "ended":
+                return info
+            waited = time.time() - t0
+            if waited > self.max_wait:
+                die("batch %s is still %r after %.0f s.\n"
+                    "Nothing has been written. The batch is not lost - it is\n"
+                    "still on the server and the API keeps results for 29 days\n"
+                    "- so re-run to collect it rather than re-submitting, which\n"
+                    "would pay for every request twice."
+                    % (batch_id, status, waited))
+            if not self.quiet:
+                counts = info.get("request_counts") or {}
+                sys.stderr.write(
+                    "    batch %s %s · done %d/%d · %.0fs\r"
+                    % (batch_id[:18], status,
+                       sum(counts.get(k, 0) for k in BATCH_TERMINAL),
+                       sum(counts.values()) or 0, waited))
+                sys.stderr.flush()
+            time.sleep(self.poll_seconds)
+
+    # -- collection ------------------------------------------------------
+
+    def _collect(self, info, expected):
+        """{review_id: (raw_text_or_None, resolved, note)} keyed on custom_id."""
+        url = info.get("results_url")
+        if not url:
+            die("batch %s ended with no results_url.\n"
+                "There is no way to read what it produced, and guessing from\n"
+                "request_counts would be inventing scores." % info.get("id"))
+        out = {}
+        for item in self._t.results(url):
+            cid = item.get("custom_id")
+            if cid not in expected:
+                # Never ignored: an unexpected custom_id means the mapping
+                # between requests and results is not what this code thinks it
+                # is, and every score in the batch is then suspect.
+                die("batch %s returned a result for custom_id %r, which was\n"
+                    "never submitted in it. Results are keyed on custom_id, so\n"
+                    "a key nobody sent means the request/result mapping is\n"
+                    "wrong and no score from this batch can be trusted."
+                    % (info.get("id"), cid))
+            res = item.get("result") or {}
+            kind = res.get("type")
+            if kind == "succeeded":
+                try:
+                    raw, resolved = read_message(
+                        res.get("message") or {}, self.model,
+                        self.resolved_models, self.usage)
+                except Malformed as e:
+                    out[cid] = (None, self.model, ("malformed", str(e)))
+                    continue
+                out[cid] = (raw, resolved, ("ok", None))
+            elif kind in ("errored", "canceled", "expired"):
+                # The model did not answer. Transport, not malformed output.
+                err = ((res.get("error") or {}).get("type")
+                       or (res.get("error") or {}).get("message") or kind)
+                out[cid] = (None, self.model,
+                            ("transport", "batch result %s: %s" % (kind, err)))
+            else:
+                out[cid] = (None, self.model,
+                            ("transport", "unknown batch result type %r" % kind))
+        return out
+
+    def score_rows(self, rows):
+        """Score a list of review rows. Returns {review_id: (result, note)}.
+
+        The rubric's single malformed-output retry is honoured as a second
+        batch over just the malformed ids. At temperature 0 that resends an
+        identical request, so it recovers truncation rather than systematic
+        malformation - exactly as the synchronous path's retry does.
+        """
+        results, notes = {}, {}
+        pending = list(rows)
+        by_id = dict((r["review_id"], r) for r in rows)
+
+        for round_ in (1, 2):
+            if not pending:
+                break
+            if not self.quiet and round_ == 2:
+                print("\nretry round        %d malformed response(s) resubmitted"
+                      % len(pending))
+            collected = {}
+            for i in range(0, len(pending), self.chunk):
+                part = pending[i:i + self.chunk]
+                bid, expected = self._submit(part)
+                if not self.quiet:
+                    print("batch submitted    %s · %d request(s)" % (bid, len(part)))
+                info = self._await(bid)
+                if not self.quiet:
+                    sys.stderr.write("\n")
+                got = self._collect(info, expected)
+                # A submitted id with no result line is a loss, recorded as one.
+                for rid in expected:
+                    if rid not in got:
+                        got[rid] = (None, self.model,
+                                    ("transport",
+                                     "no result line for custom_id in batch %s"
+                                     % bid))
+                collected.update(got)
+
+            retry = []
+            for rid, (raw, resolved, note) in collected.items():
+                if note[0] == "transport":
+                    results[rid] = _failed_row(rid, self.model)
+                    notes[rid] = note
+                    continue
+                try:
+                    obj = parse_response(raw, rid)
+                except Malformed as e:
+                    if round_ == 1:
+                        retry.append(by_id[rid])
+                    else:
+                        results[rid] = _failed_row(rid, self.model)
+                        notes[rid] = ("malformed", str(e))
+                    continue
+                results[rid] = {
+                    "review_id": rid,
+                    "tone": obj["tone"],
+                    "seller_or_shipping_only": obj["seller_or_shipping_only"],
+                    "defect": obj["defect"],
+                    "price_complaint": obj["price_complaint"],
+                    "scoring_failed": False,
+                    "rubric_version": None,      # stamped by the caller
+                    "scorer_model_id": resolved,
+                    "scored_at": None,
+                }
+                notes[rid] = ("ok" if round_ == 1 else "ok_after_retry", None)
+            pending = retry
+
+        for r in rows:
+            rid = r["review_id"]
+            if rid not in results:
+                # Unreachable: every submitted id is either collected or given
+                # a no-result-line note above. Written as a failure rather than
+                # an assertion so a review can never silently disappear (F13).
+                results[rid] = _failed_row(rid, self.model)
+                notes[rid] = ("transport", "never returned by any batch")
+        return dict((rid, (results[rid], notes[rid])) for rid in results)
+
+
+class StubBatchTransport(object):
+    """Offline Batches API: out-of-order results, every terminal type, a gap.
+
+    Exercises what the live endpoint cannot be asked to do on demand. The shapes
+    it produces are the ones that break a position-keyed reader and a reader
+    that treats `errored` as malformed - so the batch path is verified against
+    them before a single paid request is sent.
+    """
+
+    kind = "stub"
+
+    def __init__(self, backing, drop_ids=(), error_ids=(), expired_ids=(),
+                 canceled_ids=(), reverse=True, extra_custom_id=None,
+                 stall_rounds=0):
+        self._backing = backing
+        self.drop_ids = set(drop_ids)
+        self.error_ids = set(error_ids)
+        self.expired_ids = set(expired_ids)
+        self.canceled_ids = set(canceled_ids)
+        self.reverse = reverse
+        self.extra_custom_id = extra_custom_id
+        self.stall_rounds = stall_rounds
+        self._batches = {}
+        self._polls = Counter()
+        self._n = 0
+
+    def create(self, requests_):
+        self._n += 1
+        bid = "msgbatch_stub_%03d" % self._n
+        self._batches[bid] = requests_
+        return {"id": bid, "processing_status": "in_progress",
+                "request_counts": {"processing": len(requests_)}}
+
+    def retrieve(self, batch_id):
+        self._polls[batch_id] += 1
+        if self._polls[batch_id] <= self.stall_rounds:
+            return {"id": batch_id, "processing_status": "in_progress",
+                    "request_counts": {"processing":
+                                       len(self._batches[batch_id])}}
+        return {"id": batch_id, "processing_status": "ended",
+                "results_url": "stub://" + batch_id,
+                "request_counts": {"succeeded": len(self._batches[batch_id])}}
+
+    def results(self, results_url):
+        bid = results_url[len("stub://"):]
+        items = []
+        for req in self._batches[bid]:
+            cid = req["custom_id"]
+            if cid in self.drop_ids:
+                continue
+            if cid in self.error_ids:
+                items.append({"custom_id": cid,
+                              "result": {"type": "errored",
+                                         "error": {"type": "overloaded_error"}}})
+                continue
+            if cid in self.expired_ids:
+                items.append({"custom_id": cid, "result": {"type": "expired"}})
+                continue
+            if cid in self.canceled_ids:
+                items.append({"custom_id": cid, "result": {"type": "canceled"}})
+                continue
+            prompt = req["params"]["messages"][0]["content"]
+            try:
+                raw, _ = self._backing(prompt)
+            except Transport as e:
+                items.append({"custom_id": cid,
+                              "result": {"type": "errored",
+                                         "error": {"type": "api_error",
+                                                   "message": str(e)}}})
+                continue
+            items.append({"custom_id": cid, "result": {
+                "type": "succeeded",
+                "message": {"model": STUB_MODEL_ID, "stop_reason": "end_turn",
+                            "content": [{"type": "text", "text": raw}],
+                            "usage": None},
+            }})
+        if self.extra_custom_id:
+            items.append({"custom_id": self.extra_custom_id,
+                          "result": {"type": "succeeded",
+                                     "message": {"content": []}}})
+        # Out of order on purpose. A reader that keyed on position would attach
+        # every score to the wrong review and nothing in the output would say so.
+        if self.reverse:
+            items.reverse()
+        for it in items:
+            yield it
 
 
 # --------------------------------------------------------------------------
@@ -474,6 +1180,7 @@ def _failed_row(rid, model):
 # --------------------------------------------------------------------------
 
 def die(msg, code=2):
+    _record_refusal()
     sys.stderr.write("\n%s\n\n" % msg)
     sys.exit(code)
 
