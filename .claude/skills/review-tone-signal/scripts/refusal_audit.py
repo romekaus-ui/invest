@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Does every refusal in the collector have a test that trips it? (CONTRACTS.md §5)
+"""Does every refusal have a test that trips it? (CONTRACTS.md §5)
 
-    python3 refusal_audit.py
+    python3 refusal_audit.py                 # every audited component
+    python3 refusal_audit.py score_reviews   # just one
 
-Exit 0 when every refusal site fired at least once during the self-test suite,
-2 when any did not, or when the audit's own controls fail.
+Exit 0 when every refusal site fired at least once during the component's own
+self-test suite, 2 when any did not, or when the audit's own controls fail.
 
 
 WHY
@@ -56,17 +57,41 @@ right.
 
 import ast
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-TARGET = os.path.join(HERE, "collect_reviews.py")
 
+# Each component names its file, the env var its `die()` logs through, the
+# command that runs its own self-test suite, and a floor on how many refusal
+# sites the parser must still find there.
+#
 # A parser that stopped finding refusal sites would report full coverage of
 # nothing, and would do it in exactly the confident tone of a passing audit. The
 # floor is the audit's own guard against itself; raise it as refusals are added.
-MIN_SITES = 30
+COMPONENTS = {
+    "collect_reviews": {
+        "file": "collect_reviews.py",
+        "env": "COLLECT_REFUSAL_LOG",
+        "argv": ["self-test"],
+        "min_sites": 30,
+    },
+    # Added 2026-10-20 with --sample-per-quarter, --batch and prompt caching.
+    # Two of its refusals are the shape this audit exists for: the batch
+    # refusals (an unexpected custom_id, a submitted id with no result line, a
+    # batch that never ends) fire only on server behaviour that cannot be
+    # requested on demand, and the request-body validator stands between a
+    # drifted scorer and 5,794 scores that would all look well-formed.
+    "score_reviews": {
+        "file": "score_reviews.py",
+        "env": "SCORE_REFUSAL_LOG",
+        "argv": ["SAMPLE", "--self-test", "--outdir", None],
+        "min_sites": 35,
+        "needs_fixture": True,
+    },
+}
 
 
 def refusal_sites(path):
@@ -94,10 +119,33 @@ def enclosing_def(path, lineno):
     return best.name if best else "<module>"
 
 
-def run_suite(log_path):
+def find_reviews_fixture():
+    """A real reviews.csv for the components whose self-test needs one.
+
+    The committed live corpus, copied into a throwaway directory. Nothing under
+    `data/` is written: the self-test's own stub guard refuses that anyway.
+    """
+    root = os.path.dirname(os.path.dirname(os.path.dirname(
+        os.path.dirname(HERE))))
+    for dirpath, _dirs, files in os.walk(os.path.join(root, "data")):
+        if "reviews.csv" in files:
+            return os.path.join(dirpath, "reviews.csv")
+    return None
+
+
+def run_suite(spec, target, log_path, workdir):
     env = dict(os.environ)
-    env["COLLECT_REFUSAL_LOG"] = log_path
-    r = subprocess.run([sys.executable, TARGET, "self-test"], env=env,
+    env[spec["env"]] = log_path
+    argv = list(spec["argv"])
+    if spec.get("needs_fixture"):
+        src = find_reviews_fixture()
+        if src is None:
+            return None, "no reviews.csv anywhere under data/ to run against"
+        tdir = os.path.join(workdir, "SAMPLE")
+        os.makedirs(tdir, exist_ok=True)
+        shutil.copy(src, os.path.join(tdir, "reviews.csv"))
+    argv = [workdir if a is None else a for a in argv]
+    r = subprocess.run([sys.executable, target] + argv, env=env,
                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     return r.returncode, r.stdout.decode("utf-8", "replace")
 
@@ -114,24 +162,30 @@ def fired_from(log_path):
     return out
 
 
-def main():
-    print("refusal-site audit · %s\n" % os.path.basename(TARGET))
+def audit(name, spec):
+    target = os.path.join(HERE, spec["file"])
+    min_sites = spec["min_sites"]
+    print("=" * 66)
+    print("refusal-site audit · %s\n" % os.path.basename(target))
 
-    sites = refusal_sites(TARGET)
+    sites = refusal_sites(target)
     print("refusal sites found      %d" % len(sites))
 
     # --- control 1: the floor -------------------------------------------
     # A parser that found nothing would otherwise report 100% of zero.
-    if len(sites) < MIN_SITES:
+    if len(sites) < min_sites:
         print("\nFAIL · only %d refusal sites found, below the floor of %d.\n"
               "Either refusals were deleted, or the parser stopped finding\n"
               "them - and a parser that finds none reports full coverage of\n"
-              "nothing. Refusing to pass." % (len(sites), MIN_SITES))
+              "nothing. Refusing to pass." % (len(sites), min_sites))
         return 2
 
-    tmp = tempfile.mkdtemp(prefix="refusal-audit-")
+    tmp = tempfile.mkdtemp(prefix="refusal-audit-%s-" % name)
     log = os.path.join(tmp, "fired.log")
-    rc, out = run_suite(log)
+    rc, out = run_suite(spec, target, log, tmp)
+    if rc is None:
+        print("\nFAIL · %s" % out)
+        return 2
     fired = fired_from(log)
     print("suite exit               %d" % rc)
     print("refusals actually fired  %d distinct site(s)\n" % len(fired))
@@ -176,8 +230,8 @@ def main():
         print("\nUNCOVERED REFUSAL SITES - no test trips these, so nothing")
         print("shows whether they can fire at all:\n")
         for ln in uncovered:
-            print("  %s:%d  (%s)" % (os.path.basename(TARGET), ln,
-                                     enclosing_def(TARGET, ln)))
+            print("  %s:%d  (%s)" % (os.path.basename(target), ln,
+                                     enclosing_def(target, ln)))
             print("      %s" % sites[ln][:96])
         print("\nFAIL · %d of %d refusal sites never fired. §5: a check that\n"
               "always passes is indistinguishable from a check that passes."
@@ -185,11 +239,33 @@ def main():
         return 2
 
     print("\nOK · every refusal site fired at least once.")
+    return 0
+
+
+def main():
+    wanted = sys.argv[1:] or sorted(COMPONENTS)
+    unknown = [w for w in wanted if w not in COMPONENTS]
+    if unknown:
+        print("unknown component(s): %s\nknown: %s"
+              % (", ".join(unknown), ", ".join(sorted(COMPONENTS))))
+        return 2
+
+    rc = 0
+    for name in wanted:
+        rc = audit(name, COMPONENTS[name]) or rc
+        print("")
+
+    print("=" * 66)
+    if rc == 0:
+        print("OK · %d component(s) audited, every refusal site fired."
+              % len(wanted))
+    else:
+        print("FAIL · at least one component has a refusal nothing trips.")
     print("\nThis rules out one failure only: a guard that cannot fire. It does")
     print("NOT establish that any refusal is correct, and it is not line")
     print("coverage - a site can fire for a reason other than the intended one")
     print("and this still passes.")
-    return 0
+    return rc
 
 
 if __name__ == "__main__":

@@ -95,6 +95,63 @@ Required keys: `scored_at`, `rubric_version`, `rubric_sha256`, `scorer_model_id`
 `tone_star_pearson` is F8's check: the scorer never saw the star, so a value near
 0.95 means the text added nothing over the star average.
 
+Also required, added 2026-10-20 with the three cost changes:
+
+| key | notes |
+|---|---|
+| `batch_tier` | bool — the run went through the Batches API at 50% off |
+| `batch_ids` | the batch ids, so a run can be reconciled against the bill |
+| `sampling` | the `scoring_sample` block below, or `null` on a full run |
+| `cache` | `requested`, `engaged` (**`true` / `false` / `null`**), `cache_read_input_tokens`, `cache_creation_input_tokens`, `min_cacheable_prefix_tokens` |
+| `cost` | measured from `usage`, with `usd_total` and `usd_per_review` **null** for a model with no recorded price |
+
+**`cache.engaged` is read from `usage.cache_read_input_tokens`, never from the
+request.** The minimum cacheable prefix is model-dependent (512–4096 tokens) and
+a prefix below it is accepted and caches nothing, with no error — so a run that
+inferred the discount from the marker being present would report a saving it
+never received. `null` means no call reported usage, which is *unknown*, not no.
+
+Measured 2026-10-20 on `claude-haiku-4-5-20251001`: the rubric prompt counts 644
+input tokens against that model's 4,096-token minimum, and cache reads stayed at
+0 across 48 live calls. The marker is kept because `cache_creation_input_tokens`
+was also 0 — nothing is written, so there is no write premium to pay — and it
+becomes live unchanged on a model with a lower minimum.
+
+## `data/{TICKER}/manifest.json` — `scoring_sample`
+
+Written by `score_reviews.py --sample-per-quarter N`. Absent on a full run, and
+its absence means every review in `reviews.csv` was scored.
+
+| key | notes |
+|---|---|
+| `n_per_quarter` | N |
+| `seed`, `stage`, `stage_offset` | from `env_stamp.stage_seed("scoring_sample")` — never chosen by the stage |
+| `draw`, `draw_inputs` | the algorithm, and that it reads only `review_ids`, `quarter`, `seed` |
+| `nested_in_n` | the N draw is a subset of any larger N from the same population and seed |
+| `population_total`, `drawn_total`, `n_quarters` | |
+| `per_quarter[q].population` | **the population the quarter was drawn from** |
+| `per_quarter[q].population_sha256` | sha256 of that population's sorted id set |
+| `per_quarter[q].drawn`, `.drawn_review_ids` | what was actually scored |
+| `per_quarter[q].took_all` | the quarter was shorter than N and was taken whole |
+| `per_quarter[q].below_floor` | fewer than `MIN_REVIEWS_PER_QUARTER` reviews exist |
+
+`population` and `population_sha256` are the point of the block: without them a
+quarter sampled down to 150 and a quarter that genuinely held 150 are
+indistinguishable, and any coverage ratio computed from the scored count reads as
+though the whole quarter had been scored.
+
+> **Unsettled, and flagged rather than worked around:** `aggregate.py` refuses a
+> `reviews.csv` row with no row in `scores.csv` — *"run the scoring stage to
+> completion before aggregating"* — which is right for a full run and exactly
+> wrong for a sampled one, where unscored rows are the intended outcome. So a
+> sampled company **scores but does not aggregate** until `aggregate.py` (a)
+> reads this block and treats a review outside `drawn_review_ids` as
+> deliberately unscored, while still refusing one that *was* drawn and has no
+> score, and (b) carries an `n_population` column in `quarters.csv` beside the
+> existing `n_reviews`. That change belongs to whoever owns stage A; it is
+> **not** made by the scorer. `SAMPLING_DOWNSTREAM` in `score_reviews.py` states
+> it in the same words, and every sampled run prints it.
+
 ## `data/{TICKER}/calibration.json`
 The B3 gate record. **Downstream stages must read this and refuse to produce a
 result unless `gate == "pass"` and both `rubric_version` and `scorer_model_id`

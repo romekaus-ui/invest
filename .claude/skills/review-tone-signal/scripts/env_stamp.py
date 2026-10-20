@@ -41,6 +41,13 @@ STAGE_OFFSETS = {
     "null": 1,
     "calibration": 2,
     "degradation": 3,
+    # Added 2026-10-18 for score_reviews.py --sample-per-quarter. Scoring a
+    # per-quarter subsample is a methodology choice, not a cheaper loop, so its
+    # draw needs a seed from this table rather than one the stage invents: the
+    # same corpus and seed must draw the same sample in two sessions. It is
+    # distinct from "degradation", which models Amazon's helpfulness-ranked
+    # regime; this one is a uniform draw taken to cut scoring cost.
+    "scoring_sample": 4,
 }
 
 _REPO = os.path.dirname(os.path.dirname(os.path.dirname(
