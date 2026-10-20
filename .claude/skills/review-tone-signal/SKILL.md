@@ -39,7 +39,7 @@ gate is unmet.
 | B1 | Freeze prereg | `prereg/TEMPLATE.md` | hash committed |
 | B2 | Extract reviews from the 2023 corpus | `scripts/extract_reviews.py` | contracts validated |
 | B3 | Calibrate scorer against human labels | `scripts/score_reviews.py --calibrate` | agreement >= threshold |
-| B4 | Score reviews | `scripts/score_reviews.py` | — |
+| B4 | Score reviews | `scripts/score_reviews.py` (`--sample-per-quarter N --batch` to cut cost ~20x) | — |
 | B5 | Aggregate quarterly tone, decompose mix | `scripts/aggregate.py` | floors met |
 | B6 | Fetch point-in-time revenue | `scripts/fetch_sec.py` | vintages intact |
 | B7 | Backtest vs baseline + null | `scripts/backtest.py` | beats baseline on held-out |

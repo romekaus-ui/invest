@@ -1,5 +1,125 @@
 # Changelog
 
+## 2026-10-20 — scoring costs ~20x less, and caching is not why
+
+Scoring measured **$0.0040/review**: $5 of credit bought 1,241 reviews and ran out
+mid-run on Weber, leaving 5,794 unscored at **$23**. Three changes to
+`score_reviews.py` take that to **$1.14** on the briefed burn rate. Two of the three
+work. The third does not, and the interesting part of this entry is the third.
+
+### Prompt caching does not engage on this model, and was measured rather than assumed
+
+The rubric is the whole of the cacheable prefix, byte-identical on every call, and was
+being re-sent 5,794 times. Putting `cache_control` on the system block is the obvious
+90% saving on input tokens — except that **the minimum cacheable prefix is
+model-dependent, between 512 and 4,096 tokens, and a prefix below it is accepted and
+caches nothing with no error at all.**
+
+Measured 2026-10-20 on `claude-haiku-4-5-20251001`: the rubric prompt counts **644
+input tokens** against that model's **4,096-token minimum**, and
+`cache_read_input_tokens` stayed at **0 across 48 live calls**.
+`cache_creation_input_tokens` was 0 too, so nothing is written and there is no 1.25x
+write premium being paid for a cache nothing reads — which is why the marker is kept
+rather than removed. It becomes live, unchanged, on a model with a lower minimum.
+
+**The caching contribution to every cost figure below is $0.00.** A run that had
+inferred the discount from the request being accepted would have reported a saving it
+never received, and the bill would have been the only thing to say otherwise. Every run
+now carries a `cache.engaged` verdict read from `usage`, and `--require-cache` turns a
+non-engaging cache into a refusal about the cost *claim* — not about the scores, which
+are unaffected either way.
+
+### Sampling, and why it is a methodology change
+
+The per-quarter floor is 30 reviews. Weber averages 509, so scoring all of them pays
+17x for precision the method never asks for. `--sample-per-quarter N` scores at most N
+per quarter — measured on Weber: **6,106 reviews to 600 at N=50, 10.18x fewer calls,
+and not one of the 12 quarters falls below the floor.**
+
+Built as a method rather than a cheaper loop:
+
+- the seed comes from `env_stamp.stage_seed("scoring_sample")` (a new stage offset, 4),
+  so two sessions cannot each invent one;
+- the draw is a function of **(review ids, quarter, seed)** and nothing else. It is
+  taken over the full quarter population and only then intersected with what is already
+  scored, so resuming an interrupted run cannot move it — if it had drawn from "not yet
+  scored" it would depend on how far the previous run got;
+- a partial Fisher-Yates prefix over the **sorted** ids, using only `randrange()` as
+  `numeric-stack.md` §3 requires. Sorting makes it independent of row order in
+  `reviews.csv`; the prefix makes it **nested in N**, so raising N deepens a quarter
+  instead of redrawing it;
+- quarters come from `aggregate.period_label`, imported rather than reimplemented: a
+  sampler drawing on a different boundary from the one the aggregator buckets on would
+  record a sample against periods that do not exist downstream;
+- the manifest records N, the seed, the drawn ids per quarter, **the population each was
+  drawn from, and that population's id-set sha256** — so a quarter sampled to 150 cannot
+  be read as a quarter that genuinely held 150, nor as one whose population has since
+  changed underneath it;
+- a quarter shorter than N is taken whole; one under 30 is insufficient exactly as it
+  always was, and is recorded rather than quietly producing a thin number later.
+
+**Flagged, not worked around:** `aggregate.py` refuses a `reviews.csv` row with no score
+row, which is right for a full run and exactly wrong for a sampled one. A sampled
+company therefore **scores but does not aggregate** until that stage reads the new
+manifest block and carries an `n_population` column beside `n_reviews`. The scorer does
+not edit `aggregate.py`; `SAMPLING_DOWNSTREAM` states what is needed and every sampled
+run prints it.
+
+### Batch, and the constraint over all three
+
+`--batch` routes the same one-review requests through the Batches API at 50% off,
+keyed on `custom_id` throughout — results arrive in any order, and nothing is read by
+position. `errored`/`canceled`/`expired` are counted as **transport** failures, not
+malformed responses: the model never answered, and reading an outage as a scorer problem
+is the confusion that split exists to prevent. `output_config`'s JSON schema is accepted
+in batches (0 malformed in 40). The synchronous path is untouched, and `--batch` is
+refused with `--calibrate`.
+
+The constraint outranking all three is that the scorer must keep giving the same answer
+to the same input — the gate passed for `(v1, claude-haiku-4-5-20251001)` at temperature
+0, kappa 0.811 against 100 human labels, and covers that scorer and no other. So the
+request body is built in **one** place for both paths, and `validate_request_params`
+refuses six ways it could stop being that scorer.
+
+**Verified, not assumed:** 40 already-scored Traeger reviews, stratified across the full
+tone range, re-scored through the new batch+cache path — **40/40 exact on tone, 40/40 on
+all three tags, no disagreement anywhere.** `count_tokens` separately confirms the bare
+string, the single text block, and the block carrying `cache_control` all count 644
+input tokens, so moving the rubric into a block to hang the marker on it did not change
+the prompt.
+
+### Measured cost
+
+| | Weber's remaining 5,794 |
+|---|---|
+| as briefed, all of them, synchronous | **$23.18** |
+| \+ sampling only (N=50) | $2.28 |
+| \+ sampling + batch (caching contributing $0.00) | **$1.14** |
+
+Per review, measured from `usage` on 40 real reviews: **$0.001250** synchronous,
+**$0.000625** on the batch tier, at 1,035 input and 43 output tokens per review.
+
+**Unsettled:** that measured per-review cost is ~3.2x *lower* than the $0.0040 the $5
+credit implied, so the same 5,794 reviews unsampled would be $7.24 rather than $23 on
+token cost alone. The $5 evidently also funded other work that day — the 2026-10-14
+`output_config` experiment, calibration draws, aborted runs — and it cannot be
+attributed from here. The projections above are given on **both** bases; the measured
+figure is the one to project from, since `usage` is what billing is computed on.
+
+### §5
+
+The refusal audit now covers `score_reviews.py` as well as the collector, and earned
+its place on the first run: the "per-review text in the system block" guard **could not
+fire**, because a system block with the review appended also fails the byte-equality
+check that ran first. Reordered so both are reachable. The audit also found **18
+refusals that were already in the file and had never fired** — the same finding it made
+on the peer-group component, where it was 24 of 70 — and those are covered too,
+including the benign near-miss twin of the id-collision guard: an *exact* duplicate row
+must be dropped and counted, not refused, or the guard gets switched off and then guards
+nothing.
+
+**73 of 73 refusal sites across both components now fire.**
+
 ## 2026-10-17 — the peer-group component learns the `route` field
 
 `CONTRACTS.md` §1 was amended on 2026-10-15 to add **`route`** per product, because
