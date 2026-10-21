@@ -28,6 +28,7 @@ Standard library only (`references/numeric-stack.md`).
 """
 
 import os
+import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -38,54 +39,77 @@ CHOICES = ("dev", "full")
 _ANNOUNCED = [False]
 
 
-def _refuse_if_discipline_returns(root):
-    """Hard-exit if held-out discipline has been reintroduced without this module.
+def frozen_prereg(root):
+    """The active frozen prereg and its held-out boundary, or (None, None).
 
-    If someone restores a `prereg/` directory, they mean to hold data back. This
-    module would then be permitting exactly what it used to prevent, and the
-    only signal would be a line of stdout nobody reads. Stop instead.
+    A prereg in `prereg/` means a window has been declared unspent, and from
+    that moment this module is the thing that keeps it unspent. The file is
+    read, never written.
     """
-    prereg = os.path.join(root, "prereg")
-    if os.path.isdir(prereg) and any(
-            f.endswith(".md") and f != "TEMPLATE.md"
-            for f in os.listdir(prereg)):
+    d = os.path.join(root, "prereg")
+    if not os.path.isdir(d):
+        return None, None
+    for fn in sorted(os.listdir(d)):
+        if not fn.endswith(".md") or fn == "TEMPLATE.md":
+            continue
+        path = os.path.join(d, fn)
+        with open(path, encoding="utf-8") as f:
+            text = f.read()
+        m = re.search(r"Held-out[^\n|]*\|?[^\n]*?(FY\d{4}Q[1-4])", text)
+        if not m:
+            m = re.search(r"[Hh]eld-out[\s\S]{0,400}?(FY\d{4}Q[1-4])", text)
+        if m:
+            return path, m.group(1)
+        # A prereg with no parseable boundary is worse than none: it declares a
+        # window and does not say where it starts.
         sys.exit(
-            "refusing to run: %s exists, so held-out discipline has been\n"
-            "reintroduced, but window.py no longer enforces it. It was made\n"
-            "inert when the project moved to forward-only collection, where\n"
-            "there is no unspent period in the data to protect.\n\n"
-            "Restoring the prereg means restoring the enforcement with it.\n"
-            "The archived implementation is at\n"
-            "  archive/historical-harness/scripts/pipeline_state.py\n"
-            "(detect_prereg, parse_window, heldout_contamination).\n\n"
-            "This is a refusal and not a warning, because a guard that permits\n"
-            "everything while looking like a guard is worse than no guard."
-            % prereg)
+            "refusing to run: %s declares held-out data but no parseable "
+            "boundary.\nThe window must name its first held-out quarter as "
+            "FY####Q#." % path)
+    return None, None
+
+
+def qkey(label):
+    """FY2026Q3 -> (2026, 3). None when the label is not a fiscal quarter."""
+    m = re.fullmatch(r"FY(\d{4})Q([1-4])", (label or "").strip())
+    return (int(m.group(1)), int(m.group(2))) if m else None
 
 
 class Window(object):
-    """Accepts every period. Kept so callers need not branch on the design."""
+    """Allows every period, or every period before a frozen held-out boundary."""
 
-    def __init__(self, mode, root):
+    def __init__(self, mode, root, heldout=None, source=None):
         self.mode, self.root = mode, root
         self.dropped = 0
-        # Callers record the window they ran under in their manifests. There is
-        # no bound to record, and None says that honestly where a tuple would
-        # imply a restriction that is not applied.
-        self.bounds = None
-        self.source = "no window (forward-only collection)"
-        self.frozen = False
+        self.heldout = heldout            # (year, quarter) or None
+        self.bounds = heldout
+        self.source = source or "no window (forward-only collection)"
+        self.frozen = heldout is not None
 
     @property
     def restricts(self):
-        return False
+        return self.heldout is not None and self.mode == "dev"
 
-    def allows(self, label):          # noqa: ARG002 - every label is allowed
+    def allows(self, label):
+        if not self.restricts:
+            return True
+        k = qkey(label)
+        if k is None:
+            # An unreadable label cannot be shown to be outside held-out.
+            # Refusing it loses a quarter; admitting it risks the window.
+            self.dropped += 1
+            return False
+        if k >= self.heldout:
+            self.dropped += 1
+            return False
         return True
 
     def describe(self):
-        return ("no window restriction: the live monitor collects forward, so "
-                "there is no held-out period in the data (CORE-PROMPT s8)")
+        if not self.restricts:
+            return ("no window restriction: no frozen prereg declares an "
+                    "unspent period (CORE-PROMPT s8)")
+        return ("held-out from FY%04dQ%d onward, per %s - excluded from this run"
+                % (self.heldout[0], self.heldout[1], self.source))
 
 
 def add_argument(parser):
@@ -98,16 +122,35 @@ def add_argument(parser):
 
 def resolve(args, stage="this stage"):
     root = os.path.abspath(getattr(args, "root", None) or DEFAULT_ROOT)
-    _refuse_if_discipline_returns(root)
     mode = getattr(args, "window", "dev")
+    path, boundary = frozen_prereg(root)
+
+    if boundary is None:
+        if not _ANNOUNCED[0]:
+            sys.stderr.write(
+                "note: --window %s restricts nothing - no frozen prereg declares "
+                "an unspent period.\n" % mode)
+            _ANNOUNCED[0] = True
+        return Window(mode, root)
+
+    hk = qkey(boundary)
+    if mode == "full":
+        sys.exit(
+            "refusing --window full: %s declares FY%04dQ%d onward held out, and\n"
+            "that window is unspent.\n\n"
+            "%s would read it, and the reading is what spends it - deleting the\n"
+            "output afterwards does not undo that. The held-out quarters exist so\n"
+            "a claim can be tested against data nobody has seen; a run over the\n"
+            "full window converts the test into a description.\n\n"
+            "Run with --window dev. This is not a flag to override."
+            % (os.path.relpath(path, root), hk[0], hk[1], stage))
+
     if not _ANNOUNCED[0]:
         sys.stderr.write(
-            "note: --window %s accepted but restricts nothing. The live monitor\n"
-            "      collects forward, so no period is held out; %s reads every\n"
-            "      period it has. CORE-PROMPT s8 governs what may be claimed.\n"
-            % (mode, stage))
+            "note: held-out from FY%04dQ%d onward (%s) is EXCLUDED from this run.\n"
+            % (hk[0], hk[1], os.path.relpath(path, root)))
         _ANNOUNCED[0] = True
-    return Window(mode, root)
+    return Window(mode, root, heldout=hk, source=os.path.relpath(path, root))
 
 
 def add_tickers_argument(parser, help_text):
