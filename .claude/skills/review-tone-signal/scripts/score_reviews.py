@@ -1589,12 +1589,23 @@ def read_reviews(path, win=None):
     if missing:
         die("%s is missing required columns: %s" % (path, sorted(missing)))
     if win is not None and win.restricts:
-        if "fiscal_quarter" not in rows[0]:
-            die("%s has no fiscal_quarter column, so --window %s cannot be\n"
-                "honoured. Scoring it would put held-out reviews through the\n"
-                "scorer with nothing able to tell afterwards (CORE-PROMPT s1.4).\n"
-                "Re-extract it with extract_reviews.py." % (path, win.mode))
-        kept = [r for r in rows if win.allows(r.get("fiscal_quarter"))]
+        # The quarter comes from `aggregate.period_label`, the same function the
+        # sampler already uses - imported, never reimplemented. A live-collected
+        # reviews.csv deliberately carries no `fiscal_quarter`: the collector
+        # drops it because fresh reviews are not on any company's fiscal
+        # calendar, and assigning one there would bake one company's calendar
+        # into another's data (CONTRACTS.md s2). Demanding the column here
+        # refused every live file, which would have made the held-out boundary
+        # unenforceable on exactly the data it exists to protect.
+        labelled = [(r, quarter_of(r)) for r in rows]
+        unlabelled = [r for r, q in labelled if not q]
+        if unlabelled:
+            die("%d review(s) in %s have neither a fiscal_quarter nor a\n"
+                "parseable review_date, so --window %s cannot be honoured for\n"
+                "them. Scoring them would put possibly-held-out reviews through\n"
+                "the scorer with nothing able to tell afterwards (CORE-PROMPT "
+                "s1.4)." % (len(unlabelled), path, win.mode))
+        kept = [r for r, q in labelled if win.allows(q)]
         if not kept:
             die("%s has no reviews inside %s" % (path, win.describe()))
         if len(kept) != len(rows):

@@ -1195,3 +1195,23 @@ defect 3.
 python3 .claude/skills/review-tone-peer-group/tests/test_declare_group.py   # 102 checks
 python3 .claude/skills/review-tone-peer-group/scripts/declare_group.py verify  # 5 versions
 ```
+
+## 2026-10-21 — Backtest: the signal loses to its base rate
+
+Scored Traeger and Weber's full available review history (`data/bbq-backtest/`, 1,548
+reviews at 50/quarter, $1.0216) and ran the §4 test over every quarter where tone and
+revenue both exist.
+
+S1 hit 5/15 (33.3%), S2 6/15 (40.0%), against a 66.7% always-negative base rate. Both
+sit in the bottom tail of their own 2,000-replicate shuffled-date null (1st and 4th
+percentile). Recorded in `results/backtest-traeger-tone-v1.md` as a failure.
+
+Reported as a backtest, never as the prereg's held-out test: the author had seen the
+revenue outcomes for all 15 quarters before the scores were read. That contamination
+points toward flattering the signal, which is why the negative result carries weight.
+
+The inverted signal is not adopted. §5 forbids re-specifying against the quarters that
+killed the hypothesis, and inverting would merely recover the base rate.
+
+Window is 15 quarters, not 20: review history reaches 2016 but Traeger listed in 2021,
+so EDGAR holds no earlier quarterly vintage. More reviews cannot extend it.

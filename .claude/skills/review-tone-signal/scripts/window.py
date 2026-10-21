@@ -82,7 +82,11 @@ class Window(object):
         self.mode, self.root = mode, root
         self.dropped = 0
         self.heldout = heldout            # (year, quarter) or None
-        self.bounds = heldout
+        # `bounds` means a bounded (start, end) range to callers that record it.
+        # A held-out boundary is open-ended below - everything before FY####Q#
+        # is allowed - so there is no pair to report and None says that, rather
+        # than a 2-tuple the formatters would misread as a range.
+        self.bounds = None
         self.source = source or "no window (forward-only collection)"
         self.frozen = heldout is not None
 
