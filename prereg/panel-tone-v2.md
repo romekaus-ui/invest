@@ -83,7 +83,30 @@ revenue quarter Q is built from reviews in quarter **Q + L**. One alignment is t
 not several. If the estimate is ambiguous between two values, both are declared now and
 counted as two specifications in §4.
 
-> `L = ` *(to be filled by the §3 measurement, before freezing)*
+### The measurement, run 2026-10-22
+
+No route exposes a purchase or ship date, so method 1 was unavailable. Lag was estimated
+from **stated ownership duration in review text** — a review-only field, touching no
+revenue figure.
+
+| | Traeger | Weber |
+|---|---|---|
+| reviews stating a duration | 614 / 3,840 (16.0%) | 3,621 / 41,775 (8.7%) |
+| bought within ~1 month | 38.9% | 53.1% |
+| ~1 quarter earlier | 12.7% | 24.0% |
+| ~2 quarters earlier | 6.7% | 1.9% |
+| **7.5+ months earlier** | **41.7%** | **21.1%** |
+| median months owned | 4.0 | 1.0 |
+| implied L | **1** | **0** |
+
+> **`L ∈ {0, 1}`.** The estimate is ambiguous between two values and §3 requires both to
+> be declared and counted. L=0 and L=1 are each run as full specifications; neither is
+> promoted to primary after the fact.
+
+**The estimator's own bias, stated:** fewer than one review in six states a duration, and
+a reviewer who has owned the product for years is more likely to mention it than one who
+bought it last week. The long tail is therefore overstated. The measurement establishes
+that a wide spread exists; it does not pin its shape.
 
 ## 4. Signal, endpoint and analysis
 
@@ -107,7 +130,7 @@ differences cannot create the association. Two-sided. Significance from a
 company independently*, which preserves each company's own autocorrelation and seasonal
 shape. A plain pooled shuffle would overstate significance and is not used.
 
-**Declared secondary tests, counted.** `specifications_tested = 4`:
+**Declared secondary tests, counted.** `specifications_tested = 6` (four below, each at L=0 and L=1 where applicable):
 
 1. the one-sided negative direction the v1 backtest suggests;
 2. the peer-relative construction (S2 in v1), where a group has a second reachable member;
@@ -152,7 +175,14 @@ result therefore means "no strong effect here", never "no effect".
    correlation with no forecasting content. This design **cannot** distinguish that from
    a real leading indicator. Doing so needs price or promotion data the project does not
    have, and that limitation is reported with any positive result.
-6. **The within/mix decomposition remains provisional**, traceable to a second-hand
+6. **Purchase dates are smeared, not lagged** — the §3 measurement's real finding, and
+   the most likely reason v1 failed. A quarter's reviews mix purchases spanning years
+   (41.7% of Traeger's duration-stating reviewers bought 7.5+ months earlier), so no
+   choice of L maps a review quarter cleanly onto a revenue quarter. This attenuates any
+   true association toward zero by an unmeasured factor, which means **a null result here
+   is even weaker evidence of absence than §5's power note already says.** Fixing it
+   needs a purchase-dated review source, which no reachable route provides.
+7. **The within/mix decomposition remains provisional**, traceable to a second-hand
    reconstruction rather than the source paper.
 
 ## 7. Freezing
