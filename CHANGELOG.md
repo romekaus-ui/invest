@@ -1215,3 +1215,45 @@ killed the hypothesis, and inverting would merely recover the base rate.
 
 Window is 15 quarters, not 20: review history reaches 2016 but Traeger listed in 2021,
 so EDGAR holds no earlier quarterly vintage. More reviews cannot extend it.
+
+## 2026-10-22 — Universe screen and the per-quarter floor gate
+
+Widened the reachable pool before freezing `prereg/panel-tone-v2.md` §2, which fixes
+membership permanently. Reachable listed companies went from 5 to 18.
+
+`data/_route-tests/universe-screen-2026-10-22.json` — brand site -> review platform ->
+key, then catalogue depth and reach. Most brand sites refuse a plain GET or render the
+widget from JS, so probing the Bazaarvoice CDN directly by client name turned 1 hit into
+22. New failure mode: Generac's deployment serves 28,145 "products" that are electrical
+contractors; it passes every numeric gate and only reading the names catches it.
+
+`data/_route-tests/quarters-gate-2026-10-22.json` — the 30-text-bearing-reviews-per-
+quarter floor, measured by sampling each product's date-to-offset curve rather than
+exhausting routes. **17 unspent listed companies clear a 12+ quarter consecutive run,
+totalling ~500 company-quarters above the floor.**
+
+Validated against the control: Traeger's actually-collected corpus has 30 clearing
+quarters and a 28-quarter run; the gate estimated 31 and 31.
+
+Four corrections to my own work, recorded in the files rather than quietly fixed:
+
+- Two passkeys (Olaplex, then Traeger) were written from nothing instead of derived.
+  Both returned empty catalogues, which is the only reason they were caught — and the
+  Olaplex one caused the screen to reject one of its strongest candidates.
+- Catalogue-wide recency was first attempted with an unfiltered `reviews.json` query,
+  which Bazaarvoice answers with zero rows. Every brand read EMPTY, including Toro.
+- Reach and recency were first read off each brand's single top product, which is often
+  discontinued. Across the top six, Purple is 1 day stale rather than 206, BowFlex 8
+  rather than 554.
+- The gate was described as a lower bound. It is not: it samples the six most-reviewed
+  products deployment-wide, which a declared family set need not contain. The control
+  shows it runs slightly high.
+
+Also: recency is the wrong gate for v2, which tests on existing history. GoPro, Sleep
+Number, Deckers and Solo Brands were marked down for staleness and are fully usable for
+a historical panel. Recency gates only the forward cadence.
+
+And a second instance of the Generac problem, inside data already collected: one product
+the gate picked for Traeger is `3-2-1-baby-back-ribs`, a recipe page. Traeger pools
+recipe reviews with grill reviews. The seven declared families exclude them, but nothing
+in the family-selection rule requires that. Recorded as a gap in CONTRACTS.md §1.
