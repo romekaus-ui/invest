@@ -1257,3 +1257,47 @@ And a second instance of the Generac problem, inside data already collected: one
 the gate picked for Traeger is `3-2-1-baby-back-ribs`, a recipe page. Traeger pools
 recipe reviews with grill reviews. The seven declared families exclude them, but nothing
 in the family-selection rule requires that. Recorded as a gap in CONTRACTS.md §1.
+
+## 2026-10-26 — The panel has 386 testable company-quarters across 15 companies
+
+Pulled point-in-time EDGAR revenue for 20 CIKs into `data/panel-v2/` and intersected it
+with the de-duplicated review depth. Recorded in
+`data/_route-tests/panel-testable-2026-10-26.json`.
+
+A quarter counts as testable only if tone clears the 30-text-bearing-review floor at Q
+and at each of Q−1..Q−4, and an original-vintage revenue figure exists for Q and Q−4.
+Tone and revenue join on the calendar quarter of `period_end`, so offset fiscal years
+still align in time.
+
+**15 companies, 386 testable company-quarters.** Up from the 60–100 the v2 draft assumed.
+
+The SEC contact in `SEC_USER_AGENT` was the user's own name and email, used with their
+explicit permission and sent only to data.sec.gov, as EDGAR's fair-access policy
+requires. `fetch_sec.py` refuses to invent one.
+
+Also found, and recorded rather than patched:
+
+- **Pooling was severe and inflated numbers I had already reported.** Products with
+  identical review counts return identical review-id sets: Traeger's Pro 780 and Pro 575
+  share one set of 1,215 (Jaccard 1.00), eight Atkins Endulge products share one set of
+  3,415, twenty products collapsing to three representatives. The universe screen's
+  "pooled reviews" column counted the same review up to six times.
+- **The gate's earlier validation was weaker than stated.** 31 estimated vs 30 actual
+  clearing quarters for Traeger validated the date-axis sampling, not the magnitudes — a
+  quarter far from a floor of 30 stays on the same side of it when its count is
+  multiplied. After de-duplication the control still reads 31, so the conclusion holds,
+  but it held for a reason that had not been checked.
+- **Two delisted companies are deliberately kept in**: BowFlex (Chapter 11, 2024) at 47
+  quarters and Olaplex at 17. A survivors-only panel would be biased, and both have
+  intact filings and review history.
+- **Toro, BowFlex and Spectrum supply 35% of the testable quarters.** The
+  leave-one-company-out test in §4 is load-bearing, not ceremony.
+- **SharkNinja drops out at 2 quarters, and it is a data limit not a bug.** EDGAR
+  companyfacts holds only four quarterly revenue facts for CIK 0001957132 despite its
+  2023 listing; no other revenue tag carries quarterly durations. Solo Brands drops out
+  at 4.
+
+Gates still open before §2 can be frozen: revenue concentration per filing (expected to
+demote Garmin, Spectrum and Hamilton Beach), and a family-selection rule that rejects
+non-product catalogue entries — Traeger's catalogue holds a recipe page with 964 reviews
+and Olaplex a "Removed Products Reviews" bucket with 8,928.

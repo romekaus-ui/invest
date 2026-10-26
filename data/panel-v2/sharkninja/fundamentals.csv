@@ -1,0 +1,5 @@
+fiscal_quarter,period_start,period_end,filed_date,revenue,xbrl_tag,accession,form,restated,n_vintages,lag_days,comparative_only
+FY2025Q1,2025-01-01,2025-03-31,2026-05-06,1222638000.0,RevenueFromContractWithCustomerExcludingAssessedTax,0001957132-26-000035,10-Q,False,1,401,True
+FY2025Q2,2025-04-01,2025-06-30,2026-08-05,1444876000.0,RevenueFromContractWithCustomerExcludingAssessedTax,0001957132-26-000048,10-Q,False,1,401,True
+FY2026Q1,2026-01-01,2026-03-31,2026-05-06,1412806000.0,RevenueFromContractWithCustomerExcludingAssessedTax,0001957132-26-000035,10-Q,False,1,36,False
+FY2026Q2,2026-04-01,2026-06-30,2026-08-05,1765476000.0,RevenueFromContractWithCustomerExcludingAssessedTax,0001957132-26-000048,10-Q,False,1,36,False
