@@ -1590,6 +1590,87 @@ pa2 = dg.classify_product_page(
 check("a product that is its own parent is not flagged",
       pa2.get("is_variant_child") is False, pa2)
 
+# ------------------------------------- §2: a catalogue entry that is not a product
+# Each of the three cases below is a real entry measured in a live deployment on
+# 2026-10-22, and each cleared every depth and recency gate in the universe
+# screen. The near-misses underneath them are real too, and they are the half of
+# this that matters: a guard that refuses "Electric Start" gets switched off, and
+# then it guards nothing (§5).
+print("\nthe contract refuses a catalogue entry that is not a product")
+
+
+def bv_pair(pr):
+    """A valid two-member group whose Traeger product is `pr`."""
+    return group(members=[bv_member(products=[pr]), weber_member()],
+                 group_id="barbecue-grills", seed="Traeger")
+
+
+refuses("a recipe page (Traeger 3-2-1-baby-back-ribs, 964 reviews)",
+        bv_pair(bv_product(product_id="3-2-1-baby-back-ribs",
+                           family="fam-3-2-1-baby-back-ribs",
+                           family_product_ids=["3-2-1-baby-back-ribs"],
+                           name="3-2-1-baby-back-ribs",
+                           verification=bv_verification(
+                               title_seen="3-2-1-baby-back-ribs"))),
+        "other than a reviewable product")
+
+refuses("an administrative bucket (Olaplex RemovedProductsReviews, 8,928)",
+        bv_pair(bv_product(product_id="RemovedProductsReviews",
+                           family="fam-removedproductsreviews",
+                           family_product_ids=["RemovedProductsReviews"],
+                           name="Removed Products Reviews",
+                           verification=bv_verification(
+                               title_seen="Removed Products Reviews"))),
+        "other than a reviewable product")
+
+refuses("a third-party contractor (Generac SHEPP ELECTRIC CO INC)",
+        bv_pair(bv_product(name="SHEPP ELECTRIC CO INC",
+                           verification=bv_verification(
+                               title_seen="SHEPP ELECTRIC CO INC"))),
+        "probably a business rather than a product")
+
+refuses("a contractor caught by the lexicon rather than the suffix",
+        bv_pair(bv_product(name="Corbin Electrical Services, Inc.",
+                           verification=bv_verification(
+                               title_seen="Corbin Electrical Services, Inc."))),
+        "other than a reviewable product")
+
+# The id carries the evidence when the name does not: camel case has to be split
+# before a lexicon can see inside it.
+check("camel-case ids are split so the lexicon can read them",
+      dg.words_of_identifier("RemovedProductsReviews") == "removed products reviews",
+      dg.words_of_identifier("RemovedProductsReviews"))
+check("a kebab id survives the same split",
+      "baby back ribs" in dg.words_of_identifier("3-2-1-baby-back-ribs"),
+      dg.words_of_identifier("3-2-1-baby-back-ribs"))
+
+
+# --- the near-misses. Every one of these is a REAL product and must be allowed.
+def subject_ok(label, name):
+    pr = bv_product(name=name, verification=bv_verification(title_seen=name))
+    out = dg._validate_product_subject(pr, "p", brands=["Traeger"])
+    check("allows " + label, not out, out)
+
+
+subject_ok("Toro's 'Electric Start' mower",
+           "22 in. (56cm) Recycler Electric Start w/Personal Pace Gas Lawn Mower")
+subject_ok("Olaplex's 'BOND REPAIR STARTER SET'", "BOND REPAIR STARTER SET")
+subject_ok("Honest's diaper subscription box", "diaper-box-subscription")
+subject_ok("YETI's replacement lid", "Replacement Large Magslider Lid")
+subject_ok("a Limited Edition product", "Limited Edition Rambler 20 oz Tumbler")
+subject_ok("a rib rack, which is a product and not a recipe", "Porcelain Rib Rack")
+subject_ok("Shark's handheld vacuum", "Shark Wandvac Cordless Handheld Vacuum")
+
+# The documented residue. This is recorded as a test so that the gap is a
+# measured property of the guard rather than something a later reader discovers.
+_amb = bv_product(name="AMBROSE ELECTRIC",
+                  verification=bv_verification(title_seen="AMBROSE ELECTRIC"))
+check("KNOWN GAP: a contractor with no corporate suffix is not caught",
+      not dg._validate_product_subject(_amb, "p", brands=["Traeger"]),
+      "if this now fails the guard was tightened - update NON_PRODUCT_LEXICON's "
+      "comment, which claims five of Generac's six are caught")
+
+
 check("strip_scripts removes script bodies",
       "secret" not in dg.strip_scripts('<script>var x="secret";</script>ok'))
 wrong = dg.classify_product_page(

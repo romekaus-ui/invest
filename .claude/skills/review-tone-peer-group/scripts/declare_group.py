@@ -304,6 +304,76 @@ POPULARITY_LEXICON = (
     "high volume", "many reviews", "review count",
 )
 
+# §2 tracks REVIEWABLE PRODUCTS. A brand's review deployment is not a product
+# catalogue - it is whatever that brand decided to collect reviews against, and
+# three kinds of entry measured on 2026-10-22 are not products at all:
+#
+#   * a RECIPE. Traeger's deployment serves "3-2-1-baby-back-ribs" with 964
+#     reviews, sitting fifth among its most-reviewed entries. Tone on a recipe
+#     is tone on a cooking result, not on a grill.
+#   * an ADMINISTRATIVE BUCKET. Olaplex's catalogue contains "Removed Products
+#     Reviews" (ProductId RemovedProductsReviews) holding 8,928 reviews swept
+#     out of delisted products. Its dates and its subjects are both unusable.
+#   * a THIRD PARTY. Generac's deployment serves 28,145 "products" that are
+#     electrical contractors - AMBROSE ELECTRIC, SHEPP ELECTRIC CO INC - whose
+#     reviews rate installers. It passed every numeric gate in the universe
+#     screen; only the names gave it away.
+#
+# All three clear a review-count floor comfortably, so no amount of depth
+# checking finds them. This lexicon is the mechanical half of the fix.
+#
+# It is NOT sufficient and must not be read as such. An accessory, a spare part
+# or a warranty plan is also not the product whose tone is wanted, carries the
+# brand in its name, and is invisible here - Spectrum's most-reviewed entries
+# are replacement shaver screens. That judgement stays with the declarer, which
+# is why `name` records what the catalogue actually served.
+#
+# Phrases are matched the way every other lexicon here is: word boundaries,
+# case-insensitive, over a dash- and space-normalised string. Each entry below
+# was chosen against the real near-misses in the declared and screened groups,
+# listed beside it where one exists.
+NON_PRODUCT_LEXICON = (
+    # administrative buckets
+    "removed products", "removed product", "deleted products",
+    "test product", "do not use", "placeholder", "dummy product",
+    "sample product", "gift card", "gift certificate",
+    "dealer locator", "store locator", "find a dealer", "store location",
+    # recipes and cooking results. "baby back ribs" is a dish; a RIB RACK is a
+    # product and does not match. "smoked" alone is not here - Traeger sells a
+    # smoker.
+    "recipe", "baby back ribs", "pulled pork", "beer can chicken",
+    "smoked brisket", "how to cook", "how to smoke",
+    # third-party service businesses
+    "electrical services", "electric services", "plumbing", "hvac",
+    "heating and air", "and sons",
+)
+
+# A third-party business entry usually ends in a corporate suffix, which a
+# product name almost never does. Deliberately tight: bare "co", "company",
+# "services" and "limited" are EXCLUDED, because "Limited Edition" and
+# "...Cleaning Co" style product names exist and a guard that refuses correct
+# products is a guard someone switches off (§5).
+#
+# Measured against the six Generac dealer entries recorded on 2026-10-22, this
+# catches five. "AMBROSE ELECTRIC" carries no suffix and is NOT caught - the
+# residue the lexicon above and the declarer's own reading have to cover.
+ENTITY_SUFFIX_RE = re.compile(
+    r"\b(inc|incorporated|llc|l\.?l\.?c|llp|corp|corporation|ltd|gmbh|pty|"
+    r"s\.?a\.?r\.?l)\.?\s*$", re.I)
+
+
+def words_of_identifier(ident):
+    """Split a product id into words so a lexicon can see inside it.
+
+    "RemovedProductsReviews" is one token to canon(), which folds separators
+    but cannot split camel case - so the bucket that motivated this check would
+    slip past a check on the id alone. Kebab and snake ids already survive
+    canon(); this adds the camel-case case.
+    """
+    t = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", ident or "")
+    return canon(t)
+
+
 # What a continuity reason has to actually assert. Either an anchoring year (an
 # item demonstrably on sale since a dated point) or a term that names the item's
 # place in the catalogue. A lexicon is gameable by an agent that knows it is
@@ -916,10 +986,48 @@ def _validate_products(m, tag, brands, seen, idx, allow_unverified):
         else:
             p.extend(_validate_brand_product(pr, ptag, route, seen, idx))
 
+        p.extend(_validate_product_subject(pr, ptag, brands))
         p.extend(_validate_continuity(pr, ptag, brands))
         p.extend(_validate_verification(pr, ptag, allow_unverified))
         p.extend(_validate_title_agreement(pr, ptag, brand))
     return p
+
+
+def _validate_product_subject(pr, ptag, brands=()):
+    """Is this catalogue entry a product at all?
+
+    See NON_PRODUCT_LEXICON for what motivated it and for what it cannot do.
+    Checked over the declared `name`, the served `title_seen` where one was
+    recorded, and the identifier with camel case split, because the three carry
+    the evidence in different places: Traeger's recipe is visible in all three,
+    Olaplex's bucket only in the name and the id.
+
+    The brand exemption is the same narrow one `lexicon_hits` already applies,
+    so a brand that happens to contain a listed phrase is not refused by it.
+    """
+    out = []
+    name = _s(pr, "name")
+    v = pr.get("verification") or {}
+    served = _s(v, "title_seen")
+    ident = _s(pr, "product_id") or _s(pr, "asin")
+
+    for field, text in (("name", name), ("verification.title_seen", served),
+                        ("product_id", words_of_identifier(ident))):
+        for hit in lexicon_hits(text, NON_PRODUCT_LEXICON, exempt=brands):
+            out.append("%s.%s %r: %r marks this as something other than a "
+                       "reviewable product - a recipe, an administrative bucket "
+                       "or a third-party listing. §2 tracks products, and tone "
+                       "measured on one of these is not tone on the company's "
+                       "product. Declare the product itself"
+                       % (ptag, field, (text or "")[:70], hit))
+
+    for field, text in (("name", name), ("verification.title_seen", served)):
+        if text and ENTITY_SUFFIX_RE.search(text.strip()):
+            out.append("%s.%s %r: ends in a corporate suffix, so this is "
+                       "probably a business rather than a product. Generac's "
+                       "deployment serves 28,145 electrical contractors this "
+                       "way and clears every depth gate" % (ptag, field, text[:70]))
+    return out
 
 
 def _validate_amazon_product(pr, ptag, seen, idx):

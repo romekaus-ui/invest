@@ -65,6 +65,33 @@ Rules this encodes (CORE-PROMPT §2, PLAN.md concentration filter):
   private member and so contradicted the line below it. Concentration exists so tone can
   be joined to *revenue*; a private member has no revenue to join and is there to tell a
   category-wide move from a company-specific one.)
+- **A declared product must be a product.** A brand's review deployment is not a
+  product catalogue; it is whatever that brand chose to collect reviews against, and
+  three kinds of entry measured on 2026-10-22 are not products at all:
+
+  | entry | reviews | what it actually is |
+  |---|---|---|
+  | Traeger `3-2-1-baby-back-ribs` | 964 | a **recipe** — tone on a cooking result |
+  | Olaplex `RemovedProductsReviews` | 8,928 | an **administrative bucket** of reviews swept out of delisted products |
+  | Generac `AMBROSE ELECTRIC`, and 28,144 others | thousands | **electrical contractors** — the reviews rate installers |
+
+  All three clear any review-count floor comfortably, so depth checking cannot find
+  them; Generac's deployment passed every numeric gate in the universe screen and was
+  caught only by reading the names. `declare_group.py` now refuses an entry whose
+  `name`, served `title_seen`, or camel-case-split identifier hits
+  `NON_PRODUCT_LEXICON`, or whose name ends in a corporate suffix.
+
+  **This is the mechanical half and is not sufficient.** An accessory, a spare part or
+  a warranty plan is also not the product whose tone is wanted, carries the brand in
+  its name, and is invisible to the check — Spectrum's most-reviewed entries are
+  replacement shaver screens and cutters. That judgement stays with the declarer, which
+  is why `name` records what the catalogue actually served. Two further limits are
+  measured rather than assumed: of Generac's six recorded dealer entries the check
+  catches five, missing `AMBROSE ELECTRIC` because it carries no suffix; and the
+  corporate-suffix list deliberately excludes bare `co`, `company`, `services` and
+  `limited`, because "Limited Edition Rambler" is a real product and a guard that
+  refuses correct products is one someone switches off (§5).
+
 - `venue: "private"` is valid and useful — a private competitor is a category control.
 - At least two members, or `members[0]` is explicitly flagged as having no peer.
 - Revising a group means a **new file with a new hash**, never an edit in place.

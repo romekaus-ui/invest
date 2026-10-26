@@ -1331,3 +1331,39 @@ at 0.581. Neither is a clean call and both are recorded as such.
 **New concentration risk:** BowFlex is now 47 of 203 surviving quarters (23%), and its
 revenue ends 2023Q4 because of the Chapter 11. Leave-one-company-out matters more after
 this gate than before it.
+
+## 2026-10-26 — Family selection now refuses catalogue entries that are not products
+
+`CONTRACTS.md` §1 required a product's identifier, name, brand, continuity reason and
+verification record, but never that the entry be a **product**. Three live entries
+measured on 2026-10-22 are not, and all three clear any review-count floor:
+
+| entry | reviews | what it is |
+|---|---|---|
+| Traeger `3-2-1-baby-back-ribs` | 964 | a recipe |
+| Olaplex `RemovedProductsReviews` | 8,928 | reviews swept out of delisted products |
+| Generac `AMBROSE ELECTRIC` + 28,144 | thousands | electrical contractors |
+
+Generac's deployment passed every numeric gate in the universe screen; only the product
+names gave it away. Olaplex is now in the v2 panel, so this was live rather than
+hypothetical.
+
+`declare_group.py` gains `NON_PRODUCT_LEXICON`, `ENTITY_SUFFIX_RE`,
+`words_of_identifier()` (camel case has to be split before a lexicon can read
+`RemovedProductsReviews`) and `_validate_product_subject()`, checked over the declared
+name, the served title and the identifier.
+
+**What it does not do, stated in the contract rather than discovered later.** An
+accessory or spare part is also not the product whose tone is wanted and is invisible
+here — Spectrum's most-reviewed entries are replacement shaver screens. Of Generac's six
+recorded dealer entries it catches five, missing `AMBROSE ELECTRIC` for having no
+corporate suffix. The suffix list deliberately excludes bare `co`, `company`, `services`
+and `limited`.
+
+Tested per §5 with a case that trips each new refusal site, and with the real
+near-misses that must still be allowed: Toro's "Electric Start" mower, Olaplex's "BOND
+REPAIR STARTER SET", Honest's `diaper-box-subscription`, YETI's replacement lid, a
+"Limited Edition" product and a rib rack, which is a product and not a recipe. The known
+`AMBROSE ELECTRIC` gap is itself a test, so tightening the guard fails a test that names
+the comment to update. Guard-coverage audit: 96 refusal sites, 0 never tripped. All 11
+existing group files revalidate with zero findings from the new guard.
