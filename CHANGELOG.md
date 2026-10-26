@@ -1301,3 +1301,33 @@ Gates still open before §2 can be frozen: revenue concentration per filing (exp
 demote Garmin, Spectrum and Hamilton Beach), and a family-selection rule that rejects
 non-product catalogue entries — Traeger's catalogue holds a recipe page with 964 reviews
 and Olaplex a "Removed Products Reviews" bucket with 8,928.
+
+## 2026-10-26 — Concentration gate: the panel halves, 386 → 203 quarters
+
+Read each panel company's own latest 10-K via EDGAR's rendered R-files. Figures and
+their source URLs are in `data/_route-tests/concentration-gate-2026-10-26.json`.
+
+**8 companies pass, 203 testable quarters.** Two more (GoPro, Honest) are unverified
+because their filings do not split revenue the way the measured products require, and
+no share was estimated for them. Five fail.
+
+| | share | |
+|---|---|---|
+| Toro | **0.190** | Residential $858.3m of $4,510.4m — the reviews are 22-inch walk-behind mowers; Professional is $3,561.0m |
+| Peloton | **0.315** | Connected Fitness $770.4m of $2,446.0m — the reviews are bikes; Subscription is 68.5% |
+| Spectrum | **0.411** | HPC $1,153.7m of $2,809.0m, and Remington is one brand inside HPC |
+| Cricut | **0.538** | Products $381,381k of $708,780k; Platform subscription is the rest |
+| YETI | **0.581** | Drinkware $1,085,838k of $1,868,494k — fails by 1.9 points |
+
+What the failures share: the reviewable consumer item is not what drives the revenue.
+Toro sells to golf courses, Peloton sells subscriptions, Cricut sells a platform,
+Spectrum sells pet and garden goods under other brands. That is confound 3 in
+`prereg/panel-tone-v2.md`, and it removed the two largest contributors to the panel.
+
+The 0.60 floor is called the most arguable constant in `CONTRACTS.md`, and two results
+land within two points of it in opposite directions — Garmin passes at 0.609, YETI fails
+at 0.581. Neither is a clean call and both are recorded as such.
+
+**New concentration risk:** BowFlex is now 47 of 203 surviving quarters (23%), and its
+revenue ends 2023Q4 because of the Chapter 11. Leave-one-company-out matters more after
+this gate than before it.

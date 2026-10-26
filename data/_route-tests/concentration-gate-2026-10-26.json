@@ -1,0 +1,170 @@
+{
+ "measured_at": "2026-10-26",
+ "floor": 0.6,
+ "floor_note": "CONTRACTS.md calls 0.60 the most arguable constant in the project. Two results sit within two points of it, in opposite directions: Garmin passes at 0.609 and YETI fails at 0.581. Neither should be read as a clean call.",
+ "method": "Each company's own latest 10-K, via EDGAR's rendered R-files indexed in FilingSummary.xml. Figures are quoted with the R-file URL they came from. Where a filing's tagged notes do not split revenue the way the measured products require, share_of_revenue is left null rather than estimated.",
+ "headline": {
+  "pass": 8,
+  "pass_quarters": 203,
+  "unverified": 2,
+  "unverified_quarters": 35,
+  "fail": 5,
+  "fail_quarters": 148,
+  "panel_before": 386,
+  "panel_after": 203
+ },
+ "what_the_failures_have_in_common": "Four of the five failures are companies whose reviewable consumer product is NOT the bulk of the business: Toro sells to golf courses and grounds crews, Peloton sells subscriptions, Cricut sells a subscription platform, Spectrum sells pet and garden products under other brands. Review tone on the consumer item cannot speak for revenue it does not drive. This is confound 3 in prereg/panel-tone-v2.md, and it removed the two largest contributors to the panel.",
+ "new_concentration_risk": "BowFlex is now 47 of 203 surviving quarters (23%), and its revenue series ends 2023Q4 because of the Chapter 11. Leave-one-company-out matters more after this gate than before it.",
+ "results": [
+  {
+   "company": "BowFlex (BFX)",
+   "testable_quarters": 47,
+   "measured_line": "home fitness equipment",
+   "why": "single business; the two reported segments (Direct, Retail) are CHANNELS, not product lines",
+   "share_of_revenue": 1.0,
+   "verdict": "PASS",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/1078207/000107820724000092/R36.htm",
+   "evidence": "FY2024 10-K segment note: consolidated net sales $205,964k across Direct/Retail channels; the whole company is home fitness equipment"
+  },
+  {
+   "company": "Simply Good Foods (SMPL)",
+   "testable_quarters": 40,
+   "measured_line": "Quest + Atkins nutrition brands",
+   "why": "both measured brands are declared, so both count",
+   "share_of_revenue": 0.885,
+   "verdict": "PASS",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/1702744/000170274425000046/R21.htm",
+   "evidence": "FY2025 10-K revenue by brand: Quest $863,614k + Atkins $420,787k of total $1,450,920k = 88.5% (OWYN $137,020k is the remainder)"
+  },
+  {
+   "company": "e.l.f. Beauty (ELF)",
+   "testable_quarters": 27,
+   "measured_line": "colour cosmetics and skincare",
+   "why": "ONE reportable segment",
+   "share_of_revenue": 1.0,
+   "verdict": "PASS",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/1600033/000160003326000020/R25.htm",
+   "evidence": "FY2026 10-K: one reportable segment, revenue $1,636,472k"
+  },
+  {
+   "company": "Purple Innovation (PRPL)",
+   "testable_quarters": 26,
+   "measured_line": "mattresses, pillows, bases and bedding",
+   "why": "ONE reportable segment",
+   "share_of_revenue": 1.0,
+   "verdict": "PASS",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/1643953/000121390026036974/R26.htm",
+   "evidence": "FY2025 10-K: 'The Company has one reportable segment'"
+  },
+  {
+   "company": "Garmin (GRMN)",
+   "testable_quarters": 21,
+   "measured_line": "Fitness + Outdoor wearables",
+   "why": "the measured watch families sit across two of five segments",
+   "share_of_revenue": 0.609,
+   "verdict": "PASS (marginal)",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/1121788/000119312526056028/R23.htm",
+   "evidence": "FY2025 10-K: Fitness $2,357,000k + Outdoor $2,054,061k of $7,245,519k = 60.9%. Clears 0.60 by under one point. Aviation, Marine and Auto OEM are 39.1% and the reviews say nothing about them."
+  },
+  {
+   "company": "Olaplex (OLPX)",
+   "testable_quarters": 17,
+   "measured_line": "haircare",
+   "why": "ONE segment, three sales channels",
+   "share_of_revenue": 1.0,
+   "verdict": "PASS",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/1868726/000186872626000009/R24.htm",
+   "evidence": "FY2025 10-K: no intra-entity segments; net sales $422,960k, all haircare"
+  },
+  {
+   "company": "Hamilton Beach (HBB)",
+   "testable_quarters": 13,
+   "measured_line": "small kitchen and home appliances",
+   "why": "single segment; the only split disclosed is geographic",
+   "share_of_revenue": 1.0,
+   "verdict": "PASS",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/1709164/000170916426000037/R23.htm",
+   "evidence": "FY2025 10-K: revenue $606,852k, split only US $458,847k / Other $148,005k"
+  },
+  {
+   "company": "WD-40 (WDFC)",
+   "testable_quarters": 12,
+   "measured_line": "maintenance products",
+   "why": "segments are geographic; the brand note splits Multi-Use and Specialist but the figures were not extracted",
+   "share_of_revenue": null,
+   "verdict": "PASS (share unverified)",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/105132/000010513225000067/R27.htm",
+   "evidence": "FY2025 10-K: net sales $619,985k across Americas/EIMEA/Asia-Pacific. A WD-40-brand split exists in the revenue note; its figures are NOT recorded here, so share_of_revenue stays null rather than guessed."
+  },
+  {
+   "company": "GoPro (GPRO)",
+   "testable_quarters": 20,
+   "measured_line": "action cameras and accessories",
+   "why": "single segment; camera-vs-subscription split is not in the tagged notes",
+   "share_of_revenue": null,
+   "verdict": "UNVERIFIED",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/1500435/000150043526000006/R18.htm",
+   "evidence": "FY2025 10-K: revenue $651,542k, disclosed only by geography. Subscription revenue is material and not separated in the notes, so the camera share cannot be read from them."
+  },
+  {
+   "company": "Honest Company (HNST)",
+   "testable_quarters": 15,
+   "measured_line": "diapers, wipes, skin and personal care",
+   "why": "single segment; category split appears in MD&A, not in a tagged note",
+   "share_of_revenue": null,
+   "verdict": "UNVERIFIED",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/1530979/000162828026011634/R18.htm",
+   "evidence": "FY2025 10-K: revenue $371,317k with no product-category breakdown in the notes. Reading it from MD&A was not done, so no share is recorded."
+  },
+  {
+   "company": "YETI Holdings (YETI)",
+   "testable_quarters": 25,
+   "measured_line": "Drinkware",
+   "why": "the measured products are Ramblers, tumblers and lids - Drinkware only",
+   "share_of_revenue": 0.581,
+   "verdict": "FAIL",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/1670592/000167059226000013/R23.htm",
+   "evidence": "FY2025 10-K net sales by category: Drinkware $1,085,838k of $1,868,494k = 58.1%. Coolers & Equipment is the other 40.1%. Fails 0.60 by 1.9 points."
+  },
+  {
+   "company": "Cricut (CRCT)",
+   "testable_quarters": 12,
+   "measured_line": "Products segment (machines and materials)",
+   "why": "Platform subscription revenue is a separate segment the reviews do not speak for",
+   "share_of_revenue": 0.538,
+   "verdict": "FAIL",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/1828962/000182896226000010/R23.htm",
+   "evidence": "FY2025 10-K: Products $381,381k of total $708,780k = 53.8%; Platform $327,399k = 46.2%"
+  },
+  {
+   "company": "Spectrum Brands (SPB)",
+   "testable_quarters": 44,
+   "measured_line": "Remington personal care",
+   "why": "Remington is one brand inside the HPC segment, so 41.1% is an upper bound",
+   "share_of_revenue": 0.411,
+   "verdict": "FAIL",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/109177/000010917725000043/R28.htm",
+   "evidence": "FY2025 10-K: HPC $1,153.7m of $2,809.0m = 41.1%. The measured products are mostly replacement shaver screens and cutters, a narrower slice still."
+  },
+  {
+   "company": "Peloton (PTON)",
+   "testable_quarters": 21,
+   "measured_line": "Connected Fitness Products",
+   "why": "the measured reviews are of bikes; most revenue is subscription",
+   "share_of_revenue": 0.315,
+   "verdict": "FAIL",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/1639825/000163982526000038/R24.htm",
+   "evidence": "FY2026 10-K: Connected Fitness Products $770.4m of $2,446.0m = 31.5%; Subscription $1,675.6m = 68.5%"
+  },
+  {
+   "company": "Toro (TTC)",
+   "testable_quarters": 46,
+   "measured_line": "Residential segment",
+   "why": "the measured reviews are 22-inch walk-behind mowers; most revenue is Professional",
+   "share_of_revenue": 0.19,
+   "verdict": "FAIL",
+   "source_url": "https://www.sec.gov/Archives/edgar/data/737758/000073775825000115/R13.htm",
+   "evidence": "FY2025 10-K: Residential net sales to external customers $858.3m of $4,510.4m = 19.0%. Professional is $3,561.0m."
+  }
+ ]
+}
