@@ -1367,3 +1367,70 @@ REPAIR STARTER SET", Honest's `diaper-box-subscription`, YETI's replacement lid,
 `AMBROSE ELECTRIC` gap is itself a test, so tightening the guard fails a test that names
 the comment to update. Guard-coverage audit: 96 refusal sites, 0 never tripped. All 11
 existing group files revalidate with zero findings from the new guard.
+
+## 2026-11-05 — First held-out quarter arrives, and yields no testable point
+
+Traeger filed FY2026Q3 on **2026-11-05** (accession `0001628280-26-070415`, 36-day lag),
+the first quarter covered by `prereg/traeger-tone-v1.md` (sha256 `fa1f375d…`, verified
+before this run). Revenue **$74,682,000** against the frozen seasonal-random-walk
+comparator of FY2025Q3's **$125,396,000**: surprise **−$50,714,000**, **−40.44%**.
+
+**The outcome side landed. The signal side does not exist.** The run brief stated that
+FY2026Q3's signal "is already recorded" and should be read from `quarters.csv`. It is
+not there, and this entry exists mainly to say so.
+
+`quarters.csv` does record FY2026Q3 `tone_mean = −0.944444`, the lowest in the series
+and the value prereg §0 declares was seen before freezing. But `tone_mean` is not S1's
+input. S1 is `tone_within(Q) − mean(tone_within, prior 4)`, and FY2026Q3's
+`tone_within`, `baseline_prior4` and `signal` are all blank, by a chain that is working
+as designed:
+
+- **FY2026Q2 collected 26 reviews against a floor of 30** → `sufficient=false`.
+- `aggregate.py` computes the decomposition only on **adjacent sufficient pairs** and
+  refuses to bridge a gap — "interpolating one is forward fill by another name".
+- So `tone_within(FY2026Q3)` is null, and the signal built on it with it.
+
+`manifest.json` from the 2026-10-20 run records `quarters_with_signal: 4` — FY2025Q2,
+FY2025Q3, FY2025Q4, FY2026Q1. **FY2026Q3 is not one of them.** S2 falls with S1, though
+Weber's own FY2026Q3 signal is present at `+0.622757`. No shuffled-date null was run,
+because §4 attaches one to an evaluation and there is none.
+
+**Evaluable held-out points: 0 of 8.** One held-out quarter has elapsed and produced no
+agreement record. Recorded in `results/heldout-traeger-tone-v1.md`.
+
+### What was deliberately not done
+
+The gap is a collection shortfall in FY2026Q2, not a failure of the hypothesis, and it
+is closeable by backfilling FY2026Q2-dated reviews. That would resample a past quarter
+*after* seeing the outcome, and CORE-PROMPT §4 makes the cadence the instrument; prereg
+§5 forbids re-specifying against the held-out window. Nothing was adjusted, re-derived
+or substituted — in particular the 4 November earnings *release* figure was not used in
+place of the filed one, since §3 requires original vintage at the EDGAR `filed` date.
+
+**A gap in the prereg, reported rather than resolved:** it does not say whether an
+unevaluable held-out quarter consumes one of the 8. That is a decision for the author,
+and making it here after seeing the quarter is exactly the move §5 exists to prevent.
+
+### Figures that did not reconcile, all reported
+
+The base rate of a negative surprise now stands at **11/14 = 78.6%** on this dataset
+(10/13 = 76.9% excluding the held-out point). The brief cited 69% of 16 quarters;
+`results/backtest-traeger-tone-v1.md` reports 66.7% of 15 on the deeper
+`data/bbq-backtest/` panel. Three panels, three denominators, same direction: the free
+baseline is high.
+
+Exploratory history on this dataset is **S1 2/3, S2 1/3**, not the 2-of-4 the brief
+cited — FY2025Q4 carries a signal but has no revenue comparator, because 10-Qs do not
+report a fourth quarter. The backtest's 15-quarter version remains S1 5/15, S2 6/15.
+
+### The §6.1 confound travels with this point
+
+`F12 FY2026Q3: verified share 0.00 vs 0.33 over the prior 3 quarters`. Verified-purchase
+share is **0%** against **33%** over the prior three sufficient quarters; Weber's is
+100% in the same quarter. The lowest tone reading in the series is also the quarter in
+which the reviewer population most obviously changed. The brief called that a
+prior-four-quarter mean; the flag spans three, because FY2026Q2 is excluded by the same
+floor that broke the signal.
+
+No buy, sell, hold, target, position size or allocation follows, here or anywhere else
+(CORE-PROMPT §1.1, prereg §7).
