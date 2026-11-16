@@ -23,7 +23,7 @@
   "company": "YETI Holdings, Inc.",
   "company_slug": "yeti-holdings-inc",
   "coverage_method": "collected/10000 claimed (reviews basis), route apify, sort recent",
-  "coverage_ratio": 0.01,
+  "coverage_ratio": 0.015,
   "group_id": "insulated-drinkware",
   "live_collection": {
     "any_sort_verified": true,
@@ -31,9 +31,9 @@
     "cadence_days": 7,
     "cadence_declared_at": "2026-10-13T11:45:32Z",
     "collector_version": "d1-collect-v1",
-    "last_batch_id": "b-382a5a3139",
-    "last_collected_at": "2026-10-14T07:18:27Z",
-    "n_batches": 6,
+    "last_batch_id": "b-66640e5b35",
+    "last_collected_at": "2026-11-16T07:51:55Z",
+    "n_batches": 7,
     "review_date_precision": "day",
     "review_id_schemes": [
       "amazon_review_id",
@@ -46,5 +46,5 @@
       "recent"
     ]
   },
-  "source": "live Amazon collection (CORE-PROMPT \u00a73), not the 2023 corpus"
+  "source": "live Amazon collection (CORE-PROMPT §3), not the 2023 corpus"
 }
